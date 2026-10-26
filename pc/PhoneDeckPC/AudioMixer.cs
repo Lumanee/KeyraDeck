@@ -61,6 +61,39 @@ public class AudioMixer
             s => s.SimpleAudioVolume.Volume = volume);
     }
 
+    /// <summary>Micro Windows par défaut (celui des appels) coupé ou non.</summary>
+    public bool MicMuted() => ReadMute(DataFlow.Capture);
+
+    public bool MasterMuted() => ReadMute(DataFlow.Render);
+
+    public void ToggleMic() => ToggleMute(DataFlow.Capture);
+
+    public void ToggleMaster() => ToggleMute(DataFlow.Render);
+
+    private bool ReadMute(DataFlow flow)
+    {
+        lock (_lock)
+        {
+            try
+            {
+                using var enumerator = new MMDeviceEnumerator();
+                using var device = enumerator.GetDefaultAudioEndpoint(flow, flow == DataFlow.Capture ? Role.Communications : Role.Multimedia);
+                return device.AudioEndpointVolume.Mute;
+            }
+            catch { return false; } // pas de micro / pas de sortie son
+        }
+    }
+
+    private void ToggleMute(DataFlow flow)
+    {
+        lock (_lock)
+        {
+            using var enumerator = new MMDeviceEnumerator();
+            using var device = enumerator.GetDefaultAudioEndpoint(flow, flow == DataFlow.Capture ? Role.Communications : Role.Multimedia);
+            device.AudioEndpointVolume.Mute = !device.AudioEndpointVolume.Mute;
+        }
+    }
+
     public void SetMute(string id, bool muted)
     {
         Apply(id,

@@ -74,7 +74,12 @@ public class IconService
                 case "mixer":
                     return Cached("builtin:volume", () => Builtin("volume"));
                 case "keys":
+                case "text":
                     return Cached("builtin:keyboard", () => Builtin("keyboard"));
+                case "micmute":
+                    return Cached("builtin:mic", () => Builtin("mic"));
+                case "mastermute":
+                    return Cached("builtin:volume", () => Builtin("volume"));
                 case "url":
                     return Cached("builtin:web", () => Builtin("web"));
                 default:

@@ -23,6 +23,9 @@ public class DeckServer
     private readonly StaWorker _sta;
     private readonly List<Client> _clients = new();
     private readonly SemaphoreSlim _layoutLock = new(1, 1);
+    private readonly Dictionary<string, bool> _toggles = new();
+    private string _lastStates = "";
+    private CancellationTokenSource? _stop;
     private WebApplication? _app;
     private string? _layoutJson;
     private Dictionary<string, DeckButton> _buttons = new();
@@ -59,11 +62,14 @@ public class DeckServer
         _app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(20) });
         _app.Run(HandleHttpAsync);
         await _app.StartAsync();
+        _stop = new CancellationTokenSource();
+        _ = Task.Run(() => StateLoopAsync(_stop.Token));
         Log?.Invoke($"Serveur prêt sur le port {Port}");
     }
 
     public async Task StopAsync()
     {
+        _stop?.Cancel();
         if (_app != null) await _app.StopAsync();
     }
 
@@ -149,6 +155,7 @@ public class DeckServer
 
             case "getLayout":
                 await client.SendRawAsync(await GetLayoutJsonAsync());
+                await client.SendRawAsync(StatesJson(ComputeStates()));
                 break;
 
             case "press":
@@ -238,10 +245,68 @@ public class DeckServer
             "url" => await _catalog.OpenUrlAsync(action.Target ?? ""),
             "keys" => await Task.Run(() => KeySender.Send(action.Keys ?? "")),
             "text" => await Task.Run(() => KeySender.TypeText(action.Text ?? "")),
+            "micmute" => await Task.Run(() => { _audio.ToggleMic(); return (string?)null; }),
+            "mastermute" => await Task.Run(() => { _audio.ToggleMaster(); return (string?)null; }),
             _ => null,
         };
+        if (error == null && action.Toggle)
+        {
+            lock (_toggles) _toggles[button.Id] = !_toggles.GetValueOrDefault(button.Id);
+        }
+        _ = BroadcastStatesAsync(force: true);
         Log?.Invoke(error == null ? $"« {button.Label} »" : error);
         return (true, error);
+    }
+
+    // ---------- États des boutons (rouge quand activé) ----------
+
+    private Dictionary<string, bool> ComputeStates()
+    {
+        var states = new Dictionary<string, bool>();
+        bool? mic = null, master = null;
+        foreach (var (id, b) in _buttons.ToList())
+        {
+            var a = b.Action;
+            switch (a.Type.ToLowerInvariant())
+            {
+                case "micmute": states[id] = mic ??= _audio.MicMuted(); break;
+                case "mastermute": states[id] = master ??= _audio.MasterMuted(); break;
+                default:
+                    if (a.Toggle) lock (_toggles) states[id] = _toggles.GetValueOrDefault(id);
+                    break;
+            }
+        }
+        return states;
+    }
+
+    private static string StatesJson(Dictionary<string, bool> states) =>
+        JsonSerializer.Serialize(new { type = "states", active = states.Where(p => p.Value).Select(p => p.Key).ToList() }, Wire);
+
+    private async Task BroadcastStatesAsync(bool force)
+    {
+        try
+        {
+            List<Client> clients;
+            lock (_clients) clients = _clients.ToList();
+            if (clients.Count == 0) return;
+            var json = StatesJson(await Task.Run(ComputeStates));
+            if (!force && json == _lastStates) return;
+            _lastStates = json;
+            foreach (var c in clients)
+            {
+                try { await c.SendRawAsync(json); } catch { }
+            }
+        }
+        catch { /* un état raté sera renvoyé à la seconde suivante */ }
+    }
+
+    private async Task StateLoopAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            try { await Task.Delay(1000, ct); } catch { return; }
+            await BroadcastStatesAsync(force: false);
+        }
     }
 
     // ---------- Disposition des pages ----------
@@ -253,6 +318,7 @@ public class DeckServer
     {
         _layoutJson = null;
         LayoutVersion++;
+        _lastStates = "";
         var json = await GetLayoutJsonAsync();
         List<Client> clients;
         lock (_clients) clients = _clients.ToList();
@@ -260,6 +326,7 @@ public class DeckServer
         {
             try { await c.SendRawAsync(json); } catch { }
         }
+        _ = BroadcastStatesAsync(force: true);
         Log?.Invoke(_store.LastError ?? "Configuration rechargée");
     }
 
@@ -292,8 +359,9 @@ public class DeckServer
         var pages = cfg.Pages.Select((page, index) =>
         {
             var buttons = expanded[page.Id];
-            int? columns = page.Columns ?? (index == 0 ? cfg.Columns : null);
-            int? rows = page.Rows ?? (index == 0 ? cfg.Rows : null);
+            var isRoot = index == 0 || page.Root;
+            int? columns = page.Columns ?? (isRoot ? cfg.Columns : null);
+            int? rows = page.Rows ?? (isRoot ? cfg.Rows : null);
             var cols = Math.Clamp(columns ?? (buttons.Count <= 4 ? 2 : 3), 1, 12);
             var slots = AssignSlots(buttons);
             if (rows != null)
@@ -306,6 +374,7 @@ public class DeckServer
             {
                 id = page.Id,
                 name = page.Name,
+                root = isRoot,
                 columns = columns == null ? (int?)null : cols,
                 rows,
                 buttons = buttons.Select(b =>

@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -65,6 +67,7 @@ private val Desk = Brush.radialGradient(listOf(Color(0xFF2A2A33), Color(0xFF0B0B
 private val BodyBrush = Brush.verticalGradient(listOf(Color(0xFF34343C), Color(0xFF17171B)))
 private val BodyEdge = Brush.verticalGradient(listOf(Color(0x55FFFFFF), Color(0x08FFFFFF)))
 private val KeyCap = Color(0xFF060608)
+private val ActiveRed = Color(0xFFC62828)
 private val KeyScreen = Color(0xFF1B1B21)
 private val Gloss = Brush.verticalGradient(listOf(Color(0x1FFFFFFF), Color(0x00FFFFFF)))
 
@@ -80,15 +83,25 @@ fun DeckScreen(vm: DeckViewModel) {
     }
 
     Box(Modifier.fillMaxSize().background(Desk), contentAlignment = Alignment.Center) {
-        val home = vm.layout?.homePage
-        Device(
-            vm = vm,
-            columns = home?.columns ?: 5,
-            rows = home?.rows ?: 3,
-            buttons = home?.buttons.orEmpty(),
-            onLongPress = { editing = it },
-        )
-        if (home == null) Waiting(vm)
+        val roots = vm.layout?.rootPages.orEmpty()
+        if (roots.isEmpty()) {
+            Device(vm, 5, 3, emptyList(), 0, 1) { editing = it }
+            Waiting(vm)
+        } else {
+            val pager = rememberPagerState(pageCount = { roots.size })
+            HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { index ->
+                val page = roots[index]
+                Device(
+                    vm = vm,
+                    columns = page.columns ?: 5,
+                    rows = page.rows ?: 3,
+                    buttons = page.buttons,
+                    pageIndex = index,
+                    pageCount = roots.size,
+                    onLongPress = { editing = it },
+                )
+            }
+        }
     }
 
     val layout = vm.layout
@@ -99,6 +112,7 @@ fun DeckScreen(vm: DeckViewModel) {
             FolderDialog(
                 page = page,
                 canGoBack = vm.folderStack.size > 1,
+                active = vm.active,
                 onBack = vm::closeFolder,
                 onDismiss = vm::closeAllFolders,
                 onPress = vm::press,
@@ -157,6 +171,8 @@ private fun Device(
     columns: Int,
     rows: Int,
     buttons: List<DeckButton>,
+    pageIndex: Int,
+    pageCount: Int,
     onLongPress: (DeckButton) -> Unit,
 ) {
     val cols = columns.coerceIn(1, 12)
@@ -179,13 +195,14 @@ private fun Device(
                 .border(1.dp, BodyEdge, shape)
                 .padding(start = bezel, end = bezel, bottom = bezel),
         ) {
-            StatusStrip(vm, Modifier.height(strip).width(key * cols + gap * (cols - 1)))
+            StatusStrip(vm, pageIndex, pageCount, Modifier.height(strip).width(key * cols + gap * (cols - 1)))
             val bySlot = buttons.associateBy { it.slot }
             Column(verticalArrangement = Arrangement.spacedBy(gap)) {
                 for (r in 0 until rws) {
                     Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
                         for (c in 0 until cols) {
-                            DeckKey(bySlot[r * cols + c], key, vm::press, onLongPress)
+                            val b = bySlot[r * cols + c]
+                            DeckKey(b, key, b != null && b.id in vm.active, vm::press, onLongPress)
                         }
                     }
                 }
@@ -195,7 +212,7 @@ private fun Device(
 }
 
 @Composable
-private fun StatusStrip(vm: DeckViewModel, modifier: Modifier) {
+private fun StatusStrip(vm: DeckViewModel, pageIndex: Int, pageCount: Int, modifier: Modifier) {
     var menu by remember { mutableStateOf(false) }
     val led = when (vm.status) {
         Status.Connected -> Color(0xFF4CD964)
@@ -221,6 +238,16 @@ private fun StatusStrip(vm: DeckViewModel, modifier: Modifier) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
+        if (pageCount > 1) {
+            // Un petit point par page ; le point clair est la page affichée.
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                repeat(pageCount) { i ->
+                    Box(Modifier.size(if (i == pageIndex) 7.dp else 5.dp).clip(CircleShape)
+                        .background(if (i == pageIndex) Color(0xFFDDDDE6) else Color(0xFF55555E)))
+                }
+            }
+            Spacer(Modifier.width(6.dp))
+        }
         Box {
             IconButton(onClick = { menu = true }, modifier = Modifier.size(26.dp)) {
                 Icon(Icons.Filled.MoreVert, contentDescription = "Menu", tint = Color(0xFF6E6E78), modifier = Modifier.size(16.dp))
@@ -239,6 +266,7 @@ private fun StatusStrip(vm: DeckViewModel, modifier: Modifier) {
 fun DeckKey(
     button: DeckButton?,
     size: Dp,
+    active: Boolean,
     onPress: (DeckButton) -> Unit,
     onLongPress: (DeckButton) -> Unit,
 ) {
@@ -275,7 +303,7 @@ fun DeckKey(
             Modifier
                 .fillMaxSize()
                 .clip(screenShape)
-                .background(button?.color ?: KeyScreen)
+                .background(if (active) ActiveRed else (button?.color ?: KeyScreen))
                 .background(Gloss)
                 .background(if (pressed) Color(0x22FFFFFF) else Color.Transparent)
                 .padding(size * 0.07f),
@@ -312,6 +340,7 @@ fun DeckKey(
 private fun FolderDialog(
     page: DeckPage,
     canGoBack: Boolean,
+    active: Set<String>,
     onBack: () -> Unit,
     onDismiss: () -> Unit,
     onPress: (DeckButton) -> Unit,
@@ -344,7 +373,8 @@ private fun FolderDialog(
                 for (r in 0 until rows) {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         for (c in 0 until columns) {
-                            DeckKey(slots[r * columns + c], 84.dp, onPress, onLongPress)
+                            val b = slots[r * columns + c]
+                            DeckKey(b, 84.dp, b != null && b.id in active, onPress, onLongPress)
                         }
                     }
                 }

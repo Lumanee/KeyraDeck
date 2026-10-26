@@ -76,6 +76,8 @@ La fenêtre de PhoneDeck PC est un **configurateur** : elle affiche une copie du
 - **Changer l'icône** : dépose une image (depuis l'Explorateur) sur le bouton, ou clique sur « Choisir une image… ». « Icône auto » remet l'icône de l'appli.
 - **Grille** : les boutons **+ / −** sous le Stream Deck règlent le nombre de colonnes et de lignes (5×3 par défaut). Chaque dossier a sa propre grille.
 - **Dossiers** : onglets en haut ; double-clic sur un bouton dossier pour l'ouvrir.
+- **Plusieurs pages** : le bouton **＋ Page** ajoute une page d'accueil. Sur le téléphone, on passe de l'une à l'autre en glissant le doigt (les petits points en haut du boîtier montrent où tu en es).
+- **Boutons qui changent d'état** : « Micro Windows » et « Couper le son » deviennent rouges quand c'est coupé (état réel de Windows). Un raccourci peut aussi être « à bascule » (rouge à chaque appui impair), pratique pour Discord.
 - **Macros** : bouton « Raccourci / macro », puis « Enregistrer un raccourci » et appuie sur tes touches (Ctrl+Maj+M…). Tu peux enchaîner plusieurs étapes et des pauses. « Texte à taper » écrit un texte dans la fenêtre active.
 - **Tester** : le bouton « ▶ Tester sur le PC » exécute l'action sans passer par le téléphone.
 - **Annuler** : Ctrl+Z, ou le bouton « Annuler ». **Suppr** efface le bouton sélectionné.

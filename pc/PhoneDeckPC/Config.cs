@@ -24,6 +24,8 @@ public class DeckPage
     public string Name { get; set; } = "";
     /// <summary>Si renseigné, les boutons sont générés depuis ce dossier du menu Démarrer (ex. "Launcher").</summary>
     public string? StartMenuFolder { get; set; }
+    /// <summary>Page d'accueil supplémentaire (on passe de l'une à l'autre en glissant sur le téléphone). La première page l'est toujours.</summary>
+    public bool Root { get; set; }
     /// <summary>Grille propre à cette page (sinon : celle de la config pour l'accueil, automatique pour un dossier).</summary>
     public int? Columns { get; set; }
     public int? Rows { get; set; }
@@ -48,7 +50,7 @@ public class DeckButton
 
 public class DeckAction
 {
-    /// <summary>open | url | keys | text | folder | mixer</summary>
+    /// <summary>open | url | keys | text | folder | mixer | micmute | mastermute</summary>
     public string Type { get; set; } = "open";
     /// <summary>open : nom d'appli (menu Démarrer), "chrome.exe", chemin complet ou adresse web.</summary>
     public string? Target { get; set; }
@@ -61,6 +63,9 @@ public class DeckAction
     public string? Keys { get; set; }
     /// <summary>text : texte tapé au clavier, tel quel.</summary>
     public string? Text { get; set; }
+    /// <summary>Bouton à bascule : il devient rouge quand on l'active (utile pour un raccourci Discord, par exemple).
+    /// Le PC ne peut pas savoir si Discord est vraiment coupé : l'état est celui des appuis.</summary>
+    public bool Toggle { get; set; }
 }
 
 public class ConfigStore
@@ -227,8 +232,8 @@ public static class DefaultConfig
                 Buttons =
                 {
                     Open("discord-open", "Ouvrir", "Discord", null, "auto"),
-                    Keys("discord-mute", "Micro", "Ctrl+Shift+F9", "builtin:mic"),
-                    Keys("discord-deafen", "Sourdine", "Ctrl+Shift+F10", "builtin:headphones"),
+                    Keys("discord-mute", "Micro", "Ctrl+Shift+F9", "builtin:mic", toggle: true),
+                    Keys("discord-deafen", "Sourdine", "Ctrl+Shift+F10", "builtin:headphones", toggle: true),
                 },
             },
             new DeckPage
@@ -264,11 +269,11 @@ public static class DefaultConfig
         Action = new DeckAction { Type = "folder", Page = page },
     };
 
-    private static DeckButton Keys(string id, string label, string keys, string icon) => new()
+    private static DeckButton Keys(string id, string label, string keys, string icon, bool toggle = false) => new()
     {
         Id = id,
         Label = label,
         Icon = icon,
-        Action = new DeckAction { Type = "keys", Keys = keys },
+        Action = new DeckAction { Type = "keys", Keys = keys, Toggle = toggle },
     };
 }

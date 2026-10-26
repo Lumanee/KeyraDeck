@@ -122,6 +122,8 @@
         <button data-add="text">✍️ Texte à taper</button>
         <button data-add="folder">📁 Dossier</button>
         <button data-add="mixer">🔊 Volume</button>
+        <button data-add="micmute">🎙 Micro Windows</button>
+        <button data-add="mastermute">🔇 Couper le son</button>
         <button data-add="app">📦 Appli…</button>
       </div>
     </div>
@@ -208,6 +210,7 @@ function toast(msg) {
 const uid = (p) => p + '-' + Math.random().toString(36).slice(2, 7);
 const pageById = (id) => state.cfg.pages.find(p => p.id === id);
 const homeId = () => state.cfg.pages[0].id;
+const isRoot = (p) => p === state.cfg.pages[0] || !!p.root;
 const currentPage = () => pageById(state.page) || state.cfg.pages[0];
 const findButton = (id) => { for (const p of state.cfg.pages) { const b = p.buttons.find(b => b.id === id); if (b) return { page: p, button: b }; } return null; };
 
@@ -284,13 +287,14 @@ function renderTabs() {
   const tabs = $('#tabs'); tabs.replaceChildren();
   state.cfg.pages.forEach((p, i) => {
     tabs.append(el('button', { class: 'tab' + (p.id === state.page ? ' active' : ''), onclick: () => { state.page = p.id; state.selected = null; renderAll(); } },
-      (i === 0 ? '🏠 ' : '📁 ') + (p.name || p.id)));
+      (isRoot(p) ? '🏠 ' : '📁 ') + (p.name || p.id)));
   });
+  tabs.append(el('button', { class: 'tab', title: 'Ajouter une page d\'accueil (on passe de l\'une à l\'autre en glissant sur le téléphone)', onclick: addRootPage }, '＋ Page'));
 }
 
 function pageGrid(page) {
   const lp = state.layout && state.layout.pages.find(x => x.id === page.id);
-  const isHome = page === state.cfg.pages[0];
+  const isHome = isRoot(page);
   let cols = page.columns ?? (isHome ? state.cfg.columns : null);
   let rows = page.rows ?? (isHome ? state.cfg.rows : null);
   const count = page.generated ? page.generated.length : page.buttons.length;
@@ -438,6 +442,7 @@ function renderGridBar() {
   const isHome = page === state.cfg.pages[0];
   if (!isHome) {
     tools.append(el('button', { onclick: renamePage }, '✏️ Renommer'));
+    if (page.root) tools.append(' ', el('button', { class: 'danger', onclick: deleteRootPage }, '🗑 Supprimer la page'));
   }
   if (page.generated) {
     tools.append(' ', el('button', { onclick: detachPage, title: 'Copie les raccourcis du menu Démarrer en boutons que tu peux modifier' }, '🔗 Détacher du menu Démarrer'));
@@ -455,6 +460,23 @@ function setGrid(dc, dr) {
   if (nc !== cols) for (const b of page.buttons) { const r = Math.floor(b.slot / cols), c = b.slot % cols; b.slot = r * nc + c; }
   if (isHome) { state.cfg.columns = nc; state.cfg.rows = nr; } else { page.columns = nc; page.rows = nr; }
   changed();
+}
+function addRootPage() {
+  const name = prompt('Nom de la nouvelle page :', 'Page ' + (state.cfg.pages.filter(isRoot).length + 1));
+  if (!name) return;
+  pushUndo();
+  const id = uid('page');
+  state.cfg.pages.push({ id, name, root: true, buttons: [] });
+  state.page = id; state.selected = null;
+  changed({ immediate: true });
+}
+function deleteRootPage() {
+  const page = currentPage();
+  if (!confirm(`Supprimer la page « ${page.name} » et ses boutons ?`)) return;
+  pushUndo();
+  state.cfg.pages.splice(state.cfg.pages.indexOf(page), 1);
+  state.page = homeId(); state.selected = null;
+  changed({ immediate: true });
 }
 function renamePage() {
   const page = currentPage();
@@ -504,7 +526,7 @@ function renderInspector() {
       el('button', { onclick: () => upd(() => delete b.color) }, 'Aucune')));
 
   box.append(el('label', {}, 'Action'));
-  const types = [['open', 'Lancer une appli ou un fichier'], ['url', 'Ouvrir un site web'], ['keys', 'Raccourci clavier / macro'], ['text', 'Taper du texte'], ['folder', 'Ouvrir un dossier'], ['mixer', 'Ouvrir le mélangeur de volume']];
+  const types = [['open', 'Lancer une appli ou un fichier'], ['url', 'Ouvrir un site web'], ['keys', 'Raccourci clavier / macro'], ['text', 'Taper du texte'], ['micmute', 'Couper / rétablir le micro Windows'], ['mastermute', 'Couper / rétablir le son Windows'], ['folder', 'Ouvrir un dossier'], ['mixer', 'Ouvrir le mélangeur de volume']];
   box.append(el('select', { onchange: (e) => upd(() => changeType(b, e.target.value)) }, types.map(([v, t]) => el('option', { value: v, selected: a.type === v }, t))));
 
   if (a.type === 'open') {
@@ -524,6 +546,15 @@ function renderInspector() {
     const p = pageById(a.page);
     box.append(el('div', { class: 'hint', style: 'margin-top:10px' }, p ? `Contient ${p.buttons.length} bouton(s).` : 'Dossier introuvable.'),
       p ? el('button', { style: 'margin-top:6px', onclick: () => { state.page = p.id; state.selected = null; renderAll(); } }, 'Ouvrir ce dossier') : null);
+  }
+
+  if (a.type === 'keys' || a.type === 'text') {
+    box.append(el('label', { style: 'display:flex;gap:8px;align-items:center;color:var(--text);margin-top:14px;cursor:pointer' },
+      el('input', { type: 'checkbox', checked: !!a.toggle, style: 'width:auto', onchange: (e) => upd(() => { a.toggle = e.target.checked; }) }),
+      'Bouton à bascule (rouge quand activé)'),
+      el('div', { class: 'hint' }, 'Le PC ne voit pas l\'état réel d\'une appli comme Discord : le bouton passe au rouge à chaque appui impair.'));
+  } else if (a.type === 'micmute' || a.type === 'mastermute') {
+    box.append(el('div', { class: 'hint', style: 'margin-top:10px' }, 'Ce bouton devient rouge quand c\'est coupé, selon l\'état réel de Windows.'));
   }
 
   box.append(el('div', { class: 'row', style: 'margin-top:18px' },
@@ -660,6 +691,10 @@ function addFromPalette(kind) {
     const id = uid('dossier');
     state.cfg.pages.push({ id, name, buttons: [] });
     addButton({ id: uid('btn'), label: name, icon: 'auto', action: { type: 'folder', page: id } });
+  } else if (kind === 'micmute') {
+    pushUndo(); addButton({ id: uid('micro'), label: 'Micro', icon: 'builtin:mic', action: { type: 'micmute' } });
+  } else if (kind === 'mastermute') {
+    pushUndo(); addButton({ id: uid('mute'), label: 'Muet', icon: 'builtin:volume', action: { type: 'mastermute' } });
   } else if (kind === 'mixer') {
     pushUndo(); addButton({ id: uid('volume'), label: 'Volume', icon: 'builtin:volume', action: { type: 'mixer' } });
   } else if (kind === 'app') {

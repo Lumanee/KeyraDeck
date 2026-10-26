@@ -47,6 +47,10 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
     var layout by mutableStateOf<DeckLayout?>(null)
         private set
 
+    /** Boutons « activés » (affichés en rouge : micro coupé, etc.). */
+    var active by mutableStateOf<Set<String>>(emptySet())
+        private set
+
     /** Dossiers ouverts (le dernier est affiché par-dessus la page). */
     val folderStack = mutableStateListOf<String>()
 
@@ -133,6 +137,11 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
                 mixer = fresh.map { c ->
                     if (c.id in dragging) mixer.firstOrNull { it.id == c.id } ?: c else c
                 }
+            }
+            "states" -> {
+                val arr = json.optJSONArray("active")
+                val ids = (0 until (arr?.length() ?: 0)).map { arr!!.getString(it) }.toSet()
+                post { active = ids }
             }
             "toast" -> toast(json.optString("message"))
         }

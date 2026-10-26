@@ -25,6 +25,8 @@ data class DeckButton(
 data class DeckPage(
     val id: String,
     val name: String,
+    /** Page d'accueil (on passe de l'une à l'autre en glissant). */
+    val root: Boolean,
     val columns: Int?,
     val rows: Int?,
     val buttons: List<DeckButton>,
@@ -32,6 +34,9 @@ data class DeckPage(
 
 data class DeckLayout(val pcName: String, val home: String, val pages: Map<String, DeckPage>) {
     val homePage: DeckPage? get() = pages[home] ?: pages.values.firstOrNull()
+
+    /** Les pages d'accueil, dans l'ordre. */
+    val rootPages: List<DeckPage> get() = pages.values.filter { it.root }.ifEmpty { listOfNotNull(homePage) }
 }
 
 data class MixerChannel(
@@ -54,6 +59,7 @@ object Parser {
             pages[id] = DeckPage(
                 id = id,
                 name = p.optString("name"),
+                root = p.optBoolean("root", false),
                 columns = p.optIntOrNull("columns"),
                 rows = p.optIntOrNull("rows"),
                 buttons = list,
