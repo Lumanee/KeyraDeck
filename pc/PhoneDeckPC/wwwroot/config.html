@@ -261,6 +261,7 @@ const WIDGET_INFO = {
   volume: { name: 'Volume général', icon: '🎚', desc: 'Curseur du volume Windows avec bouton muet.' },
   clock: { name: 'Horloge', icon: '🕒', desc: 'Heure et date.' },
   system: { name: 'CPU / RAM', icon: '📊', desc: 'Charge du processeur et de la mémoire du PC.' },
+  weather: { name: 'Météo', icon: '⛅', desc: 'Température et conditions actuelles de la ville choisie (Open-Meteo).' },
 };
 // Chaque modèle a une taille FIXE (en cases) : le contenu est dessiné pour cette taille et ne disparaît jamais.
 const WIDGET_MODELS = {
@@ -286,6 +287,11 @@ const WIDGET_MODELS = {
     { id: 'system-2x1', name: 'Compact', w: 2, h: 1 },
     { id: 'system-3x1', name: 'Barre', w: 3, h: 1 },
     { id: 'system-2x2', name: 'Anneaux', w: 2, h: 2 },
+  ],
+  weather: [
+    { id: 'weather-1x1', name: 'Icône + degrés', w: 1, h: 1 },
+    { id: 'weather-2x1', name: 'Ville + degrés', w: 2, h: 1 },
+    { id: 'weather-2x2', name: 'Détaillée', w: 2, h: 2 },
   ],
 };
 const modelOf = (w) => (WIDGET_MODELS[w.type] || []).find(m => m.id === w.model);
@@ -860,6 +866,9 @@ function renderWidgetInspector(box, fw) {
     el('div', { class: 'models' }, ...(WIDGET_MODELS[w.type] || []).map(m =>
       el('button', { class: 'model' + (m.id === w.model ? ' on' : ''), onclick: () => pick(m) },
         el('i', { style: `width:${m.w * 14}px;height:${m.h * 14}px` }), el('span', {}, m.name), el('small', {}, `${m.w}×${m.h}`)))),
+    ...(w.type === 'weather' ? [el('label', { style: 'margin-top:14px' }, 'Ville'),
+      el('input', { type: 'text', value: state.cfg.weatherCity || '', placeholder: 'ex. Lyon', oninput: (e) => { state.cfg.weatherCity = e.target.value; state.dirty = true; setSaved('Modifications…'); clearTimeout(saveTimer); saveTimer = setTimeout(save, 900); } }),
+      el('div', { class: 'hint' }, 'Nécessite une connexion internet sur le PC.')] : []),
     el('div', { class: 'row', style: 'margin-top:18px' }, el('button', { class: 'danger', onclick: () => deleteWidget(w.id) }, '🗑 Supprimer')));
 }
 function deleteWidget(id) {

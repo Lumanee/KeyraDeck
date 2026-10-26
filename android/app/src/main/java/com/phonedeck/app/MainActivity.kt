@@ -96,14 +96,12 @@ fun App(vm: DeckViewModel) {
                 Surface(Modifier.fillMaxSize(), color = Background) {
                     when {
                         vm.serverUrl == null -> ConnectScreen(vm)
-                        vm.mixerOpen -> {
-                            BackHandler { vm.closeMixer() }
-                            MixerScreen(vm)
-                        }
                         else -> DeckScreen(vm)
                     }
                 }
+                if (vm.serverUrl != null && vm.mixerOpen) MixerDialog(vm)
                 UpdateBanner(vm)
+                NotificationOverlay(vm)
                 if (vm.showSettings) SettingsDialog(vm)
             }
         }

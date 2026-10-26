@@ -27,7 +27,8 @@ public class DeckServer
     private string _lastStates = "";
     private string? _autoPage;
     private readonly SystemStats _systemStats = new();
-    private bool _needVolume, _needSystem;
+    private bool _needVolume, _needSystem, _needWeather;
+    private readonly WeatherService _weather = new();
     private CancellationTokenSource? _stop;
     private WebApplication? _app;
     private string? _layoutJson;
@@ -305,9 +306,19 @@ public class DeckServer
         return states;
     }
 
+    /// <summary>Envoie une notification à afficher sur le boîtier du téléphone (bandeau puis compteur).</summary>
+    public async Task NotifyAsync(string app, string title, string text)
+    {
+        List<Client> clients;
+        lock (_clients) clients = _clients.ToList();
+        var json = JsonSerializer.Serialize(new { type = "notify", id = Guid.NewGuid().ToString("N"), app, title, text, time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }, Wire);
+        foreach (var c in clients) { try { await c.SendRawAsync(json); } catch { } }
+    }
+
     private string StatesJson(Dictionary<string, bool> states)
     {
         float? volume = null; bool? muted = null; int? cpu = null, ram = null;
+        WeatherData? weather = _needWeather ? _weather.Current(_store.Config.WeatherCity) : null;
         if (_needVolume) { volume = _audio.MasterVolume(); muted = _audio.MasterMuted(); }
         if (_needSystem) { var (c, r) = _systemStats.Read(); cpu = c; ram = r; }
         return JsonSerializer.Serialize(new
@@ -318,6 +329,7 @@ public class DeckServer
             muted,
             cpu,
             ram,
+            weather = weather == null ? null : new { temp = weather.Temp, code = weather.Code, wind = weather.Wind, humidity = weather.Humidity, city = weather.City },
         }, Wire);
     }
 
@@ -485,6 +497,7 @@ public class DeckServer
 
         _needVolume = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "volume"));
         _needSystem = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "system"));
+        _needWeather = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "weather"));
         var json = JsonSerializer.Serialize(new
         {
             type = "layout",

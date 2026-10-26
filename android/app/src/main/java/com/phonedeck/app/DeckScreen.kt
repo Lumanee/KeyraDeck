@@ -4,7 +4,11 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -286,6 +290,8 @@ private fun StatusStrip(vm: DeckViewModel, pageIndex: Int, pageCount: Int, modif
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
+        NotificationBadge(vm)
+        Spacer(Modifier.width(6.dp))
         if (pageCount > 1) {
             // Un petit point par page ; le point clair est la page affichée.
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -324,6 +330,10 @@ fun DeckKey(
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.92f else 1f, label = "press")
+    // Éclair de couleur à chaque appui : on voit tout de suite que la touche a réagi.
+    val flash = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+    val flashColor = LocalTheme.current.accent
     val capShape = RoundedCornerShape(size * 0.2f)
     val screenShape = RoundedCornerShape(size * 0.14f)
 
@@ -339,6 +349,7 @@ fun DeckKey(
             indication = null,
             onClick = {
                 if (hapticsOn) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                scope.launch { flash.snapTo(1f); flash.animateTo(0f, tween(500)) }
                 onPress(button)
             },
             onLongClick = {
@@ -356,6 +367,7 @@ fun DeckKey(
                 .background(if (active) LocalTheme.current.active else (button?.color ?: LocalTheme.current.key))
                 .background(Gloss)
                 .background(if (pressed) Color(0x22FFFFFF) else Color.Transparent)
+                .background(flashColor.copy(alpha = 0.6f * flash.value))
                 .padding(size * 0.07f),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,

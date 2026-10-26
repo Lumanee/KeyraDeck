@@ -64,6 +64,10 @@ data class DeckLayout(
     val rootPages: List<DeckPage> get() = pages.values.filter { it.root }.ifEmpty { listOfNotNull(homePage) }
 }
 
+data class Weather(val temp: Int, val code: Int, val wind: Int, val humidity: Int, val city: String)
+
+data class Notif(val id: String, val app: String, val title: String, val text: String)
+
 data class MixerChannel(
     val id: String,
     val name: String,

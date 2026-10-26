@@ -68,6 +68,14 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
     var ram by mutableStateOf<Int?>(null)
         private set
     private var volumeDragging = false
+    var weather by mutableStateOf<Weather?>(null)
+        private set
+
+    /** Notifications reçues du PC : bandeau qui s'affiche quelques secondes, puis compteur dans la barre du boîtier. */
+    val notifications = mutableStateListOf<Notif>()
+    var banner by mutableStateOf<Notif?>(null)
+    var showNotifs by mutableStateOf(false)
+    fun clearNotifs() { notifications.clear(); banner = null; showNotifs = false }
 
     var settings by mutableStateOf(
         AppSettings(
@@ -249,7 +257,10 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
                 val muted = json.optBoolean("muted", false)
                 val cpuNow = if (json.has("cpu") && !json.isNull("cpu")) json.optInt("cpu") else null
                 val ramNow = if (json.has("ram") && !json.isNull("ram")) json.optInt("ram") else null
+                val wj = json.optJSONObject("weather")
+                val weatherNow = wj?.let { Weather(it.optInt("temp"), it.optInt("code"), it.optInt("wind"), it.optInt("humidity"), it.optString("city")) }
                 post {
+                    weather = weatherNow
                     active = ids
                     if (!volumeDragging) { masterVolume = volume; masterMuted = muted }
                     cpu = cpuNow
@@ -258,6 +269,14 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
             }
             "focus" -> post { focus = FocusRequest(json.optString("page"), (focus?.count ?: 0) + 1) }
             "toast" -> toast(json.optString("message"))
+            "notify" -> {
+                val n = Notif(json.optString("id"), json.optString("app"), json.optString("title"), json.optString("text"))
+                post {
+                    notifications.add(0, n)
+                    while (notifications.size > 50) notifications.removeAt(notifications.size - 1)
+                    banner = n
+                }
+            }
         }
     }
 

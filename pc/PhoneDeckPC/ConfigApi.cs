@@ -178,6 +178,15 @@ public class ConfigApi
                     return;
                 }
 
+                case "/api/notify" when method == "POST":
+                {
+                    using var doc = await JsonDocument.ParseAsync(ctx.Request.Body);
+                    string Get(string k) => doc.RootElement.TryGetProperty(k, out var v) ? v.GetString() ?? "" : "";
+                    await _server.NotifyAsync(Get("app"), Get("title"), Get("text"));
+                    await Json(ctx, new { ok = true });
+                    return;
+                }
+
                 case "/api/update/check":
                     await Json(ctx, await _updater.CheckAsync());
                     return;

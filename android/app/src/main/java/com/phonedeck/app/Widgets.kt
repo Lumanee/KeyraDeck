@@ -82,6 +82,7 @@ fun DeckWidgetView(widget: DeckWidget, width: Dp, height: Dp, unit: Dp, vm: Deck
                 "volume" -> VolumeWidget(widget, vm)
                 "clock" -> ClockWidget(widget)
                 "system" -> SystemWidget(widget, vm)
+                "weather" -> WeatherWidget(widget, vm)
                 else -> Text(widget.type, color = Color.Gray)
             }
         }
@@ -180,7 +181,7 @@ private fun VolumeWidget(widget: DeckWidget, vm: DeckViewModel) {
 
 /** Barre de volume : on glisse le doigt (ou on touche) pour régler, sans dépendre du Slider de Material. */
 @Composable
-private fun VolumeBar(fraction: Float, vertical: Boolean, color: Color, modifier: Modifier, onChange: (Float, Boolean) -> Unit) {
+fun VolumeBar(fraction: Float, vertical: Boolean, color: Color, modifier: Modifier, onChange: (Float, Boolean) -> Unit) {
     var sizePx by remember { mutableStateOf(1f) }
     fun at(x: Float, y: Float): Float {
         val raw = if (vertical) 1f - y / sizePx else x / sizePx
@@ -238,11 +239,11 @@ private fun ClockWidget(widget: DeckWidget) {
             "clock-2x2" -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 Text(time, color = Color.White, fontSize = min(w * 0.30f, h * 0.36f).sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                 Text(seconds, color = LocalTheme.current.accent, fontSize = min(w * 0.12f, h * 0.14f).sp, maxLines = 1)
-                Text(date, color = Color(0xFFBBBBC4), fontSize = min(w * 0.11f, h * 0.13f).sp, maxLines = 1)
+                Text(date, color = Color(0xFFBBBBC4), fontSize = min(w * 0.085f, h * 0.12f).sp, maxLines = 1, softWrap = false)
             }
             else -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                Text(time, color = Color.White, fontSize = min(w * 0.22f, h * 0.48f).sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                Text(date, color = Color(0xFFBBBBC4), fontSize = min(w * 0.08f, h * 0.17f).coerceAtLeast(10f).sp, maxLines = 1)
+                Text(time, color = Color.White, fontSize = min(w * 0.20f, h * 0.40f).sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                Text(date, color = Color(0xFFBBBBC4), fontSize = min(w * 0.065f, h * 0.15f).coerceAtLeast(9f).sp, maxLines = 1, softWrap = false)
             }
         }
     }
@@ -308,5 +309,65 @@ private fun Ring(label: String, value: Int?, color: Color, sizeDp: Float) {
             Text(if (value == null) "—" else "$value", color = Color.White, fontSize = (sizeDp * 0.30f).sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
         Text(label, color = Color(0xFFBBBBC4), fontSize = (sizeDp * 0.16f).coerceAtLeast(10f).sp, maxLines = 1)
+    }
+}
+
+
+// ---------- Météo ----------
+
+private fun weatherIcon(code: Int) = when (code) {
+    0 -> "☀️"
+    1, 2 -> "🌤️"
+    3 -> "☁️"
+    45, 48 -> "🌫️"
+    in 51..57 -> "🌦️"
+    in 61..67, in 80..82 -> "🌧️"
+    in 71..77, 85, 86 -> "❄️"
+    in 95..99 -> "⛈️"
+    else -> "🌡️"
+}
+
+private fun weatherText(code: Int) = when (code) {
+    0 -> "Ciel dégagé"
+    1, 2 -> "Éclaircies"
+    3 -> "Couvert"
+    45, 48 -> "Brouillard"
+    in 51..57 -> "Bruine"
+    in 61..67, in 80..82 -> "Pluie"
+    in 71..77, 85, 86 -> "Neige"
+    in 95..99 -> "Orage"
+    else -> "—"
+}
+
+@Composable
+private fun WeatherWidget(widget: DeckWidget, vm: DeckViewModel) {
+    val wx = vm.weather
+    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        val w = maxWidth.value
+        val h = maxHeight.value
+        if (wx == null) {
+            Text("Météo…\n(ville à choisir sur le PC)", color = Color(0xFFBBBBC4), fontSize = min(w * 0.10f, 12f).sp, textAlign = TextAlign.Center)
+            return@BoxWithConstraints
+        }
+        when (widget.model) {
+            "weather-2x2" -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                Text(wx.city, color = Color(0xFFBBBBC4), fontSize = min(w * 0.09f, h * 0.09f).sp, maxLines = 1, softWrap = false)
+                Text(weatherIcon(wx.code), fontSize = min(w * 0.28f, h * 0.28f).sp)
+                Text("${wx.temp}°", color = Color.White, fontSize = min(w * 0.24f, h * 0.24f).sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                Text(weatherText(wx.code), color = Color(0xFFBBBBC4), fontSize = min(w * 0.09f, h * 0.09f).sp, maxLines = 1, softWrap = false)
+                Text("💨 ${wx.wind} km/h  💧 ${wx.humidity} %", color = Color(0xFFBBBBC4), fontSize = min(w * 0.075f, h * 0.075f).sp, maxLines = 1, softWrap = false)
+            }
+            "weather-2x1" -> Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                Text(weatherIcon(wx.code), fontSize = min(w * 0.24f, h * 0.5f).sp)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("${wx.temp}°", color = Color.White, fontSize = min(w * 0.2f, h * 0.4f).sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                    Text(wx.city, color = Color(0xFFBBBBC4), fontSize = min(w * 0.07f, h * 0.14f).coerceAtLeast(9f).sp, maxLines = 1, softWrap = false)
+                }
+            }
+            else -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                Text(weatherIcon(wx.code), fontSize = (h * 0.38f).sp)
+                Text("${wx.temp}°", color = Color.White, fontSize = (h * 0.28f).sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+            }
+        }
     }
 }

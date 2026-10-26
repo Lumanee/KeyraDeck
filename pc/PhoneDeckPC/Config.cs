@@ -14,6 +14,8 @@ public class DeckConfig
     public int Columns { get; set; } = 5;
     public int Rows { get; set; } = 3;
     public DeckTheme Theme { get; set; } = new();
+    /// <summary>Ville du widget météo (Open-Meteo).</summary>
+    public string WeatherCity { get; set; } = "";
     /// <summary>Dernier téléphone connecté : taille de l'écran en dp (le configurateur copie ses proportions).</summary>
     public DeckDevice? Device { get; set; }
     /// <summary>Taille d'écran (arrondie) pour laquelle la grille a déjà été adaptée ; permet de ne proposer l'adaptation qu'une fois.</summary>

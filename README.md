@@ -98,6 +98,14 @@ Chaque widget existe en plusieurs **modèles à taille fixe** (ex. Horloge 1×1,
 - **Horloge** : 1×1 (heure), 2×1 (heure et date), 2×2 (grande horloge).
 - **CPU / RAM** : charge du processeur et de la mémoire, en 1×1, 2×1, 3×1 ou 2×2 (anneaux).
 
+- **Météo** : température et conditions de la ville choisie (1×1, 2×1, 2×2). Sélectionne le widget, tape ta ville dans le panneau de droite. Le PC doit avoir internet (service gratuit Open-Meteo, sans compte).
+
+## Volume, retour visuel, notifications
+
+- **Mélangeur** : le bouton Volume ouvre une fenêtre avec une tranche verticale par appli, comme une table de mixage (volume général en premier). Glisse vers le haut / bas, touche 🔈 pour couper.
+- **Retour visuel** : chaque touche s'illumine à la couleur d'accent quand tu appuies (en plus de la vibration).
+- **Notifications** : un message envoyé au PC s'affiche en bandeau sur le téléphone pendant quelques secondes, puis une pastille 🔔 avec le nombre apparaît dans la barre du boîtier (touche-la pour lire la liste). Pour l'instant la source est l'API locale `POST http://localhost:8765/api/notify` (`app`, `title`, `text`) ; la lecture automatique des notifications Windows n'est pas encore branchée.
+
 ## Écran du téléphone
 
 À la connexion, le téléphone indique la taille de son écran. Le boîtier remplit alors tout l'écran du téléphone, et le configurateur affiche un boîtier **aux mêmes proportions**. À la première connexion, la grille est adaptée automatiquement (touches de bonne taille, écran bien rempli) ; si tu changes de téléphone, un bouton **« Adapter la grille à ce téléphone »** apparaît sous le boîtier. Quand tu changes la taille de la grille, les boutons et widgets restent à leur place s'ils y tiennent, sinon ils sont replacés.
