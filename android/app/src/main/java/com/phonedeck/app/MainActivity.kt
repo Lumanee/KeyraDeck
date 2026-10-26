@@ -10,7 +10,21 @@ import androidx.activity.viewModels
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
@@ -48,6 +62,7 @@ fun App(vm: DeckViewModel) {
     }
 
     MaterialTheme(colorScheme = darkColorScheme(primary = Accent, background = Background, surface = Background)) {
+        Box(Modifier.fillMaxSize()) {
         Surface(Modifier.fillMaxSize(), color = Background) {
             when {
                 vm.serverUrl == null -> ConnectScreen(vm)
@@ -57,6 +72,36 @@ fun App(vm: DeckViewModel) {
                 }
                 else -> DeckScreen(vm)
             }
+        }
+        UpdateBanner(vm)
+        }
+    }
+}
+
+/** Bandeau « Mise à jour disponible » : un appui lance le téléchargement puis l'installation. */
+@Composable
+private fun BoxScope.UpdateBanner(vm: DeckViewModel) {
+    val info = vm.update ?: return
+    val progress = vm.updateProgress
+    Row(
+        Modifier
+            .align(Alignment.BottomCenter)
+            .navigationBarsPadding()
+            .padding(16.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(Accent)
+            .padding(start = 18.dp, end = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            if (progress != null) "Téléchargement… $progress %" else "Mise à jour disponible (version ${info.build})",
+            color = Color.White,
+        )
+        if (progress == null) {
+            TextButton(onClick = { vm.installUpdate() }) { Text("Installer", color = Color.White, fontWeight = FontWeight.Bold) }
+            TextButton(onClick = { vm.dismissUpdate() }) { Text("Plus tard", color = Color(0xCCFFFFFF)) }
+        } else {
+            Spacer(Modifier.width(12.dp))
         }
     }
 }

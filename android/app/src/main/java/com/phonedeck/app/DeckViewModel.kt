@@ -47,6 +47,12 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
     var layout by mutableStateOf<DeckLayout?>(null)
         private set
 
+    /** Mise à jour de l'appli disponible sur GitHub (null = rien à faire). */
+    var update by mutableStateOf<UpdateInfo?>(null)
+        private set
+    var updateProgress by mutableStateOf<Int?>(null)
+        private set
+
     /** Boutons « activés » (affichés en rouge : micro coupé, etc.). */
     var active by mutableStateOf<Set<String>>(emptySet())
         private set
@@ -69,6 +75,42 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
 
     init {
         serverUrl?.let { open(it) }
+        checkForUpdate()
+    }
+
+    // ---------- Mise à jour de l'appli ----------
+
+    fun checkForUpdate() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val found = Updater.check(getApplication())
+            post { update = found }
+        }
+    }
+
+    fun dismissUpdate() {
+        update = null
+    }
+
+    fun installUpdate() {
+        val info = update ?: return
+        val app = getApplication<Application>()
+        if (!Updater.canInstall(app)) {
+            toast("Autorise PhoneDeck à installer des applis, puis reviens et réessaie")
+            Updater.openInstallPermission(app)
+            return
+        }
+        if (updateProgress != null) return
+        updateProgress = 0
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val apk = Updater.download(app, info) { p -> post { updateProgress = p } }
+                post { updateProgress = null }
+                Updater.install(app, apk)
+            } catch (e: Exception) {
+                post { updateProgress = null }
+                toast("Mise à jour impossible : ${e.message}")
+            }
+        }
     }
 
     // ---------- Connexion ----------

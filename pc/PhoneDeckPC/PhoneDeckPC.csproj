@@ -10,7 +10,8 @@
     <AssemblyName>PhoneDeckPC</AssemblyName>
     <RootNamespace>PhoneDeckPC</RootNamespace>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
-    <Version>0.2.0</Version>
+    <BuildNumber Condition="'$(BuildNumber)' == ''">0</BuildNumber>
+    <Version>0.3.$(BuildNumber)</Version>
     <NoWarn>$(NoWarn);MSB3277</NoWarn>
   </PropertyGroup>
 

@@ -107,6 +107,7 @@
   <span id="conn"><span class="dot"></span><span id="connText">Aucun téléphone connecté</span></span>
   <button id="pairBtn" class="primary">Connecter un téléphone</button>
   <span class="spacer"></span>
+  <button id="updBtn" class="primary" style="display:none"></button>
   <button id="undoBtn" title="Annuler (Ctrl+Z)">↶ Annuler</button>
   <button id="folderBtn" title="Ouvrir config.json et le dossier de configuration">Dossier de config</button>
   <span id="saved"></span>
@@ -736,6 +737,23 @@ async function refreshInfo() {
     if (info.error) setSaved(info.error, true);
   } catch { /* le PC est peut-être en train de redémarrer */ }
 }
+async function checkUpdate(manual) {
+  try {
+    const u = await api('/api/update/check');
+    const b = $('#updBtn');
+    if (u.available) {
+      b.style.display = ''; b.textContent = '⬇ Mettre à jour (version ' + u.latest + ')';
+      b.onclick = async () => {
+        b.disabled = true; b.textContent = 'Téléchargement…';
+        try { const r = await api('/api/update/apply', { method: 'POST' }); b.textContent = 'Redémarrage…'; if (r.error) throw new Error(r.error); }
+        catch (e) { b.disabled = false; b.textContent = '⬇ Réessayer la mise à jour'; toast(e.message); }
+      };
+    } else {
+      b.style.display = 'none';
+      if (manual) toast(u.error || 'PhoneDeck PC est à jour ✓');
+    }
+  } catch { /* hors ligne : on réessaiera */ }
+}
 function openPair() {
   const info = state.info;
   const sel = $('#ipSel'); sel.replaceChildren(...info.addresses.map(ip => el('option', { value: ip }, ip)));
@@ -765,7 +783,7 @@ window.addEventListener('resize', () => state.cfg && renderStage());
 window.addEventListener('dragover', (e) => e.preventDefault());
 window.addEventListener('drop', (e) => e.preventDefault());
 
-loadAll().then(() => { loadApps(); setInterval(refreshInfo, 2000); }).catch(e => { document.body.prepend(el('div', { style: 'padding:20px;color:#ff5252' }, 'Impossible de charger la configuration : ' + e.message)); });
+loadAll().then(() => { loadApps(); setInterval(refreshInfo, 2000); checkUpdate(false); setInterval(() => checkUpdate(false), 3600000); }).catch(e => { document.body.prepend(el('div', { style: 'padding:20px;color:#ff5252' }, 'Impossible de charger la configuration : ' + e.message)); });
 </script>
 </body>
 </html>

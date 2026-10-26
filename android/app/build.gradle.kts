@@ -12,8 +12,10 @@ android {
         applicationId = "com.phonedeck.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        // Le numéro de build vient de GitHub Actions : chaque version est plus récente que la précédente.
+        val build = System.getenv("BUILD_NUMBER")?.toIntOrNull() ?: 1
+        versionCode = build
+        versionName = "0.3.$build"
     }
 
     signingConfigs {

@@ -21,6 +21,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Compiler l'APK
         working-directory: android
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
         run: ./gradlew assembleDebug --no-daemon
       - name: Renommer
         run: cp android/app/build/outputs/apk/debug/app-debug.apk PhoneDeck.apk
@@ -38,7 +40,7 @@ jobs:
         with:
           dotnet-version: 8.0.x
       - name: Compiler l'exe
-        run: dotnet publish pc/PhoneDeckPC/PhoneDeckPC.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
+        run: dotnet publish pc/PhoneDeckPC/PhoneDeckPC.csproj -c Release -p:BuildNumber=${{ github.run_number }} -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
       - name: Zipper
         shell: pwsh
         run: Compress-Archive -Path publish/* -DestinationPath PhoneDeckPC-Windows.zip
@@ -64,4 +66,4 @@ jobs:
           gh release create derniere-version PhoneDeck.apk PhoneDeckPC-Windows.zip \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
             --title "Dernière version (prototype)" \
-            --notes "Fabriquée automatiquement depuis le commit $GITHUB_SHA. PhoneDeck.apk = téléphone Android, PhoneDeckPC-Windows.zip = PC."
+            --notes "build:${{ github.run_number }} — fabriquée automatiquement depuis le commit $GITHUB_SHA. PhoneDeck.apk = téléphone Android, PhoneDeckPC-Windows.zip = PC."

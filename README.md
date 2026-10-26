@@ -87,6 +87,15 @@ Le dossier **Launchers** reprend le contenu du dossier « Launcher » de ton men
 
 La configuration est enregistrée dans `%APPDATA%\PhoneDeckPC\config.json` (bouton « Dossier de config »). Tu peux aussi l'éditer à la main : la fenêtre et le téléphone se mettent à jour dès que tu enregistres.
 
+## Mises à jour automatiques
+
+À chaque amélioration, GitHub fabrique une nouvelle version. Une fois la version « 0.3 » ou plus récente installée :
+
+- **PC** : un bouton **« Mettre à jour »** apparaît en haut de la fenêtre. Un clic télécharge la nouvelle version, ferme PhoneDeck PC et le relance.
+- **Téléphone** : un bandeau **« Mise à jour disponible »** apparaît en bas. Appuie sur **Installer**. Android demande une seule fois l'autorisation d'installer des applis depuis PhoneDeck, puis propose d'installer la mise à jour.
+
+Tes boutons et réglages sont conservés.
+
 ## Connexion par câble USB (facultatif)
 
 Avec les outils Android (`adb`) installés et le débogage USB activé sur le téléphone :

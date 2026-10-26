@@ -19,6 +19,10 @@ public class ConfigApi
     private readonly StaWorker _sta;
     private readonly DeckServer _server;
     private readonly Dictionary<string, byte[]?> _appIcons = new();
+    private readonly Updater _updater = new();
+
+    /// <summary>Demande à la fenêtre de se fermer (après le téléchargement d'une mise à jour).</summary>
+    public Action? ExitRequested { get; set; }
 
     public ConfigApi(ConfigStore store, AppCatalog catalog, StaWorker sta, DeckServer server)
     {
@@ -53,6 +57,7 @@ public class ConfigApi
                     await Json(ctx, new
                     {
                         pcName = _store.PcName,
+                        build = Updater.CurrentBuild,
                         token = _store.Config.Token,
                         port = _store.Config.Port,
                         addresses = LocalNetwork.Addresses(),
@@ -145,6 +150,18 @@ public class ConfigApi
                 {
                     var (found, error) = await _server.ExecuteAsync(ctx.Request.Query["buttonId"].ToString());
                     await Json(ctx, new { ok = found && error == null, error = found ? error : "Enregistre d'abord ce bouton" });
+                    return;
+                }
+
+                case "/api/update/check":
+                    await Json(ctx, await _updater.CheckAsync());
+                    return;
+
+                case "/api/update/apply" when method == "POST":
+                {
+                    var error = await _updater.DownloadAndPrepareAsync();
+                    await Json(ctx, new { ok = error == null, error });
+                    if (error == null) _ = Task.Delay(800).ContinueWith(_ => ExitRequested?.Invoke());
                     return;
                 }
 

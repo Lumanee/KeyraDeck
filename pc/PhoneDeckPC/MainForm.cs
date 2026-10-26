@@ -36,6 +36,9 @@ public class MainForm : Form
         menu.Items.Add("Quitter", null, (_, _) => { _exiting = true; Close(); });
         _tray.ContextMenuStrip = menu;
 
+        if (server.Api != null)
+            server.Api.ExitRequested = () => BeginInvoke(() => { _exiting = true; Close(); });
+
         Load += async (_, _) => await InitWebAsync();
     }
 
