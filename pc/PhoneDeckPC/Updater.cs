@@ -21,6 +21,12 @@ public class Updater
 
     private string? _downloadUrl;
 
+    /// <summary>Supprime les restes d'une mise à jour précédente (ancien .exe renommé).</summary>
+    public static void CleanupOld()
+    {
+        try { var exe = Environment.ProcessPath; if (exe != null && File.Exists(exe + ".old")) File.Delete(exe + ".old"); } catch { }
+    }
+
     public static int CurrentBuild => Assembly.GetExecutingAssembly().GetName().Version?.Build ?? 0;
 
     private static HttpClient CreateClient()
@@ -77,17 +83,39 @@ public class Updater
             if (!File.Exists(Path.Combine(extracted, Path.GetFileName(exe))))
                 return "Le fichier téléchargé est incomplet";
 
-            // Un petit script attend que l'appli se ferme, copie les nouveaux fichiers, puis relance l'appli.
+            // Windows interdit d'écraser un .exe qui tourne, mais autorise à le renommer : on met l'ancien de côté
+            // puis on copie tout de suite les nouveaux fichiers, sans attendre la fermeture de l'appli.
+            var old = exe + ".old";
+            if (File.Exists(old)) File.Delete(old);
+            File.Move(exe, old);
+            try
+            {
+                foreach (var src in Directory.EnumerateFiles(extracted, "*", SearchOption.AllDirectories))
+                {
+                    var dest = Path.Combine(installDir, Path.GetRelativePath(extracted, src));
+                    Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+                    File.Copy(src, dest, true);
+                }
+            }
+            catch
+            {
+                if (File.Exists(old)) { if (File.Exists(exe)) File.Delete(exe); File.Move(old, exe); }
+                throw;
+            }
+
+            // Un petit script attend la fin de l'ancienne appli (son numéro de processus) puis lance la nouvelle.
             var script = Path.Combine(work, "update.cmd");
+            var pid = Environment.ProcessId;
             var cmd = $"""
                 @echo off
-                chcp 65001 >nul
                 set tries=0
                 :wait
                 set /a tries+=1
-                timeout /t 1 /nobreak >nul
-                xcopy /e /y /q "{extracted}\*" "{installDir}\" >nul
-                if errorlevel 1 if %tries% lss 30 goto wait
+                tasklist /fi "PID eq {pid}" 2>nul | find "{pid}" >nul
+                if not errorlevel 1 if %tries% lss 40 (
+                    timeout /t 1 /nobreak >nul
+                    goto wait
+                )
                 start "" "{exe}"
                 """;
             await File.WriteAllTextAsync(script, cmd);

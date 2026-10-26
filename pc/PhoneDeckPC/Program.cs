@@ -8,6 +8,7 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        Updater.CleanupOld();
         var console = args.Contains("--console");
         var dataDir = args.SkipWhile(a => a != "--data").Skip(1).FirstOrDefault();
 

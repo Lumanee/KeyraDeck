@@ -195,7 +195,7 @@ public class ConfigApi
                 {
                     var error = await _updater.DownloadAndPrepareAsync();
                     await Json(ctx, new { ok = error == null, error });
-                    if (error == null) _ = Task.Delay(800).ContinueWith(_ => ExitRequested?.Invoke());
+                    if (error == null) { _ = Task.Delay(800).ContinueWith(_ => ExitRequested?.Invoke()); _ = Task.Delay(5000).ContinueWith(_ => Environment.Exit(0)); }
                     return;
                 }
 
