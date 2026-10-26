@@ -10,6 +10,9 @@ public class DeckConfig
     public int Port { get; set; } = 8765;
     public string Token { get; set; } = "";
     public string? PcName { get; set; }
+    /// <summary>Taille de la grille de la page d'accueil (colonnes × lignes), comme un Stream Deck 5×3.</summary>
+    public int Columns { get; set; } = 5;
+    public int Rows { get; set; } = 3;
     public List<DeckPage> Pages { get; set; } = new();
     /// <summary>Images choisies depuis le téléphone, par id de bouton (chemin relatif au dossier de config).</summary>
     public Dictionary<string, string> IconOverrides { get; set; } = new();
@@ -21,6 +24,9 @@ public class DeckPage
     public string Name { get; set; } = "";
     /// <summary>Si renseigné, les boutons sont générés depuis ce dossier du menu Démarrer (ex. "Launcher").</summary>
     public string? StartMenuFolder { get; set; }
+    /// <summary>Grille propre à cette page (sinon : celle de la config pour l'accueil, automatique pour un dossier).</summary>
+    public int? Columns { get; set; }
+    public int? Rows { get; set; }
     public List<DeckButton> Buttons { get; set; } = new();
 }
 
@@ -35,6 +41,8 @@ public class DeckButton
     public string? Icon { get; set; }
     /// <summary>Couleur de fond de la tuile, ex. "#2B2D31".</summary>
     public string? Color { get; set; }
+    /// <summary>Case dans la grille (0 = en haut à gauche, on compte ligne par ligne). Vide = première case libre.</summary>
+    public int? Slot { get; set; }
     public DeckAction Action { get; set; } = new();
 }
 

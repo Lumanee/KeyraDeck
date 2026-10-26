@@ -14,12 +14,21 @@ data class DeckButton(
     val label: String,
     val color: Color?,
     val icon: ImageBitmap?,
+    /** Case dans la grille (0 = en haut à gauche). */
+    val slot: Int,
     val kind: String,
     val page: String?,
     val closeFolder: Boolean,
 )
 
-data class DeckPage(val id: String, val name: String, val buttons: List<DeckButton>)
+/** columns / rows : taille de la grille, ou null pour un dossier mis en page automatiquement. */
+data class DeckPage(
+    val id: String,
+    val name: String,
+    val columns: Int?,
+    val rows: Int?,
+    val buttons: List<DeckButton>,
+)
 
 data class DeckLayout(val pcName: String, val home: String, val pages: Map<String, DeckPage>) {
     val homePage: DeckPage? get() = pages[home] ?: pages.values.firstOrNull()
@@ -40,18 +49,25 @@ object Parser {
         for (i in 0 until arr.length()) {
             val p = arr.getJSONObject(i)
             val buttons = p.optJSONArray("buttons") ?: JSONArray()
-            val list = (0 until buttons.length()).map { j -> button(buttons.getJSONObject(j)) }
+            val list = (0 until buttons.length()).map { j -> button(buttons.getJSONObject(j), j) }
             val id = p.optString("id")
-            pages[id] = DeckPage(id, p.optString("name"), list)
+            pages[id] = DeckPage(
+                id = id,
+                name = p.optString("name"),
+                columns = p.optIntOrNull("columns"),
+                rows = p.optIntOrNull("rows"),
+                buttons = list,
+            )
         }
         return DeckLayout(json.optString("pcName", "PC"), json.optString("home"), pages)
     }
 
-    private fun button(b: JSONObject) = DeckButton(
+    private fun button(b: JSONObject, index: Int) = DeckButton(
         id = b.optString("id"),
         label = b.optString("label"),
         color = color(b.optStringOrNull("color")),
         icon = image(b.optStringOrNull("icon")),
+        slot = b.optInt("slot", index),
         kind = b.optString("kind", "action"),
         page = b.optStringOrNull("page"),
         closeFolder = b.optBoolean("closeFolder", false),
@@ -92,6 +108,9 @@ object Parser {
             null
         }
     }
+
+    private fun JSONObject.optIntOrNull(key: String): Int? =
+        if (has(key) && !isNull(key)) optInt(key) else null
 
     private fun JSONObject.optStringOrNull(key: String): String? =
         if (has(key) && !isNull(key)) optString(key) else null

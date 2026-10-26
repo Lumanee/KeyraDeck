@@ -104,29 +104,61 @@ public class AppCatalog
             .OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
     }
 
-    /// <summary>Cherche une appli par nom : nom exact, puis « commence par », puis « contient ».</summary>
+    private static readonly string[] JunkWords =
+    {
+        "uninstall", "désinstaller", "desinstaller", "config", "readme", "lisez", "license", "licence",
+        "help", "aide", "manual", "manuel", "website", "site web", "changelog", "release notes",
+        "resource", "ressource", "skip", "safe mode", "debug", "documentation",
+    };
+
+    private static readonly string[] DocExtensions =
+    {
+        ".ini", ".txt", ".pdf", ".htm", ".html", ".url", ".chm", ".md", ".rtf", ".log", ".xml", ".json", ".cfg",
+    };
+
+    /// <summary>
+    /// Cherche une appli par nom : nom exact, puis « commence par », puis « contient ».
+    /// Parmi plusieurs candidats, on préfère un vrai programme à un fichier de config ou un désinstalleur
+    /// (ex. « REAPER » doit lancer REAPER, pas « REAPER.ini »).
+    /// </summary>
     public AppEntry? Find(string name)
     {
         name = name.Trim();
-        var pools = new[] { _apps, _shortcuts };
-        foreach (var pool in pools)
+        if (name.Length == 0) return null;
+        var all = _apps.Select(a => (App: a, Pool: 0)).Concat(_shortcuts.Select(a => (App: a, Pool: 1))).ToList();
+
+        Func<string, bool>[] tiers =
         {
-            var hit = pool.FirstOrDefault(a => a.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-            if (hit != null) return hit;
-        }
-        foreach (var pool in pools)
+            n => n.Equals(name, StringComparison.OrdinalIgnoreCase),
+            n => n.StartsWith(name, StringComparison.OrdinalIgnoreCase),
+            n => n.Contains(name, StringComparison.OrdinalIgnoreCase),
+        };
+        foreach (var tier in tiers)
         {
-            var hit = pool.Where(a => a.Name.StartsWith(name, StringComparison.OrdinalIgnoreCase))
-                          .OrderBy(a => a.Name.Length).FirstOrDefault();
-            if (hit != null) return hit;
-        }
-        foreach (var pool in pools)
-        {
-            var hit = pool.Where(a => a.Name.Contains(name, StringComparison.OrdinalIgnoreCase))
-                          .OrderBy(a => a.Name.Length).FirstOrDefault();
-            if (hit != null) return hit;
+            var best = all.Where(x => tier(x.App.Name))
+                .OrderByDescending(x => Score(x.App, name))
+                .ThenBy(x => x.Pool)
+                .ThenBy(x => x.App.Name.Length)
+                .Select(x => x.App)
+                .FirstOrDefault();
+            if (best != null && Score(best, name) > -50) return best;
         }
         return null;
+    }
+
+    private static int Score(AppEntry app, string query)
+    {
+        int score = 0;
+        var n = app.Name.ToLowerInvariant();
+        var q = query.ToLowerInvariant();
+        var path = app.ShellPath.ToLowerInvariant();
+        foreach (var w in JunkWords)
+            if (n.Contains(w) && !q.Contains(w)) score -= 30;
+        foreach (var ext in DocExtensions)
+            if ((n.EndsWith(ext) || path.EndsWith(ext)) && !q.EndsWith(ext)) score -= 60;
+        if (path.EndsWith(".exe") || path.EndsWith(".lnk")) score += 10;
+        if (path.Contains('!')) score += 10; // appli du Store (ex. Xbox)
+        return score;
     }
 
     /// <summary>

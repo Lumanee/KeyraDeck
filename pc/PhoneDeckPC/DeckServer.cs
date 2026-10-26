@@ -266,33 +266,50 @@ public class DeckServer
         List<DeckButton> Children(string pageId) => expanded.TryGetValue(pageId, out var b) ? b : new();
 
         var lookup = new Dictionary<string, DeckButton>();
-        var pages = cfg.Pages.Select(page => new
+        var pages = cfg.Pages.Select((page, index) =>
         {
-            id = page.Id,
-            name = page.Name,
-            buttons = expanded[page.Id].Select(b =>
+            var buttons = expanded[page.Id];
+            int? columns = page.Columns ?? (index == 0 ? cfg.Columns : null);
+            int? rows = page.Rows ?? (index == 0 ? cfg.Rows : null);
+            var cols = Math.Clamp(columns ?? (buttons.Count <= 4 ? 2 : 3), 1, 12);
+            var slots = AssignSlots(buttons);
+            if (rows != null)
             {
-                lookup[b.Id] = b;
-                var kind = b.Action.Type.ToLowerInvariant() switch
+                // La grille grandit si des boutons ne rentrent pas (plutôt que de les cacher).
+                var needed = (slots.Values.DefaultIfEmpty(-1).Max() + cols) / cols;
+                rows = Math.Max(rows.Value, needed);
+            }
+            return new
+            {
+                id = page.Id,
+                name = page.Name,
+                columns = columns == null ? (int?)null : cols,
+                rows,
+                buttons = buttons.Select(b =>
                 {
-                    "folder" => "folder",
-                    "mixer" => "mixer",
-                    _ => "action",
-                };
-                return new
-                {
-                    id = b.Id,
-                    label = b.Label,
-                    color = b.Color,
-                    icon = SafeIcon(b, Children),
-                    kind,
-                    page = kind == "folder" ? b.Action.Page : null,
-                    // Comme un dossier Android : on referme après avoir lancé une appli,
-                    // mais on reste ouvert pour les raccourcis (micro, sourdine…).
-                    closeFolder = b.Action.Type.Equals("open", StringComparison.OrdinalIgnoreCase)
-                               || b.Action.Type.Equals("url", StringComparison.OrdinalIgnoreCase),
-                };
-            }).ToList(),
+                    lookup[b.Id] = b;
+                    var kind = b.Action.Type.ToLowerInvariant() switch
+                    {
+                        "folder" => "folder",
+                        "mixer" => "mixer",
+                        _ => "action",
+                    };
+                    return new
+                    {
+                        id = b.Id,
+                        label = b.Label,
+                        color = b.Color,
+                        icon = SafeIcon(b, Children),
+                        slot = slots[b.Id],
+                        kind,
+                        page = kind == "folder" ? b.Action.Page : null,
+                        // Comme un dossier Android : on referme après avoir lancé une appli,
+                        // mais on reste ouvert pour les raccourcis (micro, sourdine…).
+                        closeFolder = b.Action.Type.Equals("open", StringComparison.OrdinalIgnoreCase)
+                                   || b.Action.Type.Equals("url", StringComparison.OrdinalIgnoreCase),
+                    };
+                }).ToList(),
+            };
         }).ToList();
 
         var json = JsonSerializer.Serialize(new
@@ -303,6 +320,26 @@ public class DeckServer
             pages,
         }, Wire);
         return (json, lookup);
+    }
+
+    /// <summary>Place chaque bouton : ceux qui ont une case la gardent, les autres prennent les premières cases libres.</summary>
+    public static Dictionary<string, int> AssignSlots(List<DeckButton> buttons)
+    {
+        var result = new Dictionary<string, int>();
+        var used = new HashSet<int>();
+        foreach (var b in buttons)
+        {
+            if (b.Slot is int s && s >= 0 && used.Add(s)) result[b.Id] = s;
+        }
+        int next = 0;
+        foreach (var b in buttons)
+        {
+            if (result.ContainsKey(b.Id)) continue;
+            while (used.Contains(next)) next++;
+            used.Add(next);
+            result[b.Id] = next;
+        }
+        return result;
     }
 
     private string? SafeIcon(DeckButton b, Func<string, List<DeckButton>> children)
