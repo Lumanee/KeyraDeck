@@ -27,6 +27,9 @@ public class DeckServer
     private string? _layoutJson;
     private Dictionary<string, DeckButton> _buttons = new();
 
+    /// <summary>Configurateur web (pages et API locales).</summary>
+    public ConfigApi? Api { get; set; }
+
     public event Action? ClientsChanged;
     public event Action<string>? Log;
 
@@ -68,7 +71,8 @@ public class DeckServer
     {
         if (ctx.Request.Path != "/ws")
         {
-            await ctx.Response.WriteAsync("PhoneDeck PC fonctionne. Connecte l'appli Android avec le QR code.");
+            if (Api != null) await Api.HandleAsync(ctx);
+            else await ctx.Response.WriteAsync("PhoneDeck PC fonctionne.");
             return;
         }
         if (!ctx.WebSockets.IsWebSocketRequest)
@@ -176,41 +180,56 @@ public class DeckServer
             }
 
             case "setIcon":
-            {
-                var id = root.GetProperty("buttonId").GetString() ?? "";
-                var png = Convert.FromBase64String(root.GetProperty("png").GetString() ?? "");
-                var safe = string.Concat(id.Select(c => char.IsLetterOrDigit(c) || c == '-' ? c : '_'));
-                var file = $"{safe}-{DateTime.Now:yyyyMMddHHmmss}.png";
-                await File.WriteAllBytesAsync(Path.Combine(_store.IconsDir, file), png);
-                _store.Config.IconOverrides[id] = Path.Combine("icons", file);
-                _store.Save();
-                Log?.Invoke($"Nouvelle image pour « {id} »");
-                await OnConfigChangedAsync();
+                await SetCustomIconAsync(
+                    root.GetProperty("buttonId").GetString() ?? "",
+                    Convert.FromBase64String(root.GetProperty("png").GetString() ?? ""),
+                    ".png");
                 break;
-            }
 
             case "resetIcon":
-            {
-                var id = root.GetProperty("buttonId").GetString() ?? "";
-                if (_store.Config.IconOverrides.Remove(id))
-                {
-                    _store.Save();
-                    await OnConfigChangedAsync();
-                }
+                await ResetIconAsync(root.GetProperty("buttonId").GetString() ?? "");
                 break;
-            }
+        }
+    }
+
+    /// <summary>Enregistre une image choisie par l'utilisateur pour un bouton.</summary>
+    public async Task SetCustomIconAsync(string buttonId, byte[] image, string extension)
+    {
+        var safe = string.Concat(buttonId.Select(c => char.IsLetterOrDigit(c) || c == '-' ? c : '_'));
+        var file = $"{safe}-{DateTime.Now:yyyyMMddHHmmssfff}{extension}";
+        await File.WriteAllBytesAsync(Path.Combine(_store.IconsDir, file), image);
+        _store.Config.IconOverrides[buttonId] = Path.Combine("icons", file);
+        _store.Save();
+        Log?.Invoke($"Nouvelle image pour « {buttonId} »");
+        await OnConfigChangedAsync();
+    }
+
+    public async Task ResetIconAsync(string buttonId)
+    {
+        if (_store.Config.IconOverrides.Remove(buttonId))
+        {
+            _store.Save();
+            await OnConfigChangedAsync();
         }
     }
 
     private async Task PressAsync(Client client, string buttonId)
     {
-        await GetLayoutJsonAsync(); // s'assure que la liste des boutons est à jour
-        if (!_buttons.TryGetValue(buttonId, out var button))
+        var (found, error) = await ExecuteAsync(buttonId);
+        if (!found)
         {
             await client.SendAsync(new { type = "toast", message = "Bouton inconnu, rechargement…" });
             await client.SendRawAsync(await GetLayoutJsonAsync());
             return;
         }
+        if (error != null) await client.SendAsync(new { type = "toast", message = error });
+    }
+
+    /// <summary>Exécute l'action d'un bouton (depuis le téléphone ou le bouton « Tester » du configurateur).</summary>
+    public async Task<(bool Found, string? Error)> ExecuteAsync(string buttonId)
+    {
+        await GetLayoutJsonAsync(); // s'assure que la liste des boutons est à jour
+        if (!_buttons.TryGetValue(buttonId, out var button)) return (false, null);
 
         var action = button.Action;
         string? error = action.Type.ToLowerInvariant() switch
@@ -218,18 +237,22 @@ public class DeckServer
             "open" => await _catalog.LaunchAsync(action),
             "url" => await _catalog.OpenUrlAsync(action.Target ?? ""),
             "keys" => await Task.Run(() => KeySender.Send(action.Keys ?? "")),
+            "text" => await Task.Run(() => KeySender.TypeText(action.Text ?? "")),
             _ => null,
         };
         Log?.Invoke(error == null ? $"« {button.Label} »" : error);
-        if (error != null) await client.SendAsync(new { type = "toast", message = error });
+        return (true, error);
     }
 
     // ---------- Disposition des pages ----------
 
+    /// <summary>Augmente à chaque changement : le configurateur s'en sert pour savoir quand se rafraîchir.</summary>
+    public int LayoutVersion { get; private set; }
+
     private async Task OnConfigChangedAsync()
     {
-        _icons.ClearCache();
         _layoutJson = null;
+        LayoutVersion++;
         var json = await GetLayoutJsonAsync();
         List<Client> clients;
         lock (_clients) clients = _clients.ToList();

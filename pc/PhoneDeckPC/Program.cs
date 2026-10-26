@@ -17,6 +17,7 @@ internal static class Program
         var icons = new IconService(catalog, store);
         var audio = new AudioMixer();
         var server = new DeckServer(store, catalog, icons, audio, sta);
+        server.Api = new ConfigApi(store, catalog, sta, server);
 
         catalog.RefreshAsync().GetAwaiter().GetResult();
 
@@ -55,7 +56,7 @@ internal static class Program
                 "PhoneDeck PC", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
-        Application.Run(new MainForm(store, server, catalog));
+        Application.Run(new MainForm(store, server));
         server.StopAsync().GetAwaiter().GetResult();
     }
 }

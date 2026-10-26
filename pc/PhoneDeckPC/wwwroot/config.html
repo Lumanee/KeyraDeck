@@ -1,0 +1,736 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PhoneDeck PC</title>
+<style>
+  :root {
+    --bg: #111114; --panel: #1a1a1f; --panel2: #222229; --line: #2e2e38;
+    --text: #ececf1; --muted: #8d8d99; --accent: #7c6cf2; --accent2: #5b4bdb;
+    --ok: #4cd964; --warn: #ffc107; --bad: #ff5252;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.4 "Segoe UI", system-ui, sans-serif; display: flex; flex-direction: column; overflow: hidden; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+  button:hover { border-color: #4a4a58; background: #2a2a33; }
+  button.primary { background: var(--accent2); border-color: var(--accent); }
+  button.primary:hover { background: var(--accent); }
+  button.danger:hover { border-color: var(--bad); color: var(--bad); }
+  button:disabled { opacity: .4; cursor: default; }
+  input[type=text], input[type=number], select, textarea { background: #15151a; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; width: 100%; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  label { display: block; color: var(--muted); font-size: 12px; margin: 12px 0 4px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px; }
+
+  header { display: flex; align-items: center; gap: 14px; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  header .logo { font-weight: 700; letter-spacing: .05em; }
+  header .spacer { flex: 1; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--bad); display: inline-block; margin-right: 6px; }
+  .dot.on { background: var(--ok); }
+  #saved { color: var(--muted); font-size: 12px; min-width: 110px; text-align: right; }
+  #saved.err { color: var(--bad); }
+
+  main { flex: 1; display: grid; grid-template-columns: 280px 1fr 320px; min-height: 0; }
+  aside { background: var(--panel); padding: 16px; overflow-y: auto; min-height: 0; }
+  aside.left { border-right: 1px solid var(--line); }
+  aside.right { border-left: 1px solid var(--line); }
+  .center { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+
+  .tabs { display: flex; gap: 6px; padding: 12px 16px 0; flex-wrap: wrap; align-items: center; }
+  .tab { border-radius: 999px; padding: 4px 14px; }
+  .tab.active { background: var(--accent2); border-color: var(--accent); }
+  .stage { flex: 1; display: flex; align-items: center; justify-content: center; padding: 16px; min-height: 0;
+           background: radial-gradient(circle at 50% 40%, #24242c, #0b0b0e); }
+  .gridbar { display: flex; gap: 18px; align-items: center; padding: 8px 16px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+  .stepper { display: inline-flex; align-items: center; gap: 6px; }
+  .stepper button { width: 28px; padding: 2px 0; }
+  .stepper b { min-width: 18px; text-align: center; color: var(--text); }
+
+  /* Le boîtier, comme sur le téléphone */
+  .device { background: linear-gradient(#34343c, #17171b); border: 1px solid #ffffff22; box-shadow: 0 20px 50px #000a;
+            display: flex; flex-direction: column; }
+  .strip { display: flex; align-items: center; gap: 8px; color: #6e6e78; font-size: 10px; letter-spacing: .3em; font-weight: 700; }
+  .strip .dot { width: 7px; height: 7px; margin: 0; }
+  .grid { display: grid; }
+  .key { background: #060608; border-radius: 20%; padding: 5%; position: relative; box-shadow: 0 4px 6px #0008; transition: transform .08s; }
+  .key .face { width: 100%; height: 100%; border-radius: 14%; background: #1b1b21; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 7%; overflow: hidden; position: relative; background-image: linear-gradient(#ffffff1f, #ffffff00); }
+  .key.empty .face { background: #121216; background-image: none; border: 1px dashed #2e2e38; }
+  .key img.icon { flex: 1; min-height: 0; max-width: 100%; object-fit: contain; pointer-events: none; }
+  .key .lbl { font-size: var(--lbl, 12px); color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; pointer-events: none; }
+  .key.selected { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .key.over { outline: 3px dashed var(--ok); outline-offset: 2px; transform: scale(1.04); }
+  .key.fileover { outline: 3px dashed var(--warn); outline-offset: 2px; }
+  .key[draggable=true] { cursor: grab; }
+  .key .badge { position: absolute; top: 4%; right: 6%; font-size: 11px; opacity: .8; pointer-events: none; }
+
+  /* Panneau de gauche */
+  .box { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 14px; }
+  .addrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .addrow button { text-align: left; padding: 10px; }
+  .applist { max-height: 300px; overflow-y: auto; margin-top: 8px; }
+  .appitem { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 8px; cursor: grab; }
+  .appitem:hover { background: #2c2c36; }
+  .appitem img { width: 28px; height: 28px; object-fit: contain; }
+  .appitem span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hint { color: var(--muted); font-size: 12px; }
+
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row > * { flex: 1; }
+  .row > button { flex: none; }
+  .steps { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+  .step { display: flex; gap: 6px; align-items: center; background: #15151a; border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; }
+  .step span { flex: 1; }
+  .step button { padding: 0 8px; }
+  .kbd { font-family: ui-monospace, Consolas, monospace; background: #2c2c36; border-radius: 4px; padding: 1px 6px; }
+  .recording { outline: 2px solid var(--bad) !important; }
+  .row > .preview { flex: none; }
+  .preview { width: 64px; height: 64px; background: #060608; border-radius: 12px; padding: 6px; }
+  .preview img { width: 100%; height: 100%; object-fit: contain; }
+
+  dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 14px; padding: 20px; max-width: 420px; }
+  dialog::backdrop { background: #000a; }
+  .qr { background: #fff; padding: 8px; border-radius: 8px; width: 240px; height: 240px; display: block; margin: 8px auto; }
+  .code { font: 700 20px ui-monospace, Consolas, monospace; letter-spacing: .15em; text-align: center; }
+  #trash { border: 1px dashed var(--line); border-radius: 10px; padding: 10px; text-align: center; color: var(--muted); margin-top: 14px; }
+  #trash.over { border-color: var(--bad); color: var(--bad); }
+  #toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #000d; border: 1px solid var(--line); padding: 8px 16px; border-radius: 999px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 10; }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">PHONEDECK</span>
+  <span id="conn"><span class="dot"></span><span id="connText">Aucun téléphone connecté</span></span>
+  <button id="pairBtn" class="primary">Connecter un téléphone</button>
+  <span class="spacer"></span>
+  <button id="undoBtn" title="Annuler (Ctrl+Z)">↶ Annuler</button>
+  <button id="folderBtn" title="Ouvrir config.json et le dossier de configuration">Dossier de config</button>
+  <span id="saved"></span>
+</header>
+
+<main>
+  <aside class="left">
+    <div class="box">
+      <h2>Ajouter un bouton</h2>
+      <div class="addrow">
+        <button data-add="web">🌐 Site web</button>
+        <button data-add="keys">⌨️ Raccourci / macro</button>
+        <button data-add="text">✍️ Texte à taper</button>
+        <button data-add="folder">📁 Dossier</button>
+        <button data-add="mixer">🔊 Volume</button>
+        <button data-add="app">📦 Appli…</button>
+      </div>
+    </div>
+    <div class="box" id="appBox">
+      <h2>Applis installées</h2>
+      <input type="text" id="appSearch" placeholder="Rechercher une appli">
+      <div class="hint" style="margin-top:6px">Glisse une appli sur une case, ou clique pour l'ajouter à la première case libre.</div>
+      <div class="applist" id="appList"></div>
+    </div>
+  </aside>
+
+  <section class="center">
+    <div class="tabs" id="tabs"></div>
+    <div class="stage" id="stage"><div class="device" id="device"></div></div>
+    <div class="gridbar">
+      <span>Grille : <span class="stepper"><button id="colMinus">−</button><b id="colVal"></b><button id="colPlus">+</button></span> colonnes ×
+        <span class="stepper"><button id="rowMinus">−</button><b id="rowVal"></b><button id="rowPlus">+</button></span> lignes</span>
+      <span id="pageTools"></span>
+      <span class="hint">Glisse les boutons pour les déplacer, dépose une image sur un bouton pour changer son icône.</span>
+    </div>
+  </section>
+
+  <aside class="right" id="inspector"></aside>
+</main>
+
+<dialog id="pairDlg">
+  <h2>Connecter un téléphone</h2>
+  <div class="hint">Ouvre PhoneDeck sur ton téléphone (même Wi-Fi) et scanne ce QR code.</div>
+  <img class="qr" id="qrImg" alt="QR code">
+  <label>Adresse du PC</label>
+  <select id="ipSel"></select>
+  <label>Code</label>
+  <div class="code" id="codeVal"></div>
+  <div class="hint" id="portVal" style="text-align:center"></div>
+  <div style="text-align:right;margin-top:14px"><button id="pairClose">Fermer</button></div>
+</dialog>
+
+<dialog id="appDlg">
+  <h2>Choisir une appli</h2>
+  <div class="hint">Utilise la liste « Applis installées » à gauche : clique sur une appli ou glisse-la sur une case.</div>
+  <div style="text-align:right;margin-top:14px"><button id="appClose">OK</button></div>
+</dialog>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+const $ = (s, el = document) => el.querySelector(s);
+const el = (tag, attrs = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'class') e.className = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else if (v !== null && v !== undefined && v !== false) e.setAttribute(k, v === true ? '' : v);
+  }
+  for (const k of kids.flat()) if (k !== null && k !== undefined) e.append(k.nodeType ? k : document.createTextNode(k));
+  return e;
+};
+
+const state = {
+  cfg: null,            // configuration en cours d'édition
+  layout: null,         // ce que le téléphone voit (icônes, cases calculées)
+  page: null,           // id de la page affichée
+  selected: null,       // id du bouton sélectionné
+  apps: [],
+  version: -1,
+  dirty: false,
+  undo: [],
+  info: null,
+};
+
+const api = async (path, opts = {}) => {
+  const r = await fetch(path, opts);
+  const ct = r.headers.get('content-type') || '';
+  const body = ct.includes('json') ? await r.json() : await r.text();
+  if (!r.ok) throw new Error((body && body.error) || ('Erreur ' + r.status));
+  return body;
+};
+
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+const uid = (p) => p + '-' + Math.random().toString(36).slice(2, 7);
+const pageById = (id) => state.cfg.pages.find(p => p.id === id);
+const homeId = () => state.cfg.pages[0].id;
+const currentPage = () => pageById(state.page) || state.cfg.pages[0];
+const findButton = (id) => { for (const p of state.cfg.pages) { const b = p.buttons.find(b => b.id === id); if (b) return { page: p, button: b }; } return null; };
+
+// ---------- Chargement ----------
+
+async function loadAll() {
+  const [cfg, layout, info] = await Promise.all([api('/api/config'), api('/api/layout'), api('/api/info')]);
+  state.cfg = cfg; state.layout = layout; state.info = info; state.version = info.version;
+  // On fige la position de chaque bouton (cases calculées par le PC) pour pouvoir les déplacer.
+  for (const lp of layout.pages) {
+    const p = pageById(lp.id); if (!p) continue;
+    delete p.generated;
+    const ids = new Set(p.buttons.map(b => b.id));
+    // Page remplie automatiquement depuis le menu Démarrer : les boutons du téléphone ne sont pas ceux de config.json.
+    if (p.startMenuFolder && lp.buttons.length && lp.buttons.some(b => !ids.has(b.id))) {
+      p.generated = lp.buttons.map(b => ({ id: b.id, label: b.label, slot: b.slot }));
+      continue;
+    }
+    for (const b of p.buttons) { const lb = lp.buttons.find(x => x.id === b.id); if (lb) b.slot = lb.slot; }
+    const used = new Set(p.buttons.filter(b => b.slot != null).map(b => b.slot));
+    let next = 0;
+    for (const b of p.buttons) if (b.slot == null) { while (used.has(next)) next++; b.slot = next; used.add(next); }
+  }
+  if (!state.page || !pageById(state.page)) state.page = homeId();
+  if (state.selected && !findButton(state.selected)) state.selected = null;
+  renderAll();
+}
+
+async function refreshLayout() {
+  state.layout = await api('/api/layout');
+  renderStage();
+}
+
+// ---------- Enregistrement ----------
+
+let saveTimer = null;
+function pushUndo() {
+  state.undo.push(JSON.stringify(state.cfg));
+  if (state.undo.length > 40) state.undo.shift();
+}
+function changed(opts = {}) {
+  state.dirty = true;
+  setSaved('Modifications…');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(save, opts.immediate ? 0 : 500);
+  renderAll();
+}
+function stripForSave(cfg) {
+  const copy = JSON.parse(JSON.stringify(cfg));
+  for (const p of copy.pages) delete p.generated;
+  return copy;
+}
+async function save() {
+  clearTimeout(saveTimer);
+  if (!state.dirty) return;
+  try {
+    state.dirty = false;
+    await api('/api/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(stripForSave(state.cfg)) });
+    setSaved('Enregistré ✓');
+    const info = await api('/api/info'); state.version = info.version;
+    await refreshLayout();
+  } catch (e) {
+    state.dirty = true;
+    setSaved('Erreur : ' + e.message, true);
+  }
+}
+function setSaved(t, err) { const s = $('#saved'); s.textContent = t; s.classList.toggle('err', !!err); }
+
+// ---------- Rendu ----------
+
+function renderAll() { renderTabs(); renderStage(); renderGridBar(); renderInspector(); }
+
+function renderTabs() {
+  const tabs = $('#tabs'); tabs.replaceChildren();
+  state.cfg.pages.forEach((p, i) => {
+    tabs.append(el('button', { class: 'tab' + (p.id === state.page ? ' active' : ''), onclick: () => { state.page = p.id; state.selected = null; renderAll(); } },
+      (i === 0 ? '🏠 ' : '📁 ') + (p.name || p.id)));
+  });
+}
+
+function pageGrid(page) {
+  const lp = state.layout && state.layout.pages.find(x => x.id === page.id);
+  const isHome = page === state.cfg.pages[0];
+  let cols = page.columns ?? (isHome ? state.cfg.columns : null);
+  let rows = page.rows ?? (isHome ? state.cfg.rows : null);
+  const count = page.generated ? page.generated.length : page.buttons.length;
+  const maxSlot = Math.max(-1, ...page.buttons.map(b => b.slot ?? -1), ...(page.generated || []).map(b => b.slot ?? -1));
+  if (cols == null) cols = count <= 4 ? 2 : 3;
+  if (rows == null) rows = Math.max(1, Math.ceil((maxSlot + 1) / cols));
+  rows = Math.max(rows, Math.ceil((maxSlot + 1) / cols));
+  return { cols, rows, auto: lp && lp.columns == null && page.columns == null && !isHome };
+}
+
+function iconFor(b) {
+  if (!state.layout) return null;
+  for (const lp of state.layout.pages) { const lb = lp.buttons.find(x => x.id === b.id); if (lb && lb.icon) return 'data:image/png;base64,' + lb.icon; }
+  return null;
+}
+
+function renderStage() {
+  const page = currentPage();
+  const dev = $('#device'); dev.replaceChildren();
+  const { cols, rows } = pageGrid(page);
+  const stage = $('#stage');
+  const availW = stage.clientWidth - 48, availH = stage.clientHeight - 48;
+  const strip = 26, g = 0.14, bz = 0.32;
+  const key = Math.max(36, Math.min(
+    availW / (cols + (cols - 1) * g + 2 * bz),
+    (availH - strip) / (rows + (rows - 1) * g + 2 * bz), 130));
+  dev.style.borderRadius = key * 0.42 + 'px';
+  dev.style.padding = `0 ${key * bz}px ${key * bz}px`;
+  dev.append(el('div', { class: 'strip', style: `height:${strip}px` },
+    el('span', { class: 'dot' + (state.info && state.info.clients.length ? ' on' : '') }), 'PHONEDECK',
+    el('span', { style: 'letter-spacing:0;font-weight:400;opacity:.7' }, ' ' + (state.info ? state.info.pcName : ''))));
+
+  const grid = el('div', { class: 'grid', style: `grid-template-columns:repeat(${cols},${key}px);grid-template-rows:repeat(${rows},${key}px);gap:${key * g}px` });
+  const bySlot = new Map();
+  if (!page.generated) for (const b of page.buttons) bySlot.set(b.slot, b);
+  const gen = new Map((page.generated || []).map(b => [b.slot, b]));
+  for (let s = 0; s < cols * rows; s++) {
+    const b = bySlot.get(s);
+    const k = el('div', { class: 'key' + (b ? '' : ' empty') + (b && b.id === state.selected ? ' selected' : ''), 'data-slot': s, style: `--lbl:${Math.max(9, Math.min(15, key * 0.12))}px` });
+    if (b) {
+      const face = el('div', { class: 'face', style: b.color ? `background-color:${b.color}` : '' });
+      const ic = iconFor(b);
+      if (ic) face.append(el('img', { class: 'icon', src: ic, draggable: 'false' }));
+      else face.append(el('div', { style: 'flex:1' }));
+      if (key >= 56) face.append(el('div', { class: 'lbl' }, b.label));
+      if (b.action.type === 'folder') face.append(el('span', { class: 'badge' }, '📁'));
+      k.append(face);
+      k.draggable = true;
+      k.addEventListener('dragstart', (e) => { e.dataTransfer.setData('application/x-pd-button', b.id); e.dataTransfer.effectAllowed = 'move'; select(b.id, true); });
+      k.addEventListener('click', () => select(b.id));
+      k.addEventListener('dblclick', () => { if (b.action.type === 'folder' && pageById(b.action.page)) { state.page = b.action.page; state.selected = null; renderAll(); } });
+    } else if (gen.has(s)) {
+      const gb = gen.get(s);
+      const ic = iconFor(gb);
+      const face = el('div', { class: 'face' });
+      if (ic) face.append(el('img', { class: 'icon', src: ic }));
+      if (key >= 56) face.append(el('div', { class: 'lbl' }, gb.label));
+      k.classList.remove('empty'); k.append(face);
+    } else {
+      k.append(el('div', { class: 'face' }));
+      k.addEventListener('click', () => { state.selected = null; renderInspector(); renderStage(); });
+    }
+    k.addEventListener('dragover', (e) => {
+      const t = e.dataTransfer.types;
+      if (t.includes('application/x-pd-button') || t.includes('application/x-pd-app')) { e.preventDefault(); k.classList.add('over'); }
+      else if (t.includes('Files') && b) { e.preventDefault(); k.classList.add('fileover'); }
+    });
+    k.addEventListener('dragleave', () => k.classList.remove('over', 'fileover'));
+    k.addEventListener('drop', (e) => { k.classList.remove('over', 'fileover'); e.preventDefault(); onDropOnSlot(e, s, b); });
+    grid.append(k);
+  }
+  dev.append(grid);
+}
+
+async function onDropOnSlot(e, slot, existing) {
+  const page = currentPage();
+  const dt = e.dataTransfer;
+  if (dt.files && dt.files.length) {
+    if (!existing) { toast('Dépose l\'image sur un bouton existant'); return; }
+    await uploadIcon(existing.id, dt.files[0]); return;
+  }
+  const moving = dt.getData('application/x-pd-button');
+  if (moving) {
+    const found = findButton(moving);
+    if (!found) return;
+    pushUndo();
+    if (found.page === page) {
+      const from = found.button.slot;
+      if (existing && existing !== found.button) existing.slot = from;
+      found.button.slot = slot;
+    } else {
+      found.page.buttons.splice(found.page.buttons.indexOf(found.button), 1);
+      if (existing) existing.slot = firstFreeSlot(page, slot);
+      found.button.slot = slot; page.buttons.push(found.button);
+    }
+    changed(); return;
+  }
+  const appData = dt.getData('application/x-pd-app');
+  if (appData) {
+    const a = JSON.parse(appData);
+    pushUndo();
+    if (existing) existing.slot = firstFreeSlot(page, slot);
+    addButton(newAppButton(a), slot);
+  }
+}
+
+function firstFreeSlot(page, avoid) {
+  const used = new Set(page.buttons.map(b => b.slot));
+  if (avoid !== undefined) used.add(avoid);
+  const { cols, rows } = pageGrid(page);
+  let s = 0; while (used.has(s)) s++;
+  return s;
+}
+
+function addButton(b, slot) {
+  const page = currentPage();
+  if (page.generated) {
+    toast('Ce dossier est rempli depuis le menu Démarrer : clique sur « Détacher » pour le modifier.'); return;
+  }
+  b.slot = slot ?? firstFreeSlot(page);
+  const { cols, rows } = pageGrid(page);
+  // La grille s'agrandit d'une ligne si besoin.
+  if (b.slot >= cols * rows) {
+    if (page === state.cfg.pages[0]) state.cfg.rows = Math.ceil((b.slot + 1) / cols); else page.rows = Math.ceil((b.slot + 1) / cols);
+  }
+  page.buttons.push(b);
+  state.selected = b.id;
+  changed({ immediate: true });
+}
+
+function newAppButton(a) {
+  return { id: uid('app'), label: a.name, icon: 'auto', action: { type: 'open', target: a.name } };
+}
+
+function select(id, silent) {
+  state.selected = id;
+  if (!silent) { renderStage(); renderInspector(); }
+}
+
+function renderGridBar() {
+  const page = currentPage();
+  const { cols, rows } = pageGrid(page);
+  $('#colVal').textContent = cols; $('#rowVal').textContent = rows;
+  const tools = $('#pageTools'); tools.replaceChildren();
+  const isHome = page === state.cfg.pages[0];
+  if (!isHome) {
+    tools.append(el('button', { onclick: renamePage }, '✏️ Renommer'));
+  }
+  if (page.generated) {
+    tools.append(' ', el('button', { onclick: detachPage, title: 'Copie les raccourcis du menu Démarrer en boutons que tu peux modifier' }, '🔗 Détacher du menu Démarrer'));
+  }
+}
+function setGrid(dc, dr) {
+  const page = currentPage(); const isHome = page === state.cfg.pages[0];
+  const { cols, rows } = pageGrid(page);
+  const nc = Math.min(12, Math.max(1, cols + dc)), nr = Math.min(12, Math.max(1, rows + dr));
+  const maxSlot = Math.max(-1, ...page.buttons.map(b => b.slot));
+  if (nc * nr <= maxSlot) { toast('Des boutons sont dans les cases supprimées : déplace-les d\'abord.'); return; }
+  // Si on change le nombre de colonnes, les cases (comptées ligne par ligne) sont recalculées pour garder la même position visuelle.
+  if (nc !== cols) for (const b of page.buttons) { const r = Math.floor(b.slot / cols), c = b.slot % cols; if (c >= nc) { toast('Des boutons sont dans les colonnes supprimées.'); return; } }
+  pushUndo();
+  if (nc !== cols) for (const b of page.buttons) { const r = Math.floor(b.slot / cols), c = b.slot % cols; b.slot = r * nc + c; }
+  if (isHome) { state.cfg.columns = nc; state.cfg.rows = nr; } else { page.columns = nc; page.rows = nr; }
+  changed();
+}
+function renamePage() {
+  const page = currentPage();
+  const n = prompt('Nom du dossier :', page.name); if (!n) return;
+  pushUndo(); page.name = n;
+  for (const b of state.cfg.pages.flatMap(p => p.buttons)) if (b.action.type === 'folder' && b.action.page === page.id && b.label === page.name) b.label = n;
+  changed();
+}
+function detachPage() {
+  const page = currentPage();
+  pushUndo();
+  const gen = state.layout.pages.find(p => p.id === page.id);
+  // Chaque raccourci devient un bouton normal, lancé par son nom (comme dans le menu Démarrer).
+  page.buttons = gen.buttons.map(lb => ({ id: lb.id, label: lb.label, icon: 'auto', slot: lb.slot, action: { type: 'open', target: lb.label } }));
+  delete page.startMenuFolder; delete page.generated;
+  changed({ immediate: true });
+}
+
+// ---------- Panneau de droite ----------
+
+function renderInspector() {
+  const box = $('#inspector'); box.replaceChildren();
+  const f = state.selected && findButton(state.selected);
+  if (!f) {
+    box.append(el('h2', {}, 'Propriétés'),
+      el('div', { class: 'hint' }, 'Clique sur un bouton pour le modifier.', el('br'), el('br'),
+        'Astuces :', el('br'), '• glisse un bouton pour le déplacer', el('br'), '• dépose une image dessus pour changer son icône', el('br'),
+        '• double-clic sur un dossier pour l\'ouvrir', el('br'), '• Suppr pour effacer le bouton sélectionné'));
+    return;
+  }
+  const b = f.button, a = b.action;
+  const upd = (fn, opts) => { pushUndo(); fn(); changed(opts); };
+
+  box.append(el('h2', {}, 'Bouton'));
+  const ic = iconFor(b);
+  box.append(el('div', { class: 'row' },
+    el('div', { class: 'preview' }, ic ? el('img', { src: ic }) : null),
+    el('div', {},
+      el('button', { onclick: () => $('#fileIn').click() }, 'Choisir une image…'), ' ',
+      el('button', { onclick: resetIcon }, 'Icône auto'),
+      el('input', { type: 'file', id: 'fileIn', accept: 'image/*', style: 'display:none', onchange: (e) => e.target.files[0] && uploadIcon(b.id, e.target.files[0]) }))));
+
+  box.append(el('label', {}, 'Nom'), el('input', { type: 'text', value: b.label, oninput: (e) => { if (!inspector.typing) { pushUndo(); inspector.typing = true; } b.label = e.target.value; changed2(); }, onchange: () => inspector.typing = false }));
+  box.append(el('label', {}, 'Couleur de fond (facultatif)'),
+    el('div', { class: 'row' },
+      el('input', { type: 'color', value: b.color || '#1b1b21', style: 'height:34px;padding:2px', oninput: (e) => { b.color = e.target.value; changed2(); }, onchange: () => pushUndo() }),
+      el('button', { onclick: () => upd(() => delete b.color) }, 'Aucune')));
+
+  box.append(el('label', {}, 'Action'));
+  const types = [['open', 'Lancer une appli ou un fichier'], ['url', 'Ouvrir un site web'], ['keys', 'Raccourci clavier / macro'], ['text', 'Taper du texte'], ['folder', 'Ouvrir un dossier'], ['mixer', 'Ouvrir le mélangeur de volume']];
+  box.append(el('select', { onchange: (e) => upd(() => changeType(b, e.target.value)) }, types.map(([v, t]) => el('option', { value: v, selected: a.type === v }, t))));
+
+  if (a.type === 'open') {
+    box.append(el('label', {}, 'Appli (nom du menu Démarrer, chemin ou .exe)'),
+      el('input', { type: 'text', list: 'appnames', value: a.target || '', oninput: (e) => { a.target = e.target.value; changed2(); }, onchange: () => pushUndo() }),
+      el('label', {}, 'Arguments (facultatif)'),
+      el('input', { type: 'text', value: a.args || '', placeholder: 'ex. https://www.youtube.com', oninput: (e) => { a.args = e.target.value || null; changed2(); } }),
+      el('label', {}, 'Si l\'appli est introuvable, ouvrir ce site (facultatif)'),
+      el('input', { type: 'text', value: a.fallbackUrl || '', oninput: (e) => { a.fallbackUrl = e.target.value || null; changed2(); } }));
+  } else if (a.type === 'url') {
+    box.append(el('label', {}, 'Adresse du site'), el('input', { type: 'text', value: a.target || '', placeholder: 'https://', oninput: (e) => { a.target = e.target.value; changed2(); } }));
+  } else if (a.type === 'text') {
+    box.append(el('label', {}, 'Texte à taper (dans la fenêtre active)'), el('textarea', { rows: 4, oninput: (e) => { a.text = e.target.value; changed2(); } }, a.text || ''));
+  } else if (a.type === 'keys') {
+    box.append(el('label', {}, 'Étapes de la macro'), macroEditor(b));
+  } else if (a.type === 'folder') {
+    const p = pageById(a.page);
+    box.append(el('div', { class: 'hint', style: 'margin-top:10px' }, p ? `Contient ${p.buttons.length} bouton(s).` : 'Dossier introuvable.'),
+      p ? el('button', { style: 'margin-top:6px', onclick: () => { state.page = p.id; state.selected = null; renderAll(); } }, 'Ouvrir ce dossier') : null);
+  }
+
+  box.append(el('div', { class: 'row', style: 'margin-top:18px' },
+    el('button', { onclick: testButton, disabled: a.type === 'folder' || a.type === 'mixer' }, '▶ Tester sur le PC'),
+    el('button', { class: 'danger', onclick: () => deleteButton(b.id) }, '🗑 Supprimer')));
+  box.append(el('div', { id: 'trash', ondragover: (e) => { e.preventDefault(); $('#trash').classList.add('over'); }, ondragleave: () => $('#trash').classList.remove('over'),
+    ondrop: (e) => { e.preventDefault(); const id = e.dataTransfer.getData('application/x-pd-button'); if (id) deleteButton(id); } }, 'Glisse ici pour supprimer'));
+}
+const inspector = { typing: false };
+// Variante légère : enregistre sans reconstruire le panneau (pour ne pas perdre le curseur pendant la frappe).
+function changed2() {
+  state.dirty = true; setSaved('Modifications…');
+  clearTimeout(saveTimer); saveTimer = setTimeout(save, 700);
+  renderStage(); renderTabs();
+}
+
+function changeType(b, type) {
+  const old = b.action;
+  const a = { type };
+  if (type === 'open' || type === 'url') a.target = old.target && !String(old.target).startsWith('Ctrl') ? old.target : '';
+  if (type === 'keys') a.keys = '';
+  if (type === 'folder') {
+    const id = uid('dossier');
+    state.cfg.pages.push({ id, name: b.label || 'Dossier', buttons: [] });
+    a.page = id;
+  }
+  b.action = a;
+  if (b.icon === 'auto' || !b.icon) b.icon = 'auto';
+}
+
+// Éditeur de macro : une liste d'étapes (raccourci ou pause), enregistrement du raccourci en appuyant sur les touches.
+function macroEditor(b) {
+  const a = b.action;
+  const steps = (a.keys || '').split(',').map(s => s.trim()).filter(Boolean);
+  const write = (arr) => { pushUndo(); a.keys = arr.join(', '); changed(); };
+  const wrap = el('div', {});
+  const list = el('div', { class: 'steps' });
+  steps.forEach((s, i) => {
+    const isWait = s.toLowerCase().startsWith('wait:');
+    list.append(el('div', { class: 'step' },
+      el('span', {}, isWait ? `⏱ Pause de ${s.slice(5)} ms` : el('span', { class: 'kbd' }, s)),
+      el('button', { title: 'Monter', disabled: i === 0, onclick: () => { const c = [...steps]; [c[i - 1], c[i]] = [c[i], c[i - 1]]; write(c); } }, '↑'),
+      el('button', { title: 'Supprimer', onclick: () => write(steps.filter((_, j) => j !== i)) }, '×')));
+  });
+  if (!steps.length) list.append(el('div', { class: 'hint' }, 'Aucune étape. Clique sur « Enregistrer un raccourci » puis appuie sur les touches.'));
+  wrap.append(list);
+
+  const rec = el('input', { type: 'text', placeholder: '⏺ Enregistrer un raccourci : clique ici puis appuie sur les touches', readonly: true, style: 'margin-top:8px;cursor:pointer' });
+  rec.addEventListener('focus', () => { rec.classList.add('recording'); rec.value = 'Appuie sur ton raccourci…'; });
+  rec.addEventListener('blur', () => { rec.classList.remove('recording'); rec.value = ''; });
+  rec.addEventListener('keydown', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return;
+    const k = keyName(e); if (!k) return;
+    const parts = []; if (e.ctrlKey) parts.push('Ctrl'); if (e.altKey) parts.push('Alt'); if (e.shiftKey) parts.push('Shift'); if (e.metaKey) parts.push('Win');
+    parts.push(k);
+    rec.blur(); write([...steps, parts.join('+')]);
+  });
+  wrap.append(rec);
+  wrap.append(el('div', { class: 'row', style: 'margin-top:8px' },
+    el('button', { onclick: () => write([...steps, 'wait:300']) }, '+ Pause 300 ms'),
+    el('button', { onclick: () => { const v = prompt('Touche média : PlayPause, Next, Prev, Mute, VolumeUp, VolumeDown, Stop', 'PlayPause'); if (v) write([...steps, v.trim()]); } }, '+ Touche média')));
+  wrap.append(el('label', {}, 'Texte brut (pour les experts)'),
+    el('input', { type: 'text', value: a.keys || '', onchange: (e) => { pushUndo(); a.keys = e.target.value; changed(); } }));
+  return wrap;
+}
+function keyName(e) {
+  const c = e.code;
+  if (/^Key[A-Z]$/.test(c)) return c.slice(3);
+  if (/^Digit\d$/.test(c)) return c.slice(5);
+  if (/^F\d{1,2}$/.test(c)) return c;
+  const map = { ArrowLeft: 'Left', ArrowRight: 'Right', ArrowUp: 'Up', ArrowDown: 'Down', Enter: 'Enter', Escape: 'Esc', Space: 'Space', Backspace: 'Back', Tab: 'Tab', Delete: 'Delete', Insert: 'Insert', Home: 'Home', End: 'End', PageUp: 'PageUp', PageDown: 'PageDown', PrintScreen: 'PrintScreen' };
+  if (map[c]) return map[c];
+  if (/^Numpad\d$/.test(c)) return 'NumPad' + c.slice(6);
+  return null;
+}
+
+// ---------- Actions ----------
+
+async function uploadIcon(id, file) {
+  await save();
+  try {
+    await api('/api/icon?buttonId=' + encodeURIComponent(id), { method: 'POST', headers: { 'Content-Type': file.type || 'image/png' }, body: file });
+    await refreshLayout(); renderInspector(); toast('Image changée ✓');
+  } catch (e) { toast('Erreur : ' + e.message); }
+}
+async function resetIcon() {
+  await save();
+  try { await api('/api/icon?buttonId=' + encodeURIComponent(state.selected), { method: 'DELETE' }); await refreshLayout(); renderInspector(); }
+  catch (e) { toast('Erreur : ' + e.message); }
+}
+async function testButton() {
+  await save();
+  try {
+    const r = await api('/api/press?buttonId=' + encodeURIComponent(state.selected), { method: 'POST' });
+    toast(r.error ? r.error : 'Lancé ✓');
+  } catch (e) { toast('Erreur : ' + e.message); }
+}
+function deleteButton(id) {
+  const f = findButton(id); if (!f) return;
+  pushUndo();
+  f.page.buttons.splice(f.page.buttons.indexOf(f.button), 1);
+  const fp = f.button.action.type === 'folder' && pageById(f.button.action.page);
+  if (fp && fp.id !== homeId() && !state.cfg.pages.some(p => p.buttons.some(x => x.action.type === 'folder' && x.action.page === fp.id))) {
+    state.cfg.pages.splice(state.cfg.pages.indexOf(fp), 1);
+  }
+  delete state.cfg.iconOverrides[id];
+  if (state.selected === id) state.selected = null;
+  changed();
+}
+function undo() {
+  if (!state.undo.length) { toast('Rien à annuler'); return; }
+  state.cfg = JSON.parse(state.undo.pop());
+  if (!pageById(state.page)) state.page = homeId();
+  state.dirty = true; changed({ immediate: true });
+}
+
+// ---------- Ajout ----------
+
+function addFromPalette(kind) {
+  if (kind === 'web') {
+    const url = prompt('Adresse du site :', 'https://');
+    if (!url) return;
+    pushUndo();
+    let host = url; try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { }
+    addButton({ id: uid('site'), label: host, icon: 'builtin:web', action: { type: 'url', target: url } });
+  } else if (kind === 'keys') {
+    pushUndo(); addButton({ id: uid('macro'), label: 'Macro', icon: 'builtin:keyboard', action: { type: 'keys', keys: '' } });
+  } else if (kind === 'text') {
+    pushUndo(); addButton({ id: uid('texte'), label: 'Texte', icon: 'builtin:keyboard', action: { type: 'text', text: '' } });
+  } else if (kind === 'folder') {
+    const name = prompt('Nom du dossier :', 'Nouveau dossier'); if (!name) return;
+    pushUndo();
+    const id = uid('dossier');
+    state.cfg.pages.push({ id, name, buttons: [] });
+    addButton({ id: uid('btn'), label: name, icon: 'auto', action: { type: 'folder', page: id } });
+  } else if (kind === 'mixer') {
+    pushUndo(); addButton({ id: uid('volume'), label: 'Volume', icon: 'builtin:volume', action: { type: 'mixer' } });
+  } else if (kind === 'app') {
+    $('#appSearch').focus(); toast('Choisis une appli dans la liste ci-dessous');
+  }
+}
+
+async function loadApps(refresh) {
+  state.apps = await api('/api/apps' + (refresh ? '?refresh=1' : ''));
+  const dl = $('#appnames') || document.body.appendChild(el('datalist', { id: 'appnames' }));
+  dl.replaceChildren(...state.apps.map(a => el('option', { value: a.name })));
+  renderApps();
+}
+function renderApps() {
+  const q = $('#appSearch').value.trim().toLowerCase();
+  const list = $('#appList'); list.replaceChildren();
+  for (const a of state.apps.filter(a => !q || a.name.toLowerCase().includes(q)).slice(0, 200)) {
+    const item = el('div', { class: 'appitem', draggable: 'true', title: a.name },
+      el('img', { src: '/api/appicon?path=' + encodeURIComponent(a.path), loading: 'lazy', onerror: (e) => e.target.style.visibility = 'hidden' }),
+      el('span', {}, a.name));
+    item.addEventListener('dragstart', (e) => { e.dataTransfer.setData('application/x-pd-app', JSON.stringify(a)); e.dataTransfer.effectAllowed = 'copy'; });
+    item.addEventListener('click', () => { pushUndo(); addButton(newAppButton(a)); });
+    list.append(item);
+  }
+}
+
+// ---------- Connexion du téléphone ----------
+
+async function refreshInfo() {
+  try {
+    const info = await api('/api/info');
+    const was = state.info && state.info.clients.length;
+    state.info = info;
+    const n = info.clients.length;
+    $('#conn .dot').classList.toggle('on', n > 0);
+    $('#connText').textContent = n ? 'Connecté : ' + info.clients.join(', ') : 'Aucun téléphone connecté';
+    if (!state.dirty && info.version !== state.version) { await loadAll(); }
+    else if (!!was !== !!n) renderStage();
+    if (info.error) setSaved(info.error, true);
+  } catch { /* le PC est peut-être en train de redémarrer */ }
+}
+function openPair() {
+  const info = state.info;
+  const sel = $('#ipSel'); sel.replaceChildren(...info.addresses.map(ip => el('option', { value: ip }, ip)));
+  const upd = () => { $('#qrImg').src = '/api/qr.png?ip=' + encodeURIComponent(sel.value) + '&t=' + Date.now(); };
+  sel.onchange = upd; upd();
+  $('#codeVal').textContent = info.token; $('#portVal').textContent = 'Port ' + info.port;
+  $('#pairDlg').showModal();
+}
+
+// ---------- Démarrage ----------
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.matches('input, textarea, select')) return;
+  if (e.key === 'Delete' && state.selected) deleteButton(state.selected);
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
+});
+$('#undoBtn').onclick = undo;
+$('#folderBtn').onclick = () => api('/api/openfolder', { method: 'POST' });
+$('#pairBtn').onclick = openPair;
+$('#pairClose').onclick = () => $('#pairDlg').close();
+$('#appClose').onclick = () => $('#appDlg').close();
+$('#colMinus').onclick = () => setGrid(-1, 0); $('#colPlus').onclick = () => setGrid(1, 0);
+$('#rowMinus').onclick = () => setGrid(0, -1); $('#rowPlus').onclick = () => setGrid(0, 1);
+$('#appSearch').oninput = renderApps;
+document.querySelectorAll('[data-add]').forEach(b => b.onclick = () => addFromPalette(b.dataset.add));
+window.addEventListener('resize', () => state.cfg && renderStage());
+window.addEventListener('dragover', (e) => e.preventDefault());
+window.addEventListener('drop', (e) => e.preventDefault());
+
+loadAll().then(() => { loadApps(); setInterval(refreshInfo, 2000); }).catch(e => { document.body.prepend(el('div', { style: 'padding:20px;color:#ff5252' }, 'Impossible de charger la configuration : ' + e.message)); });
+</script>
+</body>
+</html>

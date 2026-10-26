@@ -1,82 +1,31 @@
 using System.Diagnostics;
-using QRCoder;
+using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.WinForms;
 
 namespace PhoneDeckPC;
 
-/// <summary>Petite fenêtre : QR code d'appairage, état, et accès au dossier de configuration.</summary>
+/// <summary>
+/// Fenêtre du PC : elle affiche le configurateur (une page web servie par l'appli elle-même).
+/// Si WebView2 n'est pas disponible, la page s'ouvre dans le navigateur.
+/// </summary>
 public class MainForm : Form
 {
     private readonly ConfigStore _store;
-    private readonly DeckServer _server;
-    private readonly AppCatalog _catalog;
-    private readonly PictureBox _qr = new() { SizeMode = PictureBoxSizeMode.Zoom, Size = new Size(280, 280) };
-    private readonly ComboBox _ips = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 280 };
-    private readonly Label _code = new() { AutoSize = true, Font = new Font("Segoe UI", 11, FontStyle.Bold) };
-    private readonly Label _clients = new() { AutoSize = true };
-    private readonly ListBox _log = new() { Width = 280, Height = 90, IntegralHeight = false };
     private readonly NotifyIcon _tray = new();
+    private readonly WebView2 _web = new() { Dock = DockStyle.Fill };
     private bool _exiting;
     private bool _trayHintShown;
 
-    public MainForm(ConfigStore store, DeckServer server, AppCatalog catalog)
+    public MainForm(ConfigStore store, DeckServer server)
     {
         _store = store;
-        _server = server;
-        _catalog = catalog;
-
         Text = "PhoneDeck PC";
-        FormBorderStyle = FormBorderStyle.FixedSingle;
-        MaximizeBox = false;
-        StartPosition = FormStartPosition.CenterScreen;
-        AutoSize = true;
-        AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        Padding = new Padding(16);
-        Font = new Font("Segoe UI", 9.5f);
         Icon = SystemIcons.Application;
-
-        var layout = new FlowLayoutPanel
-        {
-            FlowDirection = FlowDirection.TopDown,
-            AutoSize = true,
-            WrapContents = false,
-            Dock = DockStyle.Fill,
-        };
-        layout.Controls.Add(new Label
-        {
-            Text = "Scanne ce QR code avec l'appli PhoneDeck\nsur ton téléphone (même Wi-Fi que le PC).",
-            AutoSize = true,
-        });
-        layout.Controls.Add(_qr);
-        layout.Controls.Add(_ips);
-        layout.Controls.Add(_code);
-        layout.Controls.Add(_clients);
-
-        var openConfig = new Button { Text = "Ouvrir le dossier de configuration", Width = 280, Height = 32 };
-        openConfig.Click += (_, _) => Process.Start(new ProcessStartInfo(_store.DataDir) { UseShellExecute = true });
-        layout.Controls.Add(openConfig);
-
-        var reload = new Button { Text = "Recharger la configuration", Width = 280, Height = 32 };
-        reload.Click += (_, _) => _store.ReloadNow();
-        layout.Controls.Add(reload);
-
-        var apps = new Button { Text = "Voir la liste des applis détectées", Width = 280, Height = 32 };
-        apps.Click += async (_, _) => await ShowAppListAsync();
-        layout.Controls.Add(apps);
-
-        layout.Controls.Add(new Label { Text = "Journal :", AutoSize = true, Margin = new Padding(0, 8, 0, 0) });
-        layout.Controls.Add(_log);
-        Controls.Add(layout);
-
-        foreach (var ip in LocalNetwork.Addresses()) _ips.Items.Add(ip);
-        _ips.SelectedIndexChanged += (_, _) => UpdateQr();
-        if (_ips.Items.Count > 0) _ips.SelectedIndex = 0;
-
-        _code.Text = $"Code : {_store.Config.Token}    Port : {_store.Config.Port}";
-        UpdateClients();
-        if (_store.LastError != null) AddLog(_store.LastError);
-
-        _server.ClientsChanged += () => BeginInvokeSafe(UpdateClients);
-        _server.Log += m => BeginInvokeSafe(() => AddLog(m));
+        StartPosition = FormStartPosition.CenterScreen;
+        Size = new Size(1180, 760);
+        MinimumSize = new Size(900, 600);
+        BackColor = Color.FromArgb(17, 17, 20);
+        Controls.Add(_web);
 
         _tray.Icon = SystemIcons.Application;
         _tray.Text = "PhoneDeck PC";
@@ -86,6 +35,45 @@ public class MainForm : Form
         menu.Items.Add("Afficher", null, (_, _) => ShowFromTray());
         menu.Items.Add("Quitter", null, (_, _) => { _exiting = true; Close(); });
         _tray.ContextMenuStrip = menu;
+
+        Load += async (_, _) => await InitWebAsync();
+    }
+
+    private string Url => $"http://localhost:{_store.Config.Port}/";
+
+    private async Task InitWebAsync()
+    {
+        try
+        {
+            var dir = Path.Combine(_store.DataDir, "webview");
+            var env = await CoreWebView2Environment.CreateAsync(null, dir);
+            await _web.EnsureCoreWebView2Async(env);
+            _web.CoreWebView2.Settings.AreDevToolsEnabled = false;
+            _web.CoreWebView2.Settings.IsStatusBarEnabled = false;
+            // Les liens externes s'ouvrent dans le navigateur, pas dans la fenêtre.
+            _web.CoreWebView2.NewWindowRequested += (_, e) =>
+            {
+                e.Handled = true;
+                Process.Start(new ProcessStartInfo(e.Uri) { UseShellExecute = true });
+            };
+            _web.CoreWebView2.Navigate(Url);
+        }
+        catch (Exception)
+        {
+            // WebView2 absent : on ouvre le configurateur dans le navigateur habituel.
+            Controls.Remove(_web);
+            var label = new Label
+            {
+                Dock = DockStyle.Fill,
+                ForeColor = Color.White,
+                TextAlign = ContentAlignment.MiddleCenter,
+                Font = new Font("Segoe UI", 12),
+                Text = "Le configurateur s'est ouvert dans ton navigateur.\n\n" + Url +
+                       "\n\n(Pour l'avoir dans cette fenêtre, installe « Microsoft Edge WebView2 Runtime ».)",
+            };
+            Controls.Add(label);
+            Process.Start(new ProcessStartInfo(Url) { UseShellExecute = true });
+        }
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -111,51 +99,5 @@ public class MainForm : Form
         Show();
         WindowState = FormWindowState.Normal;
         Activate();
-    }
-
-    private void UpdateQr()
-    {
-        if (_ips.SelectedItem is not string ip) return;
-        var url = LocalNetwork.ConnectUrl(ip, _store);
-        using var gen = new QRCodeGenerator();
-        using var data = gen.CreateQrCode(url, QRCodeGenerator.ECCLevel.M);
-        var png = new PngByteQRCode(data).GetGraphic(10);
-        var old = _qr.Image;
-        _qr.Image = Image.FromStream(new MemoryStream(png));
-        old?.Dispose();
-    }
-
-    private void UpdateClients()
-    {
-        var names = _server.ClientNames;
-        _clients.Text = names.Count == 0
-            ? "Aucun téléphone connecté"
-            : $"Connecté : {string.Join(", ", names)}";
-    }
-
-    private void AddLog(string message)
-    {
-        _log.Items.Insert(0, $"{DateTime.Now:HH:mm:ss}  {message}");
-        while (_log.Items.Count > 100) _log.Items.RemoveAt(_log.Items.Count - 1);
-    }
-
-    private void BeginInvokeSafe(Action a)
-    {
-        if (IsHandleCreated && !IsDisposed) BeginInvoke(a);
-    }
-
-    /// <summary>Écrit la liste des applis dans un fichier texte : pratique pour savoir quel nom mettre dans config.json.</summary>
-    private async Task ShowAppListAsync()
-    {
-        await _catalog.RefreshAsync();
-        var path = Path.Combine(_store.DataDir, "applis-detectees.txt");
-        var lines = new List<string>
-        {
-            "Noms utilisables dans config.json (\"target\": \"Nom\") :",
-            "",
-        };
-        lines.AddRange(_catalog.Apps.Select(a => a.Name).Distinct().OrderBy(n => n, StringComparer.CurrentCultureIgnoreCase));
-        await File.WriteAllLinesAsync(path, lines);
-        Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
     }
 }

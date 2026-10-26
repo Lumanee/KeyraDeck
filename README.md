@@ -67,41 +67,23 @@ Discord ne réagit aux raccourcis que s'ils sont déclarés comme raccourcis **g
 
 Le bouton bascule l'état mais n'affiche pas encore si tu es muet ou non (ça demandera l'API de Discord, prévu plus tard).
 
-## Modifier les boutons
+## Le configurateur (fenêtre du PC)
 
-Dans la fenêtre PhoneDeck PC, clique sur **Ouvrir le dossier de configuration** et ouvre `config.json` avec le Bloc-notes.
-Dès que tu enregistres, le téléphone se met à jour tout seul.
+La fenêtre de PhoneDeck PC est un **configurateur** : elle affiche une copie du Stream Deck de ton téléphone, et tout ce que tu changes apparaît tout de suite sur le téléphone.
 
-Exemple de bouton :
+- **Déplacer** un bouton : glisse-le sur une autre case (si la case est prise, les deux boutons s'échangent).
+- **Ajouter une appli** : glisse-la depuis la liste « Applis installées » sur une case, ou clique dessus pour la mettre dans la première case libre.
+- **Changer l'icône** : dépose une image (depuis l'Explorateur) sur le bouton, ou clique sur « Choisir une image… ». « Icône auto » remet l'icône de l'appli.
+- **Grille** : les boutons **+ / −** sous le Stream Deck règlent le nombre de colonnes et de lignes (5×3 par défaut). Chaque dossier a sa propre grille.
+- **Dossiers** : onglets en haut ; double-clic sur un bouton dossier pour l'ouvrir.
+- **Macros** : bouton « Raccourci / macro », puis « Enregistrer un raccourci » et appuie sur tes touches (Ctrl+Maj+M…). Tu peux enchaîner plusieurs étapes et des pauses. « Texte à taper » écrit un texte dans la fenêtre active.
+- **Tester** : le bouton « ▶ Tester sur le PC » exécute l'action sans passer par le téléphone.
+- **Annuler** : Ctrl+Z, ou le bouton « Annuler ». **Suppr** efface le bouton sélectionné.
+- **Connecter un téléphone** : le bouton en haut affiche le QR code.
 
-```json
-{
-  "id": "spotify",
-  "label": "Spotify",
-  "icon": "auto",
-  "color": "#1DB954",
-  "action": { "type": "open", "target": "Spotify" }
-}
-```
+Le dossier **Launchers** reprend le contenu du dossier « Launcher » de ton menu Démarrer. Pour le modifier à la main, clique sur « Détacher du menu Démarrer ».
 
-- `id` : un nom unique, sans espace.
-- `target` : le nom de l'appli tel qu'il apparaît dans le menu Démarrer. Le bouton **Voir la liste des applis détectées** te donne tous les noms possibles. On peut aussi mettre un chemin complet (`C:\\...\\appli.exe`) ou une adresse web.
-- `args` : (facultatif) ce qu'on donne à l'appli, par exemple une adresse web pour Chrome.
-- `color` : (facultatif) la couleur de fond de la tuile.
-
-Types d'action :
-
-| `type` | Exemple | Effet |
-|---|---|---|
-| `open` | `"target": "Steam"` | Lance une appli, un fichier ou un site |
-| `url` | `"target": "https://twitch.tv"` | Ouvre un site dans le navigateur par défaut |
-| `keys` | `"keys": "Ctrl+Shift+M"` | Raccourci clavier. Petite macro : `"Ctrl+C, wait:200, Ctrl+V"`. Touches média : `PlayPause`, `Next`, `Prev`, `VolumeUp`… |
-| `folder` | `"page": "jeux"` | Ouvre une autre page comme un dossier |
-| `mixer` | | Ouvre le mélangeur de volume |
-
-Une page peut avoir `"startMenuFolder": "NomDuDossier"` : ses boutons sont alors créés à partir des raccourcis de ce dossier du menu Démarrer.
-
-Si `config.json` contient une erreur, l'ancienne configuration reste active et l'erreur s'affiche dans le journal de la fenêtre PC.
+La configuration est enregistrée dans `%APPDATA%\PhoneDeckPC\config.json` (bouton « Dossier de config »). Tu peux aussi l'éditer à la main : la fenêtre et le téléphone se mettent à jour dès que tu enregistres.
 
 ## Connexion par câble USB (facultatif)
 

@@ -21,6 +21,7 @@ public class IconService
     {
         _catalog = catalog;
         _store = store;
+        _store.Reloaded += ClearCache;
     }
 
     public void ClearCache()

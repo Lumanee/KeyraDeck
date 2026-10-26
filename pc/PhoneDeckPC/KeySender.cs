@@ -69,6 +69,31 @@ public static class KeySender
         return null;
     }
 
+    /// <summary>Tape un texte caractère par caractère (accents et emojis compris).</summary>
+    public static string? TypeText(string text)
+    {
+        var inputs = new List<INPUT>();
+        foreach (var ch in text.Replace("\r\n", "\n"))
+        {
+            if (ch == '\n')
+            {
+                inputs.Add(Key(Keys.Enter, up: false));
+                inputs.Add(Key(Keys.Enter, up: true));
+                continue;
+            }
+            foreach (var up in new[] { false, true })
+            {
+                inputs.Add(new INPUT
+                {
+                    type = INPUT_KEYBOARD,
+                    U = new InputUnion { ki = new KEYBDINPUT { wScan = ch, dwFlags = KEYEVENTF_UNICODE | (up ? KEYEVENTF_KEYUP : 0) } },
+                });
+            }
+        }
+        if (inputs.Count > 0) SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf<INPUT>());
+        return null;
+    }
+
     private static Keys? Parse(string token)
     {
         if (Aliases.TryGetValue(token, out var alias)) return alias;
@@ -92,6 +117,7 @@ public static class KeySender
     private const uint INPUT_KEYBOARD = 1;
     private const uint KEYEVENTF_EXTENDEDKEY = 0x0001;
     private const uint KEYEVENTF_KEYUP = 0x0002;
+    private const uint KEYEVENTF_UNICODE = 0x0004;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct INPUT

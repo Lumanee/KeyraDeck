@@ -48,7 +48,7 @@ public class DeckButton
 
 public class DeckAction
 {
-    /// <summary>open | url | keys | folder | mixer</summary>
+    /// <summary>open | url | keys | text | folder | mixer</summary>
     public string Type { get; set; } = "open";
     /// <summary>open : nom d'appli (menu Démarrer), "chrome.exe", chemin complet ou adresse web.</summary>
     public string? Target { get; set; }
@@ -59,6 +59,8 @@ public class DeckAction
     public string? Page { get; set; }
     /// <summary>keys : raccourci(s), ex. "Ctrl+Shift+M" ou "Ctrl+C, wait:200, Ctrl+V".</summary>
     public string? Keys { get; set; }
+    /// <summary>text : texte tapé au clavier, tel quel.</summary>
+    public string? Text { get; set; }
 }
 
 public class ConfigStore
@@ -83,6 +85,9 @@ public class ConfigStore
 
     /// <summary>Déclenché quand config.json change (modifié à la main ou par le téléphone).</summary>
     public event Action? Changed;
+
+    /// <summary>Déclenché quand config.json est relu depuis le disque (les icônes peuvent avoir changé).</summary>
+    public event Action? Reloaded;
 
     private readonly FileSystemWatcher? _watcher;
     private DateTime _ignoreUntil = DateTime.MinValue;
@@ -152,6 +157,21 @@ public class ConfigStore
     public void ReloadNow()
     {
         Load();
+        Reloaded?.Invoke();
+        Changed?.Invoke();
+    }
+
+    /// <summary>Remplace toute la configuration (depuis le configurateur), l'enregistre et prévient le téléphone.</summary>
+    public void Replace(DeckConfig config)
+    {
+        // Le code d'appairage et le port ne se changent pas depuis le configurateur.
+        config.Token = Config.Token;
+        config.Port = Config.Port;
+        // Les images personnalisées sont gérées côté PC (le configurateur ne les connaît pas à jour).
+        config.IconOverrides = Config.IconOverrides;
+        Config = config;
+        LastError = null;
+        Save();
         Changed?.Invoke();
     }
 
