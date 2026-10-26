@@ -13,9 +13,26 @@ public class DeckConfig
     /// <summary>Taille de la grille de la page d'accueil (colonnes × lignes), comme un Stream Deck 5×3.</summary>
     public int Columns { get; set; } = 5;
     public int Rows { get; set; } = 3;
+    public DeckTheme Theme { get; set; } = new();
     public List<DeckPage> Pages { get; set; } = new();
     /// <summary>Images choisies depuis le téléphone, par id de bouton (chemin relatif au dossier de config).</summary>
     public Dictionary<string, string> IconOverrides { get; set; } = new();
+}
+
+/// <summary>Couleurs du téléphone (boîtier, fond, touches…), au format #RRGGBB.</summary>
+public class DeckTheme
+{
+    public string Name { get; set; } = "Anthracite";
+    /// <summary>Couleur du boîtier.</summary>
+    public string Body { get; set; } = "#2C2C34";
+    /// <summary>Fond derrière le boîtier.</summary>
+    public string Desk { get; set; } = "#0B0B0E";
+    /// <summary>Fond des touches.</summary>
+    public string Key { get; set; } = "#1B1B21";
+    /// <summary>Couleur d'accent (voyant, boutons, points de pages).</summary>
+    public string Accent { get; set; } = "#7C6CF2";
+    /// <summary>Couleur d'un bouton « activé » (micro coupé…).</summary>
+    public string Active { get; set; } = "#C62828";
 }
 
 public class DeckPage
@@ -26,6 +43,8 @@ public class DeckPage
     public string? StartMenuFolder { get; set; }
     /// <summary>Page d'accueil supplémentaire (on passe de l'une à l'autre en glissant sur le téléphone). La première page l'est toujours.</summary>
     public bool Root { get; set; }
+    /// <summary>Programmes qui activent cette page quand ils sont au premier plan (ex. "reaper", "discord").</summary>
+    public List<string>? AutoProcesses { get; set; }
     /// <summary>Grille propre à cette page (sinon : celle de la config pour l'accueil, automatique pour un dossier).</summary>
     public int? Columns { get; set; }
     public int? Rows { get; set; }

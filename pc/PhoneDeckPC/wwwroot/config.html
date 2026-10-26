@@ -9,6 +9,7 @@
     --bg: #111114; --panel: #1a1a1f; --panel2: #222229; --line: #2e2e38;
     --text: #ececf1; --muted: #8d8d99; --accent: #7c6cf2; --accent2: #5b4bdb;
     --ok: #4cd964; --warn: #ffc107; --bad: #ff5252;
+    --body: #2c2c34; --desk: #0b0b0e; --keyface: #1b1b21; --tacc: #7c6cf2;
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
@@ -43,20 +44,27 @@
   .tab { border-radius: 999px; padding: 4px 14px; }
   .tab.active { background: var(--accent2); border-color: var(--accent); }
   .stage { flex: 1; display: flex; align-items: center; justify-content: center; padding: 16px; min-height: 0;
-           background: radial-gradient(circle at 50% 40%, #24242c, #0b0b0e); }
+           background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--desk), white 12%), var(--desk)); }
   .gridbar { display: flex; gap: 18px; align-items: center; padding: 8px 16px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
   .stepper { display: inline-flex; align-items: center; gap: 6px; }
   .stepper button { width: 28px; padding: 2px 0; }
   .stepper b { min-width: 18px; text-align: center; color: var(--text); }
 
   /* Le boîtier, comme sur le téléphone */
-  .device { background: linear-gradient(#34343c, #17171b); border: 1px solid #ffffff22; box-shadow: 0 20px 50px #000a;
+  .device { background: linear-gradient(color-mix(in srgb, var(--body), white 8%), color-mix(in srgb, var(--body), black 45%)); border: 1px solid #ffffff22; box-shadow: 0 20px 50px #000a;
             display: flex; flex-direction: column; }
   .strip { display: flex; align-items: center; gap: 8px; color: #6e6e78; font-size: 10px; letter-spacing: .3em; font-weight: 700; }
   .strip .dot { width: 7px; height: 7px; margin: 0; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+  .preset { border: 2px solid transparent; border-radius: 10px; padding: 6px 10px; display: flex; gap: 6px; align-items: center; }
+  .preset.on { border-color: var(--accent); }
+  .preset i { width: 14px; height: 14px; border-radius: 50%; display: inline-block; border: 1px solid #fff3; }
+  .colors { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .colors label { margin: 0; display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--text); }
+  .colors input[type=color] { width: 44px; height: 30px; padding: 2px; }
   .grid { display: grid; }
   .key { background: #060608; border-radius: 20%; padding: 5%; position: relative; box-shadow: 0 4px 6px #0008; transition: transform .08s; }
-  .key .face { width: 100%; height: 100%; border-radius: 14%; background: #1b1b21; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 7%; overflow: hidden; position: relative; background-image: linear-gradient(#ffffff1f, #ffffff00); }
+  .key .face { width: 100%; height: 100%; border-radius: 14%; background: var(--keyface); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 7%; overflow: hidden; position: relative; background-image: linear-gradient(#ffffff1f, #ffffff00); }
   .key.empty .face { background: #121216; background-image: none; border: 1px dashed #2e2e38; }
   .key img.icon { flex: 1; min-height: 0; max-width: 100%; object-fit: contain; pointer-events: none; }
   .key .lbl { font-size: var(--lbl, 12px); color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; pointer-events: none; }
@@ -109,6 +117,7 @@
   <span class="spacer"></span>
   <button id="updBtn" class="primary" style="display:none"></button>
   <button id="undoBtn" title="Annuler (Ctrl+Z)">↶ Annuler</button>
+  <button id="settingsBtn">⚙ Réglages</button>
   <button id="folderBtn" title="Ouvrir config.json et le dossier de configuration">Dossier de config</button>
   <span id="saved"></span>
 </header>
@@ -160,6 +169,20 @@
   <div class="code" id="codeVal"></div>
   <div class="hint" id="portVal" style="text-align:center"></div>
   <div style="text-align:right;margin-top:14px"><button id="pairClose">Fermer</button></div>
+</dialog>
+
+<dialog id="setDlg" style="max-width:560px;width:92vw">
+  <h2>Réglages</h2>
+  <label style="margin-top:0">Thème de couleurs (boîtier du téléphone)</label>
+  <div class="swatches" id="presets"></div>
+  <div class="colors" id="colors"></div>
+  <label>Windows</label>
+  <label style="display:flex;gap:8px;align-items:center;color:var(--text);cursor:pointer;margin-top:4px">
+    <input type="checkbox" id="startWin" style="width:auto"> Lancer PhoneDeck PC au démarrage de Windows (discrètement, près de l'horloge)
+  </label>
+  <label>Version</label>
+  <div class="row"><span id="verText" class="hint"></span><button id="verBtn">Vérifier les mises à jour</button></div>
+  <div style="text-align:right;margin-top:16px"><button id="setClose" class="primary">Fermer</button></div>
 </dialog>
 
 <dialog id="appDlg">
@@ -215,11 +238,53 @@ const isRoot = (p) => p === state.cfg.pages[0] || !!p.root;
 const currentPage = () => pageById(state.page) || state.cfg.pages[0];
 const findButton = (id) => { for (const p of state.cfg.pages) { const b = p.buttons.find(b => b.id === id); if (b) return { page: p, button: b }; } return null; };
 
+// ---------- Thème et réglages ----------
+
+const PRESETS = [
+  { name: 'Anthracite', body: '#2C2C34', desk: '#0B0B0E', key: '#1B1B21', accent: '#7C6CF2', active: '#C62828' },
+  { name: 'Minuit', body: '#1E2A4A', desk: '#080C18', key: '#121A30', accent: '#4D9DFF', active: '#E5484D' },
+  { name: 'Violet', body: '#3B2A63', desk: '#0E0818', key: '#20153A', accent: '#B388FF', active: '#FF4081' },
+  { name: 'Rouge gaming', body: '#4A1D1D', desk: '#120707', key: '#260F0F', accent: '#FF5252', active: '#FFB300' },
+  { name: 'Forêt', body: '#1F3D2E', desk: '#07120C', key: '#112419', accent: '#4CD964', active: '#E5484D' },
+  { name: 'Océan', body: '#12484F', desk: '#061214', key: '#0B2A2E', accent: '#26C6DA', active: '#FF7043' },
+  { name: 'Rose', body: '#5A2A44', desk: '#150811', key: '#2E1423', accent: '#FF80AB', active: '#7C4DFF' },
+  { name: 'Clair', body: '#D5D7DE', desk: '#EEF0F4', key: '#F8F9FB', accent: '#5B4BDB', active: '#D32F2F' },
+];
+const COLOR_FIELDS = [['body', 'Boîtier'], ['desk', 'Fond'], ['key', 'Touches'], ['accent', 'Accent'], ['active', 'Bouton activé']];
+
+function applyTheme() {
+  const t = state.cfg && state.cfg.theme; if (!t) return;
+  const r = document.documentElement.style;
+  r.setProperty('--body', t.body); r.setProperty('--desk', t.desk); r.setProperty('--keyface', t.key); r.setProperty('--tacc', t.accent);
+}
+function renderSettings() {
+  const t = state.cfg.theme;
+  const pr = $('#presets'); pr.replaceChildren();
+  for (const p of PRESETS) {
+    pr.append(el('button', { class: 'preset' + (t.name === p.name ? ' on' : ''), onclick: () => { pushUndo(); Object.assign(t, p); changed2(); applyTheme(); renderSettings(); } },
+      el('i', { style: `background:${p.body}` }), el('i', { style: `background:${p.accent}` }), p.name));
+  }
+  const cs = $('#colors'); cs.replaceChildren();
+  for (const [k, label] of COLOR_FIELDS) {
+    cs.append(el('label', {}, label, el('input', { type: 'color', value: t[k], oninput: (e) => { t[k] = e.target.value; t.name = 'Personnalisé'; applyTheme(); changed2(); }, onchange: () => renderSettings() })));
+  }
+}
+async function openSettings() {
+  renderSettings();
+  try {
+    const st = await api('/api/settings');
+    $('#startWin').checked = st.startWithWindows;
+    $('#verText').textContent = 'PhoneDeck PC — version ' + st.build;
+  } catch { }
+  $('#setDlg').showModal();
+}
+
 // ---------- Chargement ----------
 
 async function loadAll() {
   const [cfg, layout, info] = await Promise.all([api('/api/config'), api('/api/layout'), api('/api/info')]);
   state.cfg = cfg; state.layout = layout; state.info = info; state.version = info.version;
+  applyTheme();
   // On fige la position de chaque bouton (cases calculées par le PC) pour pouvoir les déplacer.
   for (const lp of layout.pages) {
     const p = pageById(lp.id); if (!p) continue;
@@ -502,6 +567,15 @@ function renderInspector() {
   const box = $('#inspector'); box.replaceChildren();
   const f = state.selected && findButton(state.selected);
   if (!f) {
+    const page = currentPage();
+    if (isRoot(page)) {
+      box.append(el('h2', {}, 'Page « ' + page.name + ' »'),
+        el('label', { style: 'margin-top:0' }, 'Activer cette page automatiquement quand ces applis sont au premier plan'),
+        el('input', { type: 'text', list: 'procnames', value: (page.autoProcesses || []).join(', '), placeholder: 'ex. reaper, discord',
+          onchange: (e) => { pushUndo(); const v = e.target.value.split(',').map(x => x.trim()).filter(Boolean); if (v.length) page.autoProcesses = v; else delete page.autoProcesses; changed2(); } }),
+        el('div', { class: 'hint', style: 'margin:6px 0 18px' }, 'Quand tu quittes l\'appli, le téléphone revient à la première page.'));
+      loadProcesses();
+    }
     box.append(el('h2', {}, 'Propriétés'),
       el('div', { class: 'hint' }, 'Clique sur un bouton pour le modifier.', el('br'), el('br'),
         'Astuces :', el('br'), '• glisse un bouton pour le déplacer', el('br'), '• dépose une image dessus pour changer son icône', el('br'),
@@ -703,6 +777,13 @@ function addFromPalette(kind) {
   }
 }
 
+async function loadProcesses() {
+  try {
+    const names = await api('/api/processes');
+    const dl = $('#procnames') || document.body.appendChild(el('datalist', { id: 'procnames' }));
+    dl.replaceChildren(...names.map(n => el('option', { value: n })));
+  } catch { }
+}
 async function loadApps(refresh) {
   state.apps = await api('/api/apps' + (refresh ? '?refresh=1' : ''));
   const dl = $('#appnames') || document.body.appendChild(el('datalist', { id: 'appnames' }));
@@ -773,6 +854,10 @@ document.addEventListener('keydown', (e) => {
 $('#undoBtn').onclick = undo;
 $('#folderBtn').onclick = () => api('/api/openfolder', { method: 'POST' });
 $('#pairBtn').onclick = openPair;
+$('#settingsBtn').onclick = openSettings;
+$('#setClose').onclick = () => $('#setDlg').close();
+$('#verBtn').onclick = () => checkUpdate(true);
+$('#startWin').onchange = (e) => api('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ startWithWindows: e.target.checked }) }).catch(err => toast(err.message));
 $('#pairClose').onclick = () => $('#pairDlg').close();
 $('#appClose').onclick = () => $('#appDlg').close();
 $('#colMinus').onclick = () => setGrid(-1, 0); $('#colPlus').onclick = () => setGrid(1, 0);

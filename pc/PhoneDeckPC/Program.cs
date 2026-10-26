@@ -36,12 +36,12 @@ internal static class Program
             return;
         }
 
-        RunWindow(store, server, catalog);
+        RunWindow(store, server, catalog, args.Contains("--minimized"));
     }
 
     // Méthode séparée : le mode console ne charge jamais WinForms (utile pour tester hors Windows).
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    private static void RunWindow(ConfigStore store, DeckServer server, AppCatalog catalog)
+    private static void RunWindow(ConfigStore store, DeckServer server, AppCatalog catalog, bool minimized)
     {
         ApplicationConfiguration.Initialize();
         try
@@ -56,7 +56,7 @@ internal static class Program
                 "PhoneDeck PC", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
-        Application.Run(new MainForm(store, server));
+        Application.Run(new MainForm(store, server, minimized));
         server.StopAsync().GetAwaiter().GetResult();
     }
 }

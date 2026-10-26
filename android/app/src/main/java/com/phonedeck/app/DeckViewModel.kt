@@ -31,6 +31,17 @@ import kotlin.math.min
 
 enum class Status { Disconnected, Connecting, Connected }
 
+/** Réglages propres au téléphone (le thème de couleurs, lui, vient du PC). */
+data class AppSettings(
+    val haptics: Boolean = true,
+    val keepScreenOn: Boolean = true,
+    /** 0 = automatique, 1 = portrait, 2 = paysage. */
+    val orientation: Int = 0,
+)
+
+/** Demande du PC : afficher cette page (appli au premier plan). Le compteur permet de répéter la même demande. */
+data class FocusRequest(val page: String, val count: Int)
+
 class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listener {
 
     private val prefs = app.getSharedPreferences("deck", Context.MODE_PRIVATE)
@@ -46,6 +57,28 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         private set
     var layout by mutableStateOf<DeckLayout?>(null)
         private set
+
+    var settings by mutableStateOf(
+        AppSettings(
+            haptics = prefs.getBoolean("haptics", true),
+            keepScreenOn = prefs.getBoolean("keepOn", true),
+            orientation = prefs.getInt("orientation", 0),
+        )
+    )
+        private set
+    var showSettings by mutableStateOf(false)
+
+    var focus by mutableStateOf<FocusRequest?>(null)
+        private set
+
+    fun updateSettings(new: AppSettings) {
+        settings = new
+        prefs.edit()
+            .putBoolean("haptics", new.haptics)
+            .putBoolean("keepOn", new.keepScreenOn)
+            .putInt("orientation", new.orientation)
+            .apply()
+    }
 
     /** Mise à jour de l'appli disponible sur GitHub (null = rien à faire). */
     var update by mutableStateOf<UpdateInfo?>(null)
@@ -80,10 +113,11 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
 
     // ---------- Mise à jour de l'appli ----------
 
-    fun checkForUpdate() {
+    fun checkForUpdate(manual: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
             val found = Updater.check(getApplication())
             post { update = found }
+            if (manual) toast(if (found == null) "PhoneDeck est à jour ✓" else "Mise à jour disponible")
         }
     }
 
@@ -185,6 +219,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
                 val ids = (0 until (arr?.length() ?: 0)).map { arr!!.getString(it) }.toSet()
                 post { active = ids }
             }
+            "focus" -> post { focus = FocusRequest(json.optString("page"), (focus?.count ?: 0) + 1) }
             "toast" -> toast(json.optString("message"))
         }
     }

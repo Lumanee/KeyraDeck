@@ -25,6 +25,7 @@ public class DeckServer
     private readonly SemaphoreSlim _layoutLock = new(1, 1);
     private readonly Dictionary<string, bool> _toggles = new();
     private string _lastStates = "";
+    private string? _autoPage;
     private CancellationTokenSource? _stop;
     private WebApplication? _app;
     private string? _layoutJson;
@@ -156,6 +157,7 @@ public class DeckServer
             case "getLayout":
                 await client.SendRawAsync(await GetLayoutJsonAsync());
                 await client.SendRawAsync(StatesJson(ComputeStates()));
+                if (_autoPage != null) await client.SendAsync(new { type = "focus", page = _autoPage });
                 break;
 
             case "press":
@@ -306,6 +308,41 @@ public class DeckServer
         {
             try { await Task.Delay(1000, ct); } catch { return; }
             await BroadcastStatesAsync(force: false);
+            await CheckForegroundAsync();
+        }
+    }
+
+    /// <summary>Change de page sur le téléphone selon l'appli au premier plan (réglable par page dans le configurateur).</summary>
+    private async Task CheckForegroundAsync()
+    {
+        try
+        {
+            var pages = _store.Config.Pages;
+            if (!pages.Any(p => p.AutoProcesses?.Count > 0)) { _autoPage = null; return; }
+            var fg = ForegroundWatcher.CurrentProcessName();
+            if (fg == null || fg == "phonedeckpc") return; // fenêtre du configurateur : on ne bouge pas
+            var match = pages.Where((p, i) => (i == 0 || p.Root) && p.AutoProcesses != null)
+                .FirstOrDefault(p => p.AutoProcesses!.Any(n => ForegroundWatcher.Normalize(n) == fg));
+            string? target;
+            if (match != null) target = match.Id;
+            else if (_autoPage != null) target = pages[0].Id; // on quitte l'appli : retour à la page d'accueil
+            else return;
+            var newAuto = match?.Id;
+            if (newAuto == _autoPage) return;
+            _autoPage = newAuto;
+            await BroadcastAsync(new { type = "focus", page = target });
+        }
+        catch { }
+    }
+
+    private async Task BroadcastAsync(object payload)
+    {
+        List<Client> clients;
+        lock (_clients) clients = _clients.ToList();
+        var json = JsonSerializer.Serialize(payload, Wire);
+        foreach (var c in clients)
+        {
+            try { await c.SendRawAsync(json); } catch { }
         }
     }
 
@@ -408,6 +445,7 @@ public class DeckServer
         {
             type = "layout",
             pcName = _store.PcName,
+            theme = cfg.Theme,
             home = cfg.Pages.FirstOrDefault()?.Id ?? "",
             pages,
         }, Wire);

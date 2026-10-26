@@ -67,11 +67,13 @@ fun MixerScreen(vm: DeckViewModel) {
 @Composable
 private fun ChannelRow(channel: MixerChannel, vm: DeckViewModel) {
     val isMaster = channel.id == "master"
+    val accent = LocalTheme.current.accent
+    val tile = LocalTheme.current.key
     Row(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(if (isMaster) Color(0xFF2E2A4F) else Tile)
+            .background(if (isMaster) androidx.compose.ui.graphics.lerp(tile, accent, 0.25f) else androidx.compose.ui.graphics.lerp(tile, Color.White, 0.06f))
             .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -101,8 +103,8 @@ private fun ChannelRow(channel: MixerChannel, vm: DeckViewModel) {
                 onValueChange = { vm.setVolume(channel.id, it) },
                 onValueChangeFinished = { vm.setVolume(channel.id, channel.volume, final = true) },
                 colors = SliderDefaults.colors(
-                    thumbColor = if (channel.muted) Color.Gray else Accent,
-                    activeTrackColor = if (channel.muted) Color.Gray else Accent,
+                    thumbColor = if (channel.muted) Color.Gray else accent,
+                    activeTrackColor = if (channel.muted) Color.Gray else accent,
                 ),
             )
         }

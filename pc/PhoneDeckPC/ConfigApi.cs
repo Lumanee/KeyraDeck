@@ -153,6 +153,23 @@ public class ConfigApi
                     return;
                 }
 
+                case "/api/processes":
+                    await Json(ctx, await Task.Run(ForegroundWatcher.OpenApps));
+                    return;
+
+                case "/api/settings" when method == "GET":
+                    await Json(ctx, new { startWithWindows = StartupRegistration.IsEnabled(), build = Updater.CurrentBuild });
+                    return;
+
+                case "/api/settings" when method == "POST":
+                {
+                    using var doc = await JsonDocument.ParseAsync(ctx.Request.Body);
+                    if (doc.RootElement.TryGetProperty("startWithWindows", out var sw))
+                        StartupRegistration.Set(sw.GetBoolean());
+                    await Json(ctx, new { ok = true });
+                    return;
+                }
+
                 case "/api/update/check":
                     await Json(ctx, await _updater.CheckAsync());
                     return;

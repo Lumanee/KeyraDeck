@@ -32,7 +32,28 @@ data class DeckPage(
     val buttons: List<DeckButton>,
 )
 
-data class DeckLayout(val pcName: String, val home: String, val pages: Map<String, DeckPage>) {
+/** Couleurs du boîtier, choisies dans le configurateur du PC. */
+data class DeckTheme(
+    val name: String,
+    val body: Color,
+    val desk: Color,
+    val key: Color,
+    val accent: Color,
+    val active: Color,
+) {
+    companion object {
+        val Default = DeckTheme(
+            "Anthracite", Color(0xFF2C2C34), Color(0xFF0B0B0E), Color(0xFF1B1B21), Color(0xFF7C6CF2), Color(0xFFC62828),
+        )
+    }
+}
+
+data class DeckLayout(
+    val pcName: String,
+    val home: String,
+    val pages: Map<String, DeckPage>,
+    val theme: DeckTheme = DeckTheme.Default,
+) {
     val homePage: DeckPage? get() = pages[home] ?: pages.values.firstOrNull()
 
     /** Les pages d'accueil, dans l'ordre. */
@@ -65,7 +86,20 @@ object Parser {
                 buttons = list,
             )
         }
-        return DeckLayout(json.optString("pcName", "PC"), json.optString("home"), pages)
+        return DeckLayout(json.optString("pcName", "PC"), json.optString("home"), pages, theme(json.optJSONObject("theme")))
+    }
+
+    private fun theme(t: JSONObject?): DeckTheme {
+        if (t == null) return DeckTheme.Default
+        val d = DeckTheme.Default
+        return DeckTheme(
+            name = t.optString("name", d.name),
+            body = color(t.optString("body")) ?: d.body,
+            desk = color(t.optString("desk")) ?: d.desk,
+            key = color(t.optString("key")) ?: d.key,
+            accent = color(t.optString("accent")) ?: d.accent,
+            active = color(t.optString("active")) ?: d.active,
+        )
     }
 
     private fun button(b: JSONObject, index: Int) = DeckButton(

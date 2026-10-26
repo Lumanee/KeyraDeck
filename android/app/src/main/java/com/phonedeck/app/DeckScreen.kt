@@ -40,6 +40,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,6 +52,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -63,13 +65,21 @@ import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 
-private val Desk = Brush.radialGradient(listOf(Color(0xFF2A2A33), Color(0xFF0B0B0E)))
-private val BodyBrush = Brush.verticalGradient(listOf(Color(0xFF34343C), Color(0xFF17171B)))
-private val BodyEdge = Brush.verticalGradient(listOf(Color(0x55FFFFFF), Color(0x08FFFFFF)))
 private val KeyCap = Color(0xFF060608)
-private val ActiveRed = Color(0xFFC62828)
-private val KeyScreen = Color(0xFF1B1B21)
 private val Gloss = Brush.verticalGradient(listOf(Color(0x1FFFFFFF), Color(0x00FFFFFF)))
+private val BodyEdge = Brush.verticalGradient(listOf(Color(0x55FFFFFF), Color(0x08FFFFFF)))
+
+@Composable
+private fun deskBrush(): Brush {
+    val t = LocalTheme.current
+    return Brush.radialGradient(listOf(lerp(t.desk, Color.White, 0.12f), t.desk))
+}
+
+@Composable
+private fun bodyBrush(): Brush {
+    val t = LocalTheme.current
+    return Brush.verticalGradient(listOf(lerp(t.body, Color.White, 0.08f), lerp(t.body, Color.Black, 0.45f)))
+}
 
 /** Écran principal : la page d'accueil dessinée comme un boîtier Stream Deck, et les dossiers par-dessus. */
 @Composable
@@ -82,13 +92,18 @@ fun DeckScreen(vm: DeckViewModel) {
         pickFor = null
     }
 
-    Box(Modifier.fillMaxSize().background(Desk), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxSize().background(deskBrush()), contentAlignment = Alignment.Center) {
         val roots = vm.layout?.rootPages.orEmpty()
         if (roots.isEmpty()) {
             Device(vm, 5, 3, emptyList(), 0, 1) { editing = it }
             Waiting(vm)
         } else {
             val pager = rememberPagerState(pageCount = { roots.size })
+            val focus = vm.focus
+            LaunchedEffect(focus) {
+                val index = roots.indexOfFirst { it.id == focus?.page }
+                if (index >= 0 && index != pager.currentPage) pager.animateScrollToPage(index)
+            }
             HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { index ->
                 val page = roots[index]
                 Device(
@@ -191,7 +206,7 @@ private fun Device(
             Modifier
                 .shadow(28.dp, shape)
                 .clip(shape)
-                .background(BodyBrush)
+                .background(bodyBrush())
                 .border(1.dp, BodyEdge, shape)
                 .padding(start = bezel, end = bezel, bottom = bezel),
         ) {
@@ -253,6 +268,7 @@ private fun StatusStrip(vm: DeckViewModel, pageIndex: Int, pageCount: Int, modif
                 Icon(Icons.Filled.MoreVert, contentDescription = "Menu", tint = Color(0xFF6E6E78), modifier = Modifier.size(16.dp))
             }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(text = { Text("Réglages") }, onClick = { menu = false; vm.showSettings = true })
                 DropdownMenuItem(text = { Text("Reconnecter") }, onClick = { menu = false; vm.retryNow() })
                 DropdownMenuItem(text = { Text("Changer de PC") }, onClick = { menu = false; vm.forget() })
             }
@@ -271,6 +287,7 @@ fun DeckKey(
     onLongPress: (DeckButton) -> Unit,
 ) {
     val haptic = LocalHapticFeedback.current
+    val hapticsOn = LocalSettings.current.haptics
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.92f else 1f, label = "press")
@@ -288,11 +305,11 @@ fun DeckKey(
             interactionSource = interaction,
             indication = null,
             onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                if (hapticsOn) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onPress(button)
             },
             onLongClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                if (hapticsOn) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 onLongPress(button)
             },
         )
@@ -303,7 +320,7 @@ fun DeckKey(
             Modifier
                 .fillMaxSize()
                 .clip(screenShape)
-                .background(if (active) ActiveRed else (button?.color ?: KeyScreen))
+                .background(if (active) LocalTheme.current.active else (button?.color ?: LocalTheme.current.key))
                 .background(Gloss)
                 .background(if (pressed) Color(0x22FFFFFF) else Color.Transparent)
                 .padding(size * 0.07f),
@@ -352,7 +369,7 @@ private fun FolderDialog(
             Modifier
                 .shadow(24.dp, shape)
                 .clip(shape)
-                .background(BodyBrush)
+                .background(bodyBrush())
                 .border(1.dp, BodyEdge, shape)
                 .padding(18.dp),
         ) {

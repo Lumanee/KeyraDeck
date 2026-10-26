@@ -16,7 +16,7 @@ public class MainForm : Form
     private bool _exiting;
     private bool _trayHintShown;
 
-    public MainForm(ConfigStore store, DeckServer server)
+    public MainForm(ConfigStore store, DeckServer server, bool minimized = false)
     {
         _store = store;
         Text = "PhoneDeck PC";
@@ -40,6 +40,8 @@ public class MainForm : Form
             server.Api.ExitRequested = () => BeginInvoke(() => { _exiting = true; Close(); });
 
         Load += async (_, _) => await InitWebAsync();
+        // Lancé avec Windows : on reste discret, près de l'horloge.
+        if (minimized) { ShowInTaskbar = false; WindowState = FormWindowState.Minimized; Shown += (_, _) => { Hide(); ShowInTaskbar = true; }; }
     }
 
     private string Url => $"http://localhost:{_store.Config.Port}/";
