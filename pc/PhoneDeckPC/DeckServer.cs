@@ -26,6 +26,8 @@ public class DeckServer
     private readonly Dictionary<string, bool> _toggles = new();
     private string _lastStates = "";
     private string? _autoPage;
+    private readonly SystemStats _systemStats = new();
+    private bool _needVolume, _needSystem;
     private CancellationTokenSource? _stop;
     private WebApplication? _app;
     private string? _layoutJson;
@@ -164,6 +166,14 @@ public class DeckServer
                 await PressAsync(client, root.GetProperty("buttonId").GetString() ?? "");
                 break;
 
+            case "media":
+            {
+                var key = root.GetProperty("key").GetString() ?? "";
+                if (key is "PlayPause" or "Next" or "Prev" or "Stop" or "Mute" or "VolumeUp" or "VolumeDown")
+                    await Task.Run(() => KeySender.Send(key));
+                break;
+            }
+
             case "getMixer":
             {
                 var full = root.TryGetProperty("full", out var f) && f.GetBoolean();
@@ -281,8 +291,21 @@ public class DeckServer
         return states;
     }
 
-    private static string StatesJson(Dictionary<string, bool> states) =>
-        JsonSerializer.Serialize(new { type = "states", active = states.Where(p => p.Value).Select(p => p.Key).ToList() }, Wire);
+    private string StatesJson(Dictionary<string, bool> states)
+    {
+        float? volume = null; bool? muted = null; int? cpu = null, ram = null;
+        if (_needVolume) { volume = _audio.MasterVolume(); muted = _audio.MasterMuted(); }
+        if (_needSystem) { var (c, r) = _systemStats.Read(); cpu = c; ram = r; }
+        return JsonSerializer.Serialize(new
+        {
+            type = "states",
+            active = states.Where(p => p.Value).Select(p => p.Key).ToList(),
+            volume = volume == null ? (int?)null : (int)Math.Round(volume.Value * 100),
+            muted,
+            cpu,
+            ram,
+        }, Wire);
+    }
 
     private async Task BroadcastStatesAsync(bool force)
     {
@@ -400,20 +423,25 @@ public class DeckServer
             int? columns = page.Columns ?? (isRoot ? cfg.Columns : null);
             int? rows = page.Rows ?? (isRoot ? cfg.Rows : null);
             var cols = Math.Clamp(columns ?? (buttons.Count <= 4 ? 2 : 3), 1, 12);
-            var slots = AssignSlots(buttons);
-            if (rows != null)
-            {
-                // La grille grandit si des boutons ne rentrent pas (plutôt que de les cacher).
-                var needed = (slots.Values.DefaultIfEmpty(-1).Max() + cols) / cols;
-                rows = Math.Max(rows.Value, needed);
-            }
+            var blocked = new HashSet<int>();
+            foreach (var w in page.Widgets)
+                for (int dy = 0; dy < Math.Max(1, w.H); dy++)
+                    for (int dx = 0; dx < Math.Max(1, w.W); dx++)
+                        blocked.Add(w.Slot + dy * cols + dx);
+            var slots = AssignSlots(buttons, blocked);
+            // La grille grandit si des boutons ou widgets ne rentrent pas (plutôt que de les cacher).
+            var lastCell = Math.Max(slots.Values.DefaultIfEmpty(-1).Max(), -1);
+            var needed = lastCell < 0 ? 1 : lastCell / cols + 1;
+            foreach (var w in page.Widgets) needed = Math.Max(needed, w.Slot / cols + Math.Max(1, w.H));
+            rows = Math.Max(rows ?? 1, needed);
             return new
             {
                 id = page.Id,
                 name = page.Name,
                 root = isRoot,
-                columns = columns == null ? (int?)null : cols,
+                columns = cols,
                 rows,
+                widgets = page.Widgets.Select(w => new { id = w.Id, type = w.Type, slot = w.Slot, w = Math.Max(1, w.W), h = Math.Max(1, w.H) }).ToList(),
                 buttons = buttons.Select(b =>
                 {
                     lookup[b.Id] = b;
@@ -441,6 +469,8 @@ public class DeckServer
             };
         }).ToList();
 
+        _needVolume = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "volume"));
+        _needSystem = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "system"));
         var json = JsonSerializer.Serialize(new
         {
             type = "layout",
@@ -453,10 +483,10 @@ public class DeckServer
     }
 
     /// <summary>Place chaque bouton : ceux qui ont une case la gardent, les autres prennent les premières cases libres.</summary>
-    public static Dictionary<string, int> AssignSlots(List<DeckButton> buttons)
+    public static Dictionary<string, int> AssignSlots(List<DeckButton> buttons, HashSet<int>? blocked = null)
     {
         var result = new Dictionary<string, int>();
-        var used = new HashSet<int>();
+        var used = new HashSet<int>(blocked ?? new HashSet<int>());
         foreach (var b in buttons)
         {
             if (b.Slot is int s && s >= 0 && used.Add(s)) result[b.Id] = s;

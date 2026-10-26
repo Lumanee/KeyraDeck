@@ -58,6 +58,17 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
     var layout by mutableStateOf<DeckLayout?>(null)
         private set
 
+    /** Données des widgets (volume général, charge du PC), envoyées par le PC. */
+    var masterVolume by mutableStateOf<Int?>(null)
+        private set
+    var masterMuted by mutableStateOf(false)
+        private set
+    var cpu by mutableStateOf<Int?>(null)
+        private set
+    var ram by mutableStateOf<Int?>(null)
+        private set
+    private var volumeDragging = false
+
     var settings by mutableStateOf(
         AppSettings(
             haptics = prefs.getBoolean("haptics", true),
@@ -217,7 +228,16 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
             "states" -> {
                 val arr = json.optJSONArray("active")
                 val ids = (0 until (arr?.length() ?: 0)).map { arr!!.getString(it) }.toSet()
-                post { active = ids }
+                val volume = if (json.has("volume") && !json.isNull("volume")) json.optInt("volume") else null
+                val muted = json.optBoolean("muted", false)
+                val cpuNow = if (json.has("cpu") && !json.isNull("cpu")) json.optInt("cpu") else null
+                val ramNow = if (json.has("ram") && !json.isNull("ram")) json.optInt("ram") else null
+                post {
+                    active = ids
+                    if (!volumeDragging) { masterVolume = volume; masterMuted = muted }
+                    cpu = cpuNow
+                    ram = ramNow
+                }
             }
             "focus" -> post { focus = FocusRequest(json.optString("page"), (focus?.count ?: 0) + 1) }
             "toast" -> toast(json.optString("message"))
@@ -284,6 +304,27 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
             lastSentVolume[id] = volume
             send(JSONObject().put("type", "setVolume").put("id", id).put("volume", volume.toDouble()))
         }
+    }
+
+    /** Touches média (lecture, suivant…) pour le widget « Pavé média ». */
+    fun sendMedia(key: String) {
+        send(JSONObject().put("type", "media").put("key", key))
+    }
+
+    fun setMasterVolume(fraction: Float, final: Boolean) {
+        val f = fraction.coerceIn(0f, 1f)
+        volumeDragging = !final
+        masterVolume = (f * 100).toInt()
+        val last = lastSentVolume["master"]
+        if (final || last == null || abs(last - f) >= 0.01f) {
+            lastSentVolume["master"] = f
+            send(JSONObject().put("type", "setVolume").put("id", "master").put("volume", f.toDouble()))
+        }
+    }
+
+    fun toggleMasterMute() {
+        masterMuted = !masterMuted
+        send(JSONObject().put("type", "setMute").put("id", "master").put("muted", masterMuted))
     }
 
     fun toggleMute(channel: MixerChannel) {

@@ -35,6 +35,18 @@ public class DeckTheme
     public string Active { get; set; } = "#C62828";
 }
 
+/// <summary>Un widget posé sur une page, sur plusieurs cases (comme sur Nova Launcher).</summary>
+public class DeckWidget
+{
+    public string Id { get; set; } = "";
+    /// <summary>media | volume | clock | system</summary>
+    public string Type { get; set; } = "clock";
+    /// <summary>Case en haut à gauche (0 = première case).</summary>
+    public int Slot { get; set; }
+    public int W { get; set; } = 2;
+    public int H { get; set; } = 1;
+}
+
 public class DeckPage
 {
     public string Id { get; set; } = "";
@@ -49,6 +61,7 @@ public class DeckPage
     public int? Columns { get; set; }
     public int? Rows { get; set; }
     public List<DeckButton> Buttons { get; set; } = new();
+    public List<DeckWidget> Widgets { get; set; } = new();
 }
 
 public class DeckButton

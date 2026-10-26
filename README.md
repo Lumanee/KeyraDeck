@@ -87,6 +87,23 @@ Le dossier **Launchers** reprend le contenu du dossier « Launcher » de ton men
 
 La configuration est enregistrée dans `%APPDATA%\PhoneDeckPC\config.json` (bouton « Dossier de config »). Tu peux aussi l'éditer à la main : la fenêtre et le téléphone se mettent à jour dès que tu enregistres.
 
+## Widgets
+
+Comme sur Nova Launcher, un widget se pose sur plusieurs cases d'une page. Dans le configurateur, section **Widgets** à gauche :
+
+- **Pavé média** : précédent, lecture/pause, suivant. Avec 2 lignes de haut, on ajoute volume −, muet et volume +.
+- **Volume général** : un curseur pour le volume Windows (vertical si le widget est plus haut que large).
+- **Horloge** : l'heure et la date.
+- **CPU / RAM** : la charge du processeur et de la mémoire du PC.
+
+Glisse un widget pour le déplacer, règle sa taille avec les boutons **+ / −** dans le panneau de droite.
+
+## Réglages et thèmes
+
+Le bouton **⚙ Réglages** du configurateur propose des thèmes de couleurs (le boîtier du téléphone change de couleur), des couleurs libres, et le lancement de PhoneDeck PC au démarrage de Windows. Sur le téléphone, le menu ⋮ → **Réglages** règle la vibration, l'écran allumé et l'orientation.
+
+**Pages automatiques** : clique dans une zone vide du configurateur, puis indique dans « Activer cette page… » les applis (ex. `reaper, discord`). Le téléphone change de page quand l'une de ces applis est au premier plan.
+
 ## Mises à jour automatiques
 
 À chaque amélioration, GitHub fabrique une nouvelle version. Une fois la version « 0.3 » ou plus récente installée :

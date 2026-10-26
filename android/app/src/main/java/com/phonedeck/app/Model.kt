@@ -21,6 +21,9 @@ data class DeckButton(
     val closeFolder: Boolean,
 )
 
+/** Un widget posé sur plusieurs cases : media, volume, clock ou system. */
+data class DeckWidget(val id: String, val type: String, val slot: Int, val w: Int, val h: Int)
+
 /** columns / rows : taille de la grille, ou null pour un dossier mis en page automatiquement. */
 data class DeckPage(
     val id: String,
@@ -30,6 +33,7 @@ data class DeckPage(
     val columns: Int?,
     val rows: Int?,
     val buttons: List<DeckButton>,
+    val widgets: List<DeckWidget> = emptyList(),
 )
 
 /** Couleurs du boîtier, choisies dans le configurateur du PC. */
@@ -84,9 +88,18 @@ object Parser {
                 columns = p.optIntOrNull("columns"),
                 rows = p.optIntOrNull("rows"),
                 buttons = list,
+                widgets = widgets(p.optJSONArray("widgets")),
             )
         }
         return DeckLayout(json.optString("pcName", "PC"), json.optString("home"), pages, theme(json.optJSONObject("theme")))
+    }
+
+    private fun widgets(arr: JSONArray?): List<DeckWidget> {
+        if (arr == null) return emptyList()
+        return (0 until arr.length()).map { i ->
+            val w = arr.getJSONObject(i)
+            DeckWidget(w.optString("id"), w.optString("type"), w.optInt("slot"), w.optInt("w", 1).coerceAtLeast(1), w.optInt("h", 1).coerceAtLeast(1))
+        }
     }
 
     private fun theme(t: JSONObject?): DeckTheme {

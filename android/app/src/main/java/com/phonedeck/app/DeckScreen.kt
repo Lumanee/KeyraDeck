@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -95,7 +96,7 @@ fun DeckScreen(vm: DeckViewModel) {
     Box(Modifier.fillMaxSize().background(deskBrush()), contentAlignment = Alignment.Center) {
         val roots = vm.layout?.rootPages.orEmpty()
         if (roots.isEmpty()) {
-            Device(vm, 5, 3, emptyList(), 0, 1) { editing = it }
+            Device(vm, 5, 3, emptyList(), emptyList(), 0, 1) { editing = it }
             Waiting(vm)
         } else {
             val pager = rememberPagerState(pageCount = { roots.size })
@@ -111,6 +112,7 @@ fun DeckScreen(vm: DeckViewModel) {
                     columns = page.columns ?: 5,
                     rows = page.rows ?: 3,
                     buttons = page.buttons,
+                    widgets = page.widgets,
                     pageIndex = index,
                     pageCount = roots.size,
                     onLongPress = { editing = it },
@@ -125,6 +127,7 @@ fun DeckScreen(vm: DeckViewModel) {
         if (page != null) {
             BackHandler { vm.closeFolder() }
             FolderDialog(
+                vm = vm,
                 page = page,
                 canGoBack = vm.folderStack.size > 1,
                 active = vm.active,
@@ -186,6 +189,7 @@ private fun Device(
     columns: Int,
     rows: Int,
     buttons: List<DeckButton>,
+    widgets: List<DeckWidget>,
     pageIndex: Int,
     pageCount: Int,
     onLongPress: (DeckButton) -> Unit,
@@ -211,16 +215,38 @@ private fun Device(
                 .padding(start = bezel, end = bezel, bottom = bezel),
         ) {
             StatusStrip(vm, pageIndex, pageCount, Modifier.height(strip).width(key * cols + gap * (cols - 1)))
-            val bySlot = buttons.associateBy { it.slot }
-            Column(verticalArrangement = Arrangement.spacedBy(gap)) {
-                for (r in 0 until rws) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
-                        for (c in 0 until cols) {
-                            val b = bySlot[r * cols + c]
-                            DeckKey(b, key, b != null && b.id in vm.active, vm::press, onLongPress)
-                        }
-                    }
-                }
+            KeyGrid(vm, cols, rws, buttons, widgets, key, gap, vm.active, vm::press, onLongPress)
+        }
+    }
+}
+
+/** Les touches et les widgets d'une page, placés case par case (un widget couvre plusieurs cases). */
+@Composable
+fun KeyGrid(
+    vm: DeckViewModel,
+    cols: Int,
+    rows: Int,
+    buttons: List<DeckButton>,
+    widgets: List<DeckWidget>,
+    key: Dp,
+    gap: Dp,
+    active: Set<String>,
+    onPress: (DeckButton) -> Unit,
+    onLongPress: (DeckButton) -> Unit,
+) {
+    val covered = widgets.flatMap { w -> (0 until w.h).flatMap { dy -> (0 until w.w).map { dx -> w.slot + dy * cols + dx } } }.toSet()
+    val bySlot = buttons.associateBy { it.slot }
+    Box(Modifier.size(key * cols + gap * (cols - 1), key * rows + gap * (rows - 1))) {
+        for (slot in 0 until cols * rows) {
+            if (slot in covered) continue
+            val b = bySlot[slot]
+            Box(Modifier.offset((key + gap) * (slot % cols), (key + gap) * (slot / cols))) {
+                DeckKey(b, key, b != null && b.id in active, onPress, onLongPress)
+            }
+        }
+        for (w in widgets) {
+            Box(Modifier.offset((key + gap) * (w.slot % cols), (key + gap) * (w.slot / cols))) {
+                DeckWidgetView(w, key * w.w + gap * (w.w - 1), key * w.h + gap * (w.h - 1), key, vm)
             }
         }
     }
@@ -355,6 +381,7 @@ fun DeckKey(
 /** Un dossier s'ouvre par-dessus, comme sur l'écran d'accueil d'Android, avec les mêmes touches. */
 @Composable
 private fun FolderDialog(
+    vm: DeckViewModel,
     page: DeckPage,
     canGoBack: Boolean,
     active: Set<String>,
@@ -383,19 +410,12 @@ private fun FolderDialog(
             }
             Spacer(Modifier.height(14.dp))
             val columns = page.columns ?: if (page.buttons.size <= 4) 2 else 3
-            val slots = page.buttons.associateBy { it.slot }
-            val count = (page.buttons.maxOfOrNull { it.slot } ?: -1) + 1
+            val count = maxOf(
+                (page.buttons.maxOfOrNull { it.slot } ?: -1) + 1,
+                page.widgets.maxOfOrNull { it.slot + (it.h - 1) * columns + 1 } ?: 0,
+            )
             val rows = page.rows ?: ((count + columns - 1) / columns).coerceAtLeast(1)
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                for (r in 0 until rows) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        for (c in 0 until columns) {
-                            val b = slots[r * columns + c]
-                            DeckKey(b, 84.dp, b != null && b.id in active, onPress, onLongPress)
-                        }
-                    }
-                }
-            }
+            KeyGrid(vm, columns, rows, page.buttons, page.widgets, 84.dp, 10.dp, active, onPress, onLongPress)
         }
     }
 }

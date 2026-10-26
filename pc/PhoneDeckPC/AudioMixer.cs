@@ -66,6 +66,21 @@ public class AudioMixer
 
     public bool MasterMuted() => ReadMute(DataFlow.Render);
 
+    /// <summary>Volume général de Windows (0 à 1), ou null s'il n'y a pas de sortie son.</summary>
+    public float? MasterVolume()
+    {
+        lock (_lock)
+        {
+            try
+            {
+                using var enumerator = new MMDeviceEnumerator();
+                using var device = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                return device.AudioEndpointVolume.MasterVolumeLevelScalar;
+            }
+            catch { return null; }
+        }
+    }
+
     public void ToggleMic() => ToggleMute(DataFlow.Capture);
 
     public void ToggleMaster() => ToggleMute(DataFlow.Render);

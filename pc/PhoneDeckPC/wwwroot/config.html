@@ -72,6 +72,11 @@
   .key.over { outline: 3px dashed var(--ok); outline-offset: 2px; transform: scale(1.04); }
   .key.fileover { outline: 3px dashed var(--warn); outline-offset: 2px; }
   .key[draggable=true] { cursor: grab; }
+  .wdg { background: #060608; border-radius: 8%; padding: 2.5%; position: relative; box-shadow: 0 4px 6px #0008; cursor: grab; }
+  .wdg .face { width: 100%; height: 100%; border-radius: 6%; background: var(--keyface); background-image: linear-gradient(#ffffff1f, #ffffff00); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #fff; text-align: center; padding: 6px; overflow: hidden; }
+  .wdg .face b { font-size: 26px; font-weight: 600; }
+  .wdg .face small { opacity: .7; }
+  .wdg.selected { outline: 3px solid var(--accent); outline-offset: 2px; }
   .key .badge { position: absolute; top: 4%; right: 6%; font-size: 11px; opacity: .8; pointer-events: none; }
 
   /* Panneau de gauche */
@@ -85,7 +90,7 @@
   .appitem span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .hint { color: var(--muted); font-size: 12px; }
 
-  .row { display: flex; gap: 8px; align-items: center; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .row > * { flex: 1; }
   .row > button { flex: none; }
   .steps { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
@@ -136,6 +141,16 @@
         <button data-add="mastermute">🔇 Couper le son</button>
         <button data-add="app">📦 Appli…</button>
       </div>
+    </div>
+    <div class="box">
+      <h2>Widgets</h2>
+      <div class="addrow">
+        <button data-widget="media">⏯ Pavé média</button>
+        <button data-widget="volume">🎚 Volume général</button>
+        <button data-widget="clock">🕒 Horloge</button>
+        <button data-widget="system">📊 CPU / RAM</button>
+      </div>
+      <div class="hint" style="margin-top:8px">Un widget occupe plusieurs cases. Glisse-le pour le déplacer, règle sa taille à droite.</div>
     </div>
     <div class="box" id="appBox">
       <h2>Applis installées</h2>
@@ -236,6 +251,14 @@ const pageById = (id) => state.cfg.pages.find(p => p.id === id);
 const homeId = () => state.cfg.pages[0].id;
 const isRoot = (p) => p === state.cfg.pages[0] || !!p.root;
 const currentPage = () => pageById(state.page) || state.cfg.pages[0];
+const findWidget = (id) => { for (const p of state.cfg.pages) { const w = (p.widgets || []).find(w => w.id === id); if (w) return { page: p, widget: w }; } return null; };
+const WIDGET_INFO = {
+  media: { name: 'Pavé média', icon: '⏯', w: 3, h: 1, desc: 'Précédent, lecture/pause, suivant. À partir de 2 lignes : volume − / muet / volume +.' },
+  volume: { name: 'Volume général', icon: '🎚', w: 3, h: 1, desc: 'Curseur du volume Windows. Se met en vertical si le widget est plus haut que large.' },
+  clock: { name: 'Horloge', icon: '🕒', w: 2, h: 1, desc: 'Heure et date.' },
+  system: { name: 'CPU / RAM', icon: '📊', w: 2, h: 1, desc: 'Charge du processeur et de la mémoire du PC.' },
+};
+const widgetCells = (w, cols) => { const out = []; for (let dy = 0; dy < w.h; dy++) for (let dx = 0; dx < w.w; dx++) out.push(w.slot + dy * cols + dx); return out; };
 const findButton = (id) => { for (const p of state.cfg.pages) { const b = p.buttons.find(b => b.id === id); if (b) return { page: p, button: b }; } return null; };
 
 // ---------- Thème et réglages ----------
@@ -367,7 +390,8 @@ function pageGrid(page) {
   const maxSlot = Math.max(-1, ...page.buttons.map(b => b.slot ?? -1), ...(page.generated || []).map(b => b.slot ?? -1));
   if (cols == null) cols = count <= 4 ? 2 : 3;
   if (rows == null) rows = Math.max(1, Math.ceil((maxSlot + 1) / cols));
-  rows = Math.max(rows, Math.ceil((maxSlot + 1) / cols));
+  const widgetRows = Math.max(0, ...(page.widgets || []).map(w => Math.floor(w.slot / cols) + w.h));
+  rows = Math.max(rows, Math.ceil((maxSlot + 1) / cols), widgetRows);
   return { cols, rows, auto: lp && lp.columns == null && page.columns == null && !isHome };
 }
 
@@ -397,7 +421,10 @@ function renderStage() {
   const bySlot = new Map();
   if (!page.generated) for (const b of page.buttons) bySlot.set(b.slot, b);
   const gen = new Map((page.generated || []).map(b => [b.slot, b]));
+  const widgets = page.widgets || [];
+  const covered = new Set(widgets.flatMap(w => widgetCells(w, cols)));
   for (let s = 0; s < cols * rows; s++) {
+    if (covered.has(s)) continue;
     const b = bySlot.get(s);
     const k = el('div', { class: 'key' + (b ? '' : ' empty') + (b && b.id === state.selected ? ' selected' : ''), 'data-slot': s, style: `--lbl:${Math.max(9, Math.min(15, key * 0.12))}px` });
     if (b) {
@@ -425,12 +452,21 @@ function renderStage() {
     }
     k.addEventListener('dragover', (e) => {
       const t = e.dataTransfer.types;
-      if (t.includes('application/x-pd-button') || t.includes('application/x-pd-app')) { e.preventDefault(); k.classList.add('over'); }
+      if (t.includes('application/x-pd-button') || t.includes('application/x-pd-app') || t.includes('application/x-pd-widget')) { e.preventDefault(); k.classList.add('over'); }
       else if (t.includes('Files') && b) { e.preventDefault(); k.classList.add('fileover'); }
     });
     k.addEventListener('dragleave', () => k.classList.remove('over', 'fileover'));
     k.addEventListener('drop', (e) => { k.classList.remove('over', 'fileover'); e.preventDefault(); onDropOnSlot(e, s, b); });
     grid.append(k);
+  }
+  for (const w of widgets) {
+    const info = WIDGET_INFO[w.type] || { name: w.type, icon: '▫' };
+    const c = w.slot % cols, r = Math.floor(w.slot / cols);
+    const d = el('div', { class: 'wdg' + (w.id === state.selected ? ' selected' : ''), draggable: 'true', style: `grid-column:${c + 1} / span ${w.w};grid-row:${r + 1} / span ${w.h}` },
+      el('div', { class: 'face' }, el('b', {}, info.icon), el('small', {}, `${info.name} · ${w.w}×${w.h}`)));
+    d.addEventListener('dragstart', (e) => { e.dataTransfer.setData('application/x-pd-widget', w.id); e.dataTransfer.effectAllowed = 'move'; select(w.id, true); });
+    d.addEventListener('click', () => select(w.id));
+    grid.append(d);
   }
   dev.append(grid);
 }
@@ -441,6 +477,14 @@ async function onDropOnSlot(e, slot, existing) {
   if (dt.files && dt.files.length) {
     if (!existing) { toast('Dépose l\'image sur un bouton existant'); return; }
     await uploadIcon(existing.id, dt.files[0]); return;
+  }
+  const movingWidget = dt.getData('application/x-pd-widget');
+  if (movingWidget) {
+    const fw = findWidget(movingWidget); if (!fw) return;
+    pushUndo();
+    if (!placeWidget(page, fw.widget, slot, fw.widget.w, fw.widget.h)) { state.undo.pop(); toast('Pas assez de place ici'); return; }
+    if (fw.page !== page) { fw.page.widgets.splice(fw.page.widgets.indexOf(fw.widget), 1); (page.widgets ||= []).push(fw.widget); }
+    changed(); return;
   }
   const moving = dt.getData('application/x-pd-button');
   if (moving) {
@@ -467,10 +511,39 @@ async function onDropOnSlot(e, slot, existing) {
   }
 }
 
+// Place (ou déplace) un widget si la zone est libre. Agrandit la grille vers le bas si besoin.
+function placeWidget(page, widget, slot, w, h) {
+  const { cols, rows } = pageGrid(page);
+  if (slot % cols + w > cols) return false;
+  const lastRow = Math.floor(slot / cols) + h;
+  const taken = new Set();
+  for (const b of page.buttons) taken.add(b.slot);
+  for (const o of (page.widgets || [])) if (o !== widget) for (const c of widgetCells(o, cols)) taken.add(c);
+  const mine = widgetCells({ slot, w, h }, cols);
+  if (mine.some(c => taken.has(c))) return false;
+  widget.slot = slot; widget.w = w; widget.h = h;
+  if (lastRow > rows) { if (page === state.cfg.pages[0]) state.cfg.rows = lastRow; else page.rows = lastRow; }
+  return true;
+}
+function addWidget(type) {
+  const page = currentPage(); const info = WIDGET_INFO[type];
+  if (page.generated) { toast('Détache d\'abord cette page du menu Démarrer'); return; }
+  pushUndo();
+  const widget = { id: uid('w'), type, slot: 0, w: info.w, h: info.h };
+  const { cols, rows } = pageGrid(page);
+  widget.w = Math.min(widget.w, cols);
+  let done = false;
+  for (let s = 0; s < cols * (rows + 1) && !done; s++) { if (s % cols + widget.w <= cols) { const tmp = { ...widget }; if (placeWidget(page, tmp, s, widget.w, widget.h)) { Object.assign(widget, tmp); done = true; } } }
+  if (!done) { state.undo.pop(); toast('Pas de place sur cette page'); return; }
+  (page.widgets ||= []).push(widget);
+  state.selected = widget.id;
+  changed({ immediate: true });
+}
 function firstFreeSlot(page, avoid) {
   const used = new Set(page.buttons.map(b => b.slot));
-  if (avoid !== undefined) used.add(avoid);
   const { cols, rows } = pageGrid(page);
+  for (const w of (page.widgets || [])) for (const c of widgetCells(w, cols)) used.add(c);
+  if (avoid !== undefined) used.add(avoid);
   let s = 0; while (used.has(s)) s++;
   return s;
 }
@@ -518,12 +591,18 @@ function setGrid(dc, dr) {
   const page = currentPage(); const isHome = page === state.cfg.pages[0];
   const { cols, rows } = pageGrid(page);
   const nc = Math.min(12, Math.max(1, cols + dc)), nr = Math.min(12, Math.max(1, rows + dr));
-  const maxSlot = Math.max(-1, ...page.buttons.map(b => b.slot));
-  if (nc * nr <= maxSlot) { toast('Des boutons sont dans les cases supprimées : déplace-les d\'abord.'); return; }
-  // Si on change le nombre de colonnes, les cases (comptées ligne par ligne) sont recalculées pour garder la même position visuelle.
-  if (nc !== cols) for (const b of page.buttons) { const r = Math.floor(b.slot / cols), c = b.slot % cols; if (c >= nc) { toast('Des boutons sont dans les colonnes supprimées.'); return; } }
+  const widgets = page.widgets || [];
+  const cells = [...page.buttons.map(b => ({ slot: b.slot, w: 1, h: 1 })), ...widgets];
+  // Rien ne doit sortir de la nouvelle grille.
+  for (const o of cells) {
+    const r = Math.floor(o.slot / cols), c = o.slot % cols;
+    if (c + o.w > nc || r + o.h > nr) { toast('Des boutons ou widgets sont dans la zone supprimée : déplace-les d\'abord.'); return; }
+  }
   pushUndo();
-  if (nc !== cols) for (const b of page.buttons) { const r = Math.floor(b.slot / cols), c = b.slot % cols; b.slot = r * nc + c; }
+  if (nc !== cols) {
+    for (const b of page.buttons) { const r = Math.floor(b.slot / cols), c = b.slot % cols; b.slot = r * nc + c; }
+    for (const w of widgets) { const r = Math.floor(w.slot / cols), c = w.slot % cols; w.slot = r * nc + c; }
+  }
   if (isHome) { state.cfg.columns = nc; state.cfg.rows = nr; } else { page.columns = nc; page.rows = nr; }
   changed();
 }
@@ -565,6 +644,8 @@ function detachPage() {
 
 function renderInspector() {
   const box = $('#inspector'); box.replaceChildren();
+  const fw = state.selected && findWidget(state.selected);
+  if (fw) { renderWidgetInspector(box, fw); return; }
   const f = state.selected && findButton(state.selected);
   if (!f) {
     const page = currentPage();
@@ -637,6 +718,28 @@ function renderInspector() {
     el('button', { class: 'danger', onclick: () => deleteButton(b.id) }, '🗑 Supprimer')));
   box.append(el('div', { id: 'trash', ondragover: (e) => { e.preventDefault(); $('#trash').classList.add('over'); }, ondragleave: () => $('#trash').classList.remove('over'),
     ondrop: (e) => { e.preventDefault(); const id = e.dataTransfer.getData('application/x-pd-button'); if (id) deleteButton(id); } }, 'Glisse ici pour supprimer'));
+}
+function renderWidgetInspector(box, fw) {
+  const w = fw.widget, info = WIDGET_INFO[w.type] || { name: w.type, desc: '' };
+  const resize = (dw, dh) => {
+    const nw = Math.max(1, w.w + dw), nh = Math.max(1, w.h + dh);
+    pushUndo();
+    if (!placeWidget(fw.page, w, w.slot, nw, nh)) { state.undo.pop(); toast('Pas assez de place'); return; }
+    changed();
+  };
+  box.append(el('h2', {}, 'Widget'), el('div', { style: 'font-size:18px;font-weight:600' }, info.icon + ' ' + info.name),
+    el('div', { class: 'hint', style: 'margin:6px 0 12px' }, info.desc),
+    el('label', {}, 'Taille (en cases)'),
+    el('div', { class: 'row' },
+      el('div', { class: 'stepper' }, 'Largeur', el('button', { onclick: () => resize(-1, 0) }, '−'), el('b', {}, w.w), el('button', { onclick: () => resize(1, 0) }, '+')),
+      el('div', { class: 'stepper' }, 'Hauteur', el('button', { onclick: () => resize(0, -1) }, '−'), el('b', {}, w.h), el('button', { onclick: () => resize(0, 1) }, '+'))),
+    el('div', { class: 'row', style: 'margin-top:18px' }, el('button', { class: 'danger', onclick: () => deleteWidget(w.id) }, '🗑 Supprimer')));
+}
+function deleteWidget(id) {
+  const fw = findWidget(id); if (!fw) return;
+  pushUndo(); fw.page.widgets.splice(fw.page.widgets.indexOf(fw.widget), 1);
+  if (state.selected === id) state.selected = null;
+  changed();
 }
 const inspector = { typing: false };
 // Variante légère : enregistre sans reconstruire le panneau (pour ne pas perdre le curseur pendant la frappe).
@@ -848,7 +951,7 @@ function openPair() {
 
 document.addEventListener('keydown', (e) => {
   if (e.target.matches('input, textarea, select')) return;
-  if (e.key === 'Delete' && state.selected) deleteButton(state.selected);
+  if (e.key === 'Delete' && state.selected) { if (findWidget(state.selected)) deleteWidget(state.selected); else deleteButton(state.selected); }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
 });
 $('#undoBtn').onclick = undo;
@@ -863,6 +966,7 @@ $('#appClose').onclick = () => $('#appDlg').close();
 $('#colMinus').onclick = () => setGrid(-1, 0); $('#colPlus').onclick = () => setGrid(1, 0);
 $('#rowMinus').onclick = () => setGrid(0, -1); $('#rowPlus').onclick = () => setGrid(0, 1);
 $('#appSearch').oninput = renderApps;
+document.querySelectorAll('[data-widget]').forEach(b => b.onclick = () => addWidget(b.dataset.widget));
 document.querySelectorAll('[data-add]').forEach(b => b.onclick = () => addFromPalette(b.dataset.add));
 window.addEventListener('resize', () => state.cfg && renderStage());
 window.addEventListener('dragover', (e) => e.preventDefault());
