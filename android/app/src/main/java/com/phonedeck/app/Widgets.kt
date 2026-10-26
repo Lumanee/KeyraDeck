@@ -1,5 +1,6 @@
 package com.phonedeck.app
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -31,6 +32,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -75,8 +80,8 @@ fun DeckWidgetView(widget: DeckWidget, width: Dp, height: Dp, unit: Dp, vm: Deck
             when (widget.type) {
                 "media" -> MediaWidget(widget, vm)
                 "volume" -> VolumeWidget(widget, vm)
-                "clock" -> ClockWidget(unit, widget)
-                "system" -> SystemWidget(vm)
+                "clock" -> ClockWidget(widget)
+                "system" -> SystemWidget(widget, vm)
                 else -> Text(widget.type, color = Color.Gray)
             }
         }
@@ -87,21 +92,27 @@ fun DeckWidgetView(widget: DeckWidget, width: Dp, height: Dp, unit: Dp, vm: Deck
 
 @Composable
 private fun MediaWidget(widget: DeckWidget, vm: DeckViewModel) {
-    val top = when {
-        widget.w >= 3 -> listOf("⏮" to "Prev", "⏯" to "PlayPause", "⏭" to "Next")
-        widget.w == 2 -> listOf("⏯" to "PlayPause", "⏭" to "Next")
-        else -> listOf("⏯" to "PlayPause")
-    }
-    val bottom = if (widget.h >= 2) {
-        when {
-            widget.w >= 3 -> listOf("🔉" to "VolumeDown", "🔇" to "Mute", "🔊" to "VolumeUp")
-            widget.w == 2 -> listOf("🔉" to "VolumeDown", "🔊" to "VolumeUp")
-            else -> listOf("🔇" to "Mute")
+    val play = "⏯" to "PlayPause"
+    val prev = "⏮" to "Prev"
+    val next = "⏭" to "Next"
+    val volDown = "🔉" to "VolumeDown"
+    val mute = "🔇" to "Mute"
+    val volUp = "🔊" to "VolumeUp"
+    // Chaque modèle a une taille fixe et sa propre disposition.
+    val rows: List<List<Pair<String, String>>> = when (widget.model) {
+        "media-1x1" -> listOf(listOf(play))
+        "media-2x2" -> listOf(listOf(prev, next), listOf(play, mute))
+        "media-3x2" -> listOf(listOf(prev, play, next), listOf(volDown, mute, volUp))
+        "media-3x1" -> listOf(listOf(prev, play, next))
+        else -> when { // anciens widgets sans modèle
+            widget.w >= 3 && widget.h >= 2 -> listOf(listOf(prev, play, next), listOf(volDown, mute, volUp))
+            widget.w >= 3 -> listOf(listOf(prev, play, next))
+            widget.w == 2 -> listOf(listOf(prev, next), listOf(play, mute)).take(widget.h.coerceAtMost(2))
+            else -> listOf(listOf(play))
         }
-    } else emptyList()
+    }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        MediaRow(top, vm, Modifier.weight(1f))
-        if (bottom.isNotEmpty()) MediaRow(bottom, vm, Modifier.weight(1f))
+        for (row in rows) MediaRow(row, vm, Modifier.weight(1f))
     }
 }
 
@@ -208,7 +219,7 @@ private fun VolumeBar(fraction: Float, vertical: Boolean, color: Color, modifier
 // ---------- Horloge ----------
 
 @Composable
-private fun ClockWidget(unit: Dp, widget: DeckWidget) {
+private fun ClockWidget(widget: DeckWidget) {
     var now by remember { mutableStateOf(LocalDateTime.now()) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -218,34 +229,84 @@ private fun ClockWidget(unit: Dp, widget: DeckWidget) {
     }
     val time = now.format(DateTimeFormatter.ofPattern("HH:mm"))
     val date = now.format(DateTimeFormatter.ofPattern("EEE d MMM", Locale.getDefault()))
-    val base = min(unit.value * min(widget.w, widget.h * 2), unit.value * widget.h * 0.55f * 2)
-    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Text(time, color = Color.White, fontSize = (base * 0.42f).coerceIn(18f, 64f).sp, fontWeight = FontWeight.SemiBold)
-        Text(date, color = Color(0xFFBBBBC4), fontSize = (base * 0.16f).coerceIn(10f, 20f).sp)
+    val seconds = now.format(DateTimeFormatter.ofPattern("ss"))
+    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        val w = maxWidth.value
+        val h = maxHeight.value
+        when (widget.model) {
+            "clock-1x1" -> Text(time, color = Color.White, fontSize = (w * 0.27f).sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            "clock-2x2" -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                Text(time, color = Color.White, fontSize = min(w * 0.30f, h * 0.36f).sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Text(seconds, color = LocalTheme.current.accent, fontSize = min(w * 0.12f, h * 0.14f).sp, maxLines = 1)
+                Text(date, color = Color(0xFFBBBBC4), fontSize = min(w * 0.11f, h * 0.13f).sp, maxLines = 1)
+            }
+            else -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                Text(time, color = Color.White, fontSize = min(w * 0.22f, h * 0.48f).sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Text(date, color = Color(0xFFBBBBC4), fontSize = min(w * 0.08f, h * 0.17f).coerceAtLeast(10f).sp, maxLines = 1)
+            }
+        }
     }
 }
 
 // ---------- CPU / RAM ----------
 
 @Composable
-private fun SystemWidget(vm: DeckViewModel) {
+private fun SystemWidget(widget: DeckWidget, vm: DeckViewModel) {
     val accent = LocalTheme.current.accent
-    Column(Modifier.fillMaxSize().padding(4.dp), verticalArrangement = Arrangement.SpaceEvenly) {
-        StatRow("CPU", vm.cpu, accent)
-        StatRow("RAM", vm.ram, lerp(accent, Color.White, 0.35f))
+    val ramColor = lerp(accent, Color.White, 0.35f)
+    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        val w = maxWidth.value
+        val h = maxHeight.value
+        when (widget.model) {
+            "system-2x2" -> Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                val ring = min(w / 2.2f, h * 0.75f)
+                Ring("CPU", vm.cpu, accent, ring)
+                Ring("RAM", vm.ram, ramColor, ring)
+            }
+            "system-3x1" -> Row(Modifier.fillMaxSize().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) { StatRow("CPU", vm.cpu, accent, 14f) }
+                Box(Modifier.weight(1f)) { StatRow("RAM", vm.ram, ramColor, 14f) }
+            }
+            "system-1x1" -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
+                StatRow("CPU", vm.cpu, accent, 10f)
+                StatRow("RAM", vm.ram, ramColor, 10f)
+            }
+            else -> Column(Modifier.fillMaxSize().padding(horizontal = 4.dp), verticalArrangement = Arrangement.SpaceEvenly) {
+                StatRow("CPU", vm.cpu, accent, 13f)
+                StatRow("RAM", vm.ram, ramColor, 13f)
+            }
+        }
     }
 }
 
 @Composable
-private fun StatRow(label: String, value: Int?, color: Color) {
-    Column {
+private fun StatRow(label: String, value: Int?, color: Color, textSize: Float) {
+    Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth()) {
-            Text(label, color = Color(0xFFBBBBC4), fontSize = 12.sp, modifier = Modifier.weight(1f))
-            Text(if (value == null) "—" else "$value %", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text(label, color = Color(0xFFBBBBC4), fontSize = textSize.sp, maxLines = 1, modifier = Modifier.weight(1f))
+            Text(if (value == null) "—" else "$value %", color = Color.White, fontSize = textSize.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
-        Spacer(Modifier.height(3.dp))
-        Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)).background(Color(0xFF0A0A0D))) {
-            Box(Modifier.fillMaxHeight().fillMaxWidth((value ?: 0) / 100f).background(color))
+        Spacer(Modifier.height(2.dp))
+        Box(Modifier.fillMaxWidth().height((textSize * 0.45f).dp).clip(RoundedCornerShape(50)).background(Color(0xFF0A0A0D))) {
+            Box(Modifier.fillMaxHeight().fillMaxWidth(((value ?: 0) / 100f).coerceIn(0f, 1f)).background(color))
         }
+    }
+}
+
+/** Jauge circulaire avec le pourcentage au centre. */
+@Composable
+private fun Ring(label: String, value: Int?, color: Color, sizeDp: Float) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.size(sizeDp.dp), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.fillMaxSize()) {
+                val stroke = size.minDimension * 0.13f
+                val inset = stroke / 2
+                val arcSize = Size(size.width - stroke, size.height - stroke)
+                drawArc(Color(0xFF0A0A0D), 0f, 360f, false, topLeft = Offset(inset, inset), size = arcSize, style = Stroke(stroke))
+                drawArc(color, -90f, 360f * ((value ?: 0) / 100f).coerceIn(0f, 1f), false, topLeft = Offset(inset, inset), size = arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
+            }
+            Text(if (value == null) "—" else "$value", color = Color.White, fontSize = (sizeDp * 0.30f).sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        }
+        Text(label, color = Color(0xFFBBBBC4), fontSize = (sizeDp * 0.16f).coerceAtLeast(10f).sp, maxLines = 1)
     }
 }

@@ -166,6 +166,20 @@ public class DeckServer
                 await PressAsync(client, root.GetProperty("buttonId").GetString() ?? "");
                 break;
 
+            case "device":
+            {
+                var w = root.GetProperty("w").GetInt32();
+                var h = root.GetProperty("h").GetInt32();
+                var name = root.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                if (w >= 200 && h >= 200 && (_store.Config.Device?.W != w || _store.Config.Device?.H != h || _store.Config.Device?.Name != name))
+                {
+                    _store.Config.Device = new DeckDevice { Name = name, W = w, H = h };
+                    _store.Save();
+                    LayoutVersion++; // le configurateur se rafraîchit
+                }
+                break;
+            }
+
             case "media":
             {
                 var key = root.GetProperty("key").GetString() ?? "";
@@ -441,7 +455,7 @@ public class DeckServer
                 root = isRoot,
                 columns = cols,
                 rows,
-                widgets = page.Widgets.Select(w => new { id = w.Id, type = w.Type, slot = w.Slot, w = Math.Max(1, w.W), h = Math.Max(1, w.H) }).ToList(),
+                widgets = page.Widgets.Select(w => new { id = w.Id, type = w.Type, model = w.Model, slot = w.Slot, w = Math.Max(1, w.W), h = Math.Max(1, w.H) }).ToList(),
                 buttons = buttons.Select(b =>
                 {
                     lookup[b.Id] = b;

@@ -14,9 +14,20 @@ public class DeckConfig
     public int Columns { get; set; } = 5;
     public int Rows { get; set; } = 3;
     public DeckTheme Theme { get; set; } = new();
+    /// <summary>Dernier téléphone connecté : taille de l'écran en dp (le configurateur copie ses proportions).</summary>
+    public DeckDevice? Device { get; set; }
+    /// <summary>Taille d'écran (arrondie) pour laquelle la grille a déjà été adaptée ; permet de ne proposer l'adaptation qu'une fois.</summary>
+    public string? AdaptedTo { get; set; }
     public List<DeckPage> Pages { get; set; } = new();
     /// <summary>Images choisies depuis le téléphone, par id de bouton (chemin relatif au dossier de config).</summary>
     public Dictionary<string, string> IconOverrides { get; set; } = new();
+}
+
+public class DeckDevice
+{
+    public string Name { get; set; } = "";
+    public int W { get; set; }
+    public int H { get; set; }
 }
 
 /// <summary>Couleurs du téléphone (boîtier, fond, touches…), au format #RRGGBB.</summary>
@@ -41,6 +52,8 @@ public class DeckWidget
     public string Id { get; set; } = "";
     /// <summary>media | volume | clock | system</summary>
     public string Type { get; set; } = "clock";
+    /// <summary>Modèle choisi (ex. "system-2x2") : chaque modèle a une taille et une présentation fixes.</summary>
+    public string Model { get; set; } = "";
     /// <summary>Case en haut à gauche (0 = première case).</summary>
     public int Slot { get; set; }
     public int W { get; set; } = 2;
@@ -206,6 +219,8 @@ public class ConfigStore
         config.Port = Config.Port;
         // Les images personnalisées sont gérées côté PC (le configurateur ne les connaît pas à jour).
         config.IconOverrides = Config.IconOverrides;
+        config.Device = Config.Device;
+        config.AdaptedTo = Config.AdaptedTo;
         Config = config;
         LastError = null;
         Save();

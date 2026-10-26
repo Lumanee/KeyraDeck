@@ -201,8 +201,25 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         client.connect(if (url.contains("device=")) url else "$url&device=$device")
     }
 
+    /** Taille de l'écran en dp, envoyée au PC pour que le configurateur affiche les mêmes proportions. */
+    private var screenW = 0
+    private var screenH = 0
+
+    fun reportScreen(widthDp: Int, heightDp: Int) {
+        if (widthDp == screenW && heightDp == screenH) return
+        screenW = widthDp
+        screenH = heightDp
+        sendScreen()
+    }
+
+    private fun sendScreen() {
+        if (screenW <= 0 || screenH <= 0) return
+        send(JSONObject().put("type", "device").put("w", screenW).put("h", screenH).put("name", Build.MODEL ?: "Android"))
+    }
+
     override fun onOpen() = post {
         status = Status.Connected
+        sendScreen()
         statusText = ""
         send(JSONObject().put("type", "getLayout"))
         if (mixerOpen) send(JSONObject().put("type", "getMixer").put("full", true))

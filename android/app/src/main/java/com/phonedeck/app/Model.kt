@@ -22,7 +22,7 @@ data class DeckButton(
 )
 
 /** Un widget posé sur plusieurs cases : media, volume, clock ou system. */
-data class DeckWidget(val id: String, val type: String, val slot: Int, val w: Int, val h: Int)
+data class DeckWidget(val id: String, val type: String, val model: String, val slot: Int, val w: Int, val h: Int)
 
 /** columns / rows : taille de la grille, ou null pour un dossier mis en page automatiquement. */
 data class DeckPage(
@@ -98,7 +98,7 @@ object Parser {
         if (arr == null) return emptyList()
         return (0 until arr.length()).map { i ->
             val w = arr.getJSONObject(i)
-            DeckWidget(w.optString("id"), w.optString("type"), w.optInt("slot"), w.optInt("w", 1).coerceAtLeast(1), w.optInt("h", 1).coerceAtLeast(1))
+            DeckWidget(w.optString("id"), w.optString("type"), w.optString("model"), w.optInt("slot"), w.optInt("w", 1).coerceAtLeast(1), w.optInt("h", 1).coerceAtLeast(1))
         }
     }
 

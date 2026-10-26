@@ -66,6 +66,8 @@ import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 
+private val BodyMargin = 10.dp
+private val BodyPad = 14.dp
 private val KeyCap = Color(0xFF060608)
 private val Gloss = Brush.verticalGradient(listOf(Color(0x1FFFFFFF), Color(0x00FFFFFF)))
 private val BodyEdge = Brush.verticalGradient(listOf(Color(0x55FFFFFF), Color(0x08FFFFFF)))
@@ -93,7 +95,8 @@ fun DeckScreen(vm: DeckViewModel) {
         pickFor = null
     }
 
-    Box(Modifier.fillMaxSize().background(deskBrush()), contentAlignment = Alignment.Center) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(deskBrush()), contentAlignment = Alignment.Center) {
+        LaunchedEffect(maxWidth, maxHeight) { vm.reportScreen(maxWidth.value.toInt(), maxHeight.value.toInt()) }
         val roots = vm.layout?.rootPages.orEmpty()
         if (roots.isEmpty()) {
             Device(vm, 5, 3, emptyList(), emptyList(), 0, 1) { editing = it }
@@ -196,26 +199,30 @@ private fun Device(
 ) {
     val cols = columns.coerceIn(1, 12)
     val rws = rows.coerceIn(1, 12)
-    BoxWithConstraints(Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.Center) {
+    // Le boîtier remplit tout l'écran ; les touches sont carrées et centrées dedans.
+    // Ces mesures sont les mêmes dans le configurateur du PC (config.html : deviceMetrics), pour que l'aperçu soit fidèle.
+    BoxWithConstraints(Modifier.fillMaxSize().padding(BodyMargin)) {
         val strip = 26.dp
-        // Les marges et l'espace entre touches sont proportionnels à la taille d'une touche.
-        val keyW = maxWidth / (cols + (cols - 1) * 0.14f + 2 * 0.32f)
-        val keyH = (maxHeight - strip) / (rws + (rws - 1) * 0.14f + 2 * 0.32f)
-        val key = min(keyW, keyH)
-        val gap = key * 0.14f
-        val bezel = key * 0.32f
-        val shape = RoundedCornerShape(key * 0.42f)
+        val gapRatio = 0.14f
+        val keyW = (maxWidth - BodyPad * 2) / (cols + (cols - 1) * gapRatio)
+        val keyH = (maxHeight - BodyPad * 2 - strip) / (rws + (rws - 1) * gapRatio)
+        val key = min(min(keyW, keyH), 140.dp)
+        val gap = key * gapRatio
+        val shape = RoundedCornerShape(30.dp)
 
         Column(
             Modifier
-                .shadow(28.dp, shape)
+                .fillMaxSize()
+                .shadow(24.dp, shape)
                 .clip(shape)
                 .background(bodyBrush())
                 .border(1.dp, BodyEdge, shape)
-                .padding(start = bezel, end = bezel, bottom = bezel),
+                .padding(BodyPad),
         ) {
-            StatusStrip(vm, pageIndex, pageCount, Modifier.height(strip).width(key * cols + gap * (cols - 1)))
-            KeyGrid(vm, cols, rws, buttons, widgets, key, gap, vm.active, vm::press, onLongPress)
+            StatusStrip(vm, pageIndex, pageCount, Modifier.fillMaxWidth().height(strip))
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                KeyGrid(vm, cols, rws, buttons, widgets, key, gap, vm.active, vm::press, onLongPress)
+            }
         }
     }
 }

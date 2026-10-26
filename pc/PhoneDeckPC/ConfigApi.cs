@@ -58,6 +58,8 @@ public class ConfigApi
                     {
                         pcName = _store.PcName,
                         build = Updater.CurrentBuild,
+                        device = _store.Config.Device,
+                        adaptedTo = _store.Config.AdaptedTo,
                         token = _store.Config.Token,
                         port = _store.Config.Port,
                         addresses = LocalNetwork.Addresses(),
@@ -152,6 +154,12 @@ public class ConfigApi
                     await Json(ctx, new { ok = found && error == null, error = found ? error : "Enregistre d'abord ce bouton" });
                     return;
                 }
+
+                case "/api/adapted" when method == "POST":
+                    _store.Config.AdaptedTo = ctx.Request.Query["key"].ToString();
+                    _store.Save();
+                    await Json(ctx, new { ok = true });
+                    return;
 
                 case "/api/processes":
                     await Json(ctx, await Task.Run(ForegroundWatcher.OpenApps));

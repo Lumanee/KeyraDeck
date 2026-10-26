@@ -46,12 +46,18 @@
   .stage { flex: 1; display: flex; align-items: center; justify-content: center; padding: 16px; min-height: 0;
            background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--desk), white 12%), var(--desk)); }
   .gridbar { display: flex; gap: 18px; align-items: center; padding: 8px 16px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+  #wgal .gal-title { font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  .models { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+  .model { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px; }
+  .model.on { outline: 2px solid var(--tacc); }
+  .model i { background: var(--tacc); opacity: .55; border-radius: 4px; display: block; }
+  .model small { color: var(--muted); }
   .stepper { display: inline-flex; align-items: center; gap: 6px; }
   .stepper button { width: 28px; padding: 2px 0; }
   .stepper b { min-width: 18px; text-align: center; color: var(--text); }
 
   /* Le boîtier, comme sur le téléphone */
-  .device { background: linear-gradient(color-mix(in srgb, var(--body), white 8%), color-mix(in srgb, var(--body), black 45%)); border: 1px solid #ffffff22; box-shadow: 0 20px 50px #000a;
+  .device { box-sizing: border-box; overflow: hidden; background: linear-gradient(color-mix(in srgb, var(--body), white 8%), color-mix(in srgb, var(--body), black 45%)); border: 1px solid #ffffff22; box-shadow: 0 20px 50px #000a;
             display: flex; flex-direction: column; }
   .strip { display: flex; align-items: center; gap: 8px; color: #6e6e78; font-size: 10px; letter-spacing: .3em; font-weight: 700; }
   .strip .dot { width: 7px; height: 7px; margin: 0; }
@@ -75,7 +81,10 @@
   .wdg { background: #060608; border-radius: 8%; padding: 2.5%; position: relative; box-shadow: 0 4px 6px #0008; cursor: grab; }
   .wdg .face { width: 100%; height: 100%; border-radius: 6%; background: var(--keyface); background-image: linear-gradient(#ffffff1f, #ffffff00); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #fff; text-align: center; padding: 6px; overflow: hidden; }
   .wdg .face b { font-size: 26px; font-weight: 600; }
-  .wdg .face small { opacity: .7; }
+  .wdg .face small { opacity: .7; font-size: 11px; line-height: 1.1; }
+  .wdg.one .face { flex-direction: row; gap: 6px; padding: 2px 6px; }
+  .wdg.one .face b { font-size: 18px; }
+  .wdg.one .face small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .wdg.selected { outline: 3px solid var(--accent); outline-offset: 2px; }
   .key .badge { position: absolute; top: 4%; right: 6%; font-size: 11px; opacity: .8; pointer-events: none; }
 
@@ -144,13 +153,8 @@
     </div>
     <div class="box">
       <h2>Widgets</h2>
-      <div class="addrow">
-        <button data-widget="media">⏯ Pavé média</button>
-        <button data-widget="volume">🎚 Volume général</button>
-        <button data-widget="clock">🕒 Horloge</button>
-        <button data-widget="system">📊 CPU / RAM</button>
-      </div>
-      <div class="hint" style="margin-top:8px">Un widget occupe plusieurs cases. Glisse-le pour le déplacer, règle sa taille à droite.</div>
+      <div id="wgal"></div>
+      <div class="hint" style="margin-top:8px">Chaque modèle a une taille fixe : tout y est lisible. Clique sur un modèle pour l'ajouter, glisse-le ensuite pour le déplacer. Pour en changer, choisis un autre modèle à droite.</div>
     </div>
     <div class="box" id="appBox">
       <h2>Applis installées</h2>
@@ -166,7 +170,7 @@
     <div class="gridbar">
       <span>Grille : <span class="stepper"><button id="colMinus">−</button><b id="colVal"></b><button id="colPlus">+</button></span> colonnes ×
         <span class="stepper"><button id="rowMinus">−</button><b id="rowVal"></b><button id="rowPlus">+</button></span> lignes</span>
-      <span id="pageTools"></span>
+      <span id="pageTools"></span> <span id="adaptBar"></span>
       <span class="hint">Glisse les boutons pour les déplacer, dépose une image sur un bouton pour changer son icône.</span>
     </div>
   </section>
@@ -253,11 +257,58 @@ const isRoot = (p) => p === state.cfg.pages[0] || !!p.root;
 const currentPage = () => pageById(state.page) || state.cfg.pages[0];
 const findWidget = (id) => { for (const p of state.cfg.pages) { const w = (p.widgets || []).find(w => w.id === id); if (w) return { page: p, widget: w }; } return null; };
 const WIDGET_INFO = {
-  media: { name: 'Pavé média', icon: '⏯', w: 3, h: 1, desc: 'Précédent, lecture/pause, suivant. À partir de 2 lignes : volume − / muet / volume +.' },
-  volume: { name: 'Volume général', icon: '🎚', w: 3, h: 1, desc: 'Curseur du volume Windows. Se met en vertical si le widget est plus haut que large.' },
-  clock: { name: 'Horloge', icon: '🕒', w: 2, h: 1, desc: 'Heure et date.' },
-  system: { name: 'CPU / RAM', icon: '📊', w: 2, h: 1, desc: 'Charge du processeur et de la mémoire du PC.' },
+  media: { name: 'Pavé média', icon: '⏯', desc: 'Précédent, lecture/pause, suivant, volume.' },
+  volume: { name: 'Volume général', icon: '🎚', desc: 'Curseur du volume Windows avec bouton muet.' },
+  clock: { name: 'Horloge', icon: '🕒', desc: 'Heure et date.' },
+  system: { name: 'CPU / RAM', icon: '📊', desc: 'Charge du processeur et de la mémoire du PC.' },
 };
+// Chaque modèle a une taille FIXE (en cases) : le contenu est dessiné pour cette taille et ne disparaît jamais.
+const WIDGET_MODELS = {
+  media: [
+    { id: 'media-1x1', name: 'Lecture/pause', w: 1, h: 1 },
+    { id: 'media-3x1', name: 'Barre ⏮ ⏯ ⏭', w: 3, h: 1 },
+    { id: 'media-2x2', name: 'Carré 4 touches', w: 2, h: 2 },
+    { id: 'media-3x2', name: 'Complet + volume', w: 3, h: 2 },
+  ],
+  volume: [
+    { id: 'volume-3x1', name: 'Barre', w: 3, h: 1 },
+    { id: 'volume-4x1', name: 'Barre large', w: 4, h: 1 },
+    { id: 'volume-1x2', name: 'Vertical court', w: 1, h: 2 },
+    { id: 'volume-1x3', name: 'Vertical haut', w: 1, h: 3 },
+  ],
+  clock: [
+    { id: 'clock-1x1', name: 'Heure', w: 1, h: 1 },
+    { id: 'clock-2x1', name: 'Heure + date', w: 2, h: 1 },
+    { id: 'clock-2x2', name: 'Grande horloge', w: 2, h: 2 },
+  ],
+  system: [
+    { id: 'system-1x1', name: 'Mini', w: 1, h: 1 },
+    { id: 'system-2x1', name: 'Compact', w: 2, h: 1 },
+    { id: 'system-3x1', name: 'Barre', w: 3, h: 1 },
+    { id: 'system-2x2', name: 'Anneaux', w: 2, h: 2 },
+  ],
+};
+const modelOf = (w) => (WIDGET_MODELS[w.type] || []).find(m => m.id === w.model);
+function renderGallery() {
+  const g = $('#wgal'); g.replaceChildren();
+  for (const [type, list] of Object.entries(WIDGET_MODELS)) {
+    const info = WIDGET_INFO[type];
+    g.append(el('div', { class: 'gal-title' }, info.icon + ' ' + info.name),
+      el('div', { class: 'addrow' }, ...list.map(m => el('button', { title: m.name, onclick: () => addWidget(type, m) }, `${m.w}×${m.h} ${m.name}`))));
+  }
+}
+// Anciens widgets sans modèle : on leur donne le modèle de même taille, ou le premier.
+function normalizeWidgets() {
+  let touched = false;
+  for (const p of state.cfg.pages) for (const w of (p.widgets || [])) {
+    if (modelOf(w)) continue;
+    const list = WIDGET_MODELS[w.type]; if (!list) continue;
+    const m = list.find(x => x.w === w.w && x.h === w.h) || list[0];
+    w.model = m.id; touched = true;
+    if (m.w !== w.w || m.h !== w.h) placeWidget(p, w, w.slot, m.w, m.h);
+  }
+  return touched;
+}
 const widgetCells = (w, cols) => { const out = []; for (let dy = 0; dy < w.h; dy++) for (let dx = 0; dx < w.w; dx++) out.push(w.slot + dy * cols + dx); return out; };
 const findButton = (id) => { for (const p of state.cfg.pages) { const b = p.buttons.find(b => b.id === id); if (b) return { page: p, button: b }; } return null; };
 
@@ -307,6 +358,7 @@ async function openSettings() {
 async function loadAll() {
   const [cfg, layout, info] = await Promise.all([api('/api/config'), api('/api/layout'), api('/api/info')]);
   state.cfg = cfg; state.layout = layout; state.info = info; state.version = info.version;
+  const norm = normalizeWidgets();
   applyTheme();
   // On fige la position de chaque bouton (cases calculées par le PC) pour pouvoir les déplacer.
   for (const lp of layout.pages) {
@@ -324,8 +376,10 @@ async function loadAll() {
     for (const b of p.buttons) if (b.slot == null) { while (used.has(next)) next++; b.slot = next; used.add(next); }
   }
   if (!state.page || !pageById(state.page)) state.page = homeId();
-  if (state.selected && !findButton(state.selected)) state.selected = null;
+  if (state.selected && !findButton(state.selected) && !findWidget(state.selected)) state.selected = null;
   renderAll();
+  checkAdapt();
+  if (norm) changed();
 }
 
 async function refreshLayout() {
@@ -401,21 +455,50 @@ function iconFor(b) {
   return null;
 }
 
+// Mesures identiques à celles de l'appli Android (DeckScreen.kt, Device) : marge 10, remplissage 14, bandeau 26, écart 14 %, touche max 140 dp.
+const DEV = { margin: 10, pad: 14, strip: 26, gap: 0.14, cap: 140 };
+function deviceDims() {
+  const d = state.info && state.info.device;
+  return d && d.w > 0 && d.h > 0 ? { w: d.w, h: d.h, known: true, name: d.name } : { w: 412, h: 915, known: false, name: '' };
+}
+function keySizeFor(cols, rows, W, H) {
+  const bodyW = W - 2 * DEV.margin, bodyH = H - 2 * DEV.margin;
+  const kw = (bodyW - 2 * DEV.pad) / (cols + (cols - 1) * DEV.gap);
+  const kh = (bodyH - 2 * DEV.pad - DEV.strip) / (rows + (rows - 1) * DEV.gap);
+  return Math.min(kw, kh, DEV.cap);
+}
+// Grille la plus agréable pour cet écran : touches d'environ 64 à 110 dp qui remplissent le mieux la place.
+function recommendGrid(W, H) {
+  let best = null;
+  for (let cols = 2; cols <= 8; cols++) for (let rows = 2; rows <= 10; rows++) {
+    const key = keySizeFor(cols, rows, W, H);
+    if (key < 64 || key > 110) continue;
+    const used = (cols * key + (cols - 1) * key * DEV.gap) * (rows * key + (rows - 1) * key * DEV.gap);
+    const score = used / ((W - 2 * DEV.margin - 2 * DEV.pad) * (H - 2 * DEV.margin - 2 * DEV.pad - DEV.strip)) + (cols * rows) * 0.002;
+    if (!best || score > best.score) best = { cols, rows, score, key };
+  }
+  return best || { cols: 4, rows: 6, key: 64 };
+}
+
 function renderStage() {
   const page = currentPage();
   const dev = $('#device'); dev.replaceChildren();
   const { cols, rows } = pageGrid(page);
   const stage = $('#stage');
-  const availW = stage.clientWidth - 48, availH = stage.clientHeight - 48;
-  const strip = 26, g = 0.14, bz = 0.32;
-  const key = Math.max(36, Math.min(
-    availW / (cols + (cols - 1) * g + 2 * bz),
-    (availH - strip) / (rows + (rows - 1) * g + 2 * bz), 130));
-  dev.style.borderRadius = key * 0.42 + 'px';
-  dev.style.padding = `0 ${key * bz}px ${key * bz}px`;
-  dev.append(el('div', { class: 'strip', style: `height:${strip}px` },
+  const phone = deviceDims();
+  // Le boîtier a les proportions de l'écran du téléphone ; scale = pixels de l'aperçu par dp du téléphone.
+  const scale = Math.min((stage.clientWidth - 32) / phone.w, (stage.clientHeight - 32) / phone.h);
+  const keyDp = keySizeFor(cols, rows, phone.w, phone.h);
+  const key = keyDp * scale, g = DEV.gap;
+  dev.style.width = (phone.w - 2 * DEV.margin) * scale + 'px';
+  dev.style.height = (phone.h - 2 * DEV.margin) * scale + 'px';
+  dev.style.borderRadius = 30 * scale + 'px';
+  dev.style.padding = DEV.pad * scale + 'px';
+  dev.append(el('div', { class: 'strip', style: `height:${DEV.strip * scale}px;font-size:${Math.max(7, 10 * scale)}px` },
     el('span', { class: 'dot' + (state.info && state.info.clients.length ? ' on' : '') }), 'PHONEDECK',
-    el('span', { style: 'letter-spacing:0;font-weight:400;opacity:.7' }, ' ' + (state.info ? state.info.pcName : ''))));
+    el('span', { style: 'letter-spacing:0;font-weight:400;opacity:.7' }, ' ' + (phone.known ? phone.name + ' · ' + phone.w + '×' + phone.h : 'écran type 412×915'))));
+  const holder = el('div', { style: 'flex:1;display:flex;align-items:center;justify-content:center;min-height:0' });
+  dev.append(holder);
 
   const grid = el('div', { class: 'grid', style: `grid-template-columns:repeat(${cols},${key}px);grid-template-rows:repeat(${rows},${key}px);gap:${key * g}px` });
   const bySlot = new Map();
@@ -462,13 +545,13 @@ function renderStage() {
   for (const w of widgets) {
     const info = WIDGET_INFO[w.type] || { name: w.type, icon: '▫' };
     const c = w.slot % cols, r = Math.floor(w.slot / cols);
-    const d = el('div', { class: 'wdg' + (w.id === state.selected ? ' selected' : ''), draggable: 'true', style: `grid-column:${c + 1} / span ${w.w};grid-row:${r + 1} / span ${w.h}` },
-      el('div', { class: 'face' }, el('b', {}, info.icon), el('small', {}, `${info.name} · ${w.w}×${w.h}`)));
+    const d = el('div', { class: 'wdg' + (w.h === 1 ? ' one' : '') + (w.id === state.selected ? ' selected' : ''), draggable: 'true', style: `grid-column:${c + 1} / span ${w.w};grid-row:${r + 1} / span ${w.h}` },
+      el('div', { class: 'face' }, el('b', {}, info.icon), el('small', {}, `${info.name} · ${(modelOf(w) || { name: '' }).name}`)));
     d.addEventListener('dragstart', (e) => { e.dataTransfer.setData('application/x-pd-widget', w.id); e.dataTransfer.effectAllowed = 'move'; select(w.id, true); });
     d.addEventListener('click', () => select(w.id));
     grid.append(d);
   }
-  dev.append(grid);
+  holder.append(grid);
 }
 
 async function onDropOnSlot(e, slot, existing) {
@@ -525,13 +608,13 @@ function placeWidget(page, widget, slot, w, h) {
   if (lastRow > rows) { if (page === state.cfg.pages[0]) state.cfg.rows = lastRow; else page.rows = lastRow; }
   return true;
 }
-function addWidget(type) {
-  const page = currentPage(); const info = WIDGET_INFO[type];
+function addWidget(type, model) {
+  const page = currentPage(); const info = model;
   if (page.generated) { toast('Détache d\'abord cette page du menu Démarrer'); return; }
   pushUndo();
-  const widget = { id: uid('w'), type, slot: 0, w: info.w, h: info.h };
+  const widget = { id: uid('w'), type, model: model.id, slot: 0, w: info.w, h: info.h };
   const { cols, rows } = pageGrid(page);
-  widget.w = Math.min(widget.w, cols);
+  if (widget.w > cols) { state.undo.pop(); toast('Ce modèle est trop large pour la grille (' + cols + ' colonnes)'); return; }
   let done = false;
   for (let s = 0; s < cols * (rows + 1) && !done; s++) { if (s % cols + widget.w <= cols) { const tmp = { ...widget }; if (placeWidget(page, tmp, s, widget.w, widget.h)) { Object.assign(widget, tmp); done = true; } } }
   if (!done) { state.undo.pop(); toast('Pas de place sur cette page'); return; }
@@ -587,24 +670,62 @@ function renderGridBar() {
     tools.append(' ', el('button', { onclick: detachPage, title: 'Copie les raccourcis du menu Démarrer en boutons que tu peux modifier' }, '🔗 Détacher du menu Démarrer'));
   }
 }
+// Change la taille de la grille d'une page : chaque élément garde sa case s'il y tient, sinon il est replacé
+// à la première place libre (la grille s'agrandit vers le bas si nécessaire). Renvoie false si un widget est trop large.
+function reflowPage(page, nc, nr) {
+  const isHome = page === state.cfg.pages[0];
+  const { cols } = pageGrid(page);
+  const items = [...(page.widgets || []), ...page.buttons.slice().sort((a, b) => a.slot - b.slot)];
+  if ((page.widgets || []).some(w => w.w > nc)) return false;
+  const taken = new Set(); const pos = new Map(); const later = [];
+  const free = (r, c, w, h) => { for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (taken.has((r + y) * nc + c + x)) return false; return true; };
+  const take = (it, r, c) => { const w = it.w || 1, h = it.h || 1; for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) taken.add((r + y) * nc + c + x); pos.set(it, r * nc + c); };
+  for (const it of items) {
+    const r = Math.floor(it.slot / cols), c = it.slot % cols, w = it.w || 1, h = it.h || 1;
+    if (c + w <= nc && r + h <= nr && free(r, c, w, h)) take(it, r, c); else later.push(it);
+  }
+  let rowsNeeded = nr;
+  for (const it of later) {
+    const w = it.w || 1, h = it.h || 1; let done = false;
+    for (let r = 0; !done; r++) for (let c = 0; c + w <= nc && !done; c++) if (free(r, c, w, h)) { take(it, r, c); rowsNeeded = Math.max(rowsNeeded, r + h); done = true; }
+  }
+  for (const [it, slot] of pos) it.slot = slot;
+  for (const it of items) rowsNeeded = Math.max(rowsNeeded, Math.floor(it.slot / nc) + (it.h || 1));
+  if (isHome) { state.cfg.columns = nc; state.cfg.rows = rowsNeeded; } else { page.columns = nc; page.rows = rowsNeeded; }
+  return true;
+}
 function setGrid(dc, dr) {
-  const page = currentPage(); const isHome = page === state.cfg.pages[0];
+  const page = currentPage();
   const { cols, rows } = pageGrid(page);
   const nc = Math.min(12, Math.max(1, cols + dc)), nr = Math.min(12, Math.max(1, rows + dr));
-  const widgets = page.widgets || [];
-  const cells = [...page.buttons.map(b => ({ slot: b.slot, w: 1, h: 1 })), ...widgets];
-  // Rien ne doit sortir de la nouvelle grille.
-  for (const o of cells) {
-    const r = Math.floor(o.slot / cols), c = o.slot % cols;
-    if (c + o.w > nc || r + o.h > nr) { toast('Des boutons ou widgets sont dans la zone supprimée : déplace-les d\'abord.'); return; }
-  }
   pushUndo();
-  if (nc !== cols) {
-    for (const b of page.buttons) { const r = Math.floor(b.slot / cols), c = b.slot % cols; b.slot = r * nc + c; }
-    for (const w of widgets) { const r = Math.floor(w.slot / cols), c = w.slot % cols; w.slot = r * nc + c; }
-  }
-  if (isHome) { state.cfg.columns = nc; state.cfg.rows = nr; } else { page.columns = nc; page.rows = nr; }
+  if (!reflowPage(page, nc, nr)) { state.undo.pop(); toast('Un widget est trop large pour cette grille : change son modèle d\'abord.'); return; }
   changed();
+}
+// ---- Adaptation à l'écran du téléphone ----
+const screenKey = (d) => Math.round(d.w / 10) * 10 + 'x' + Math.round(d.h / 10) * 10;
+function adaptAll() {
+  const d = deviceDims(); const rec = recommendGrid(d.w, d.h);
+  pushUndo();
+  let bad = false;
+  for (const p of state.cfg.pages) if (isRoot(p) && !p.generated) { if (!reflowPage(p, rec.cols, rec.rows)) bad = true; }
+  api('/api/adapted?key=' + encodeURIComponent(screenKey(d)), { method: 'POST' }).catch(() => { });
+  state.info.adaptedTo = screenKey(d);
+  if (bad) toast('Une page contient un widget trop large : elle garde sa grille.');
+  changed({ immediate: true });
+}
+function checkAdapt() {
+  const bar = $('#adaptBar'); if (!bar) return;
+  bar.replaceChildren();
+  const d = deviceDims(); if (!d.known || !state.cfg) return;
+  const key = screenKey(d), rec = recommendGrid(d.w, d.h), cur = pageGrid(state.cfg.pages[0]);
+  const same = cur.cols === rec.cols && cur.rows === rec.rows;
+  if (state.info.adaptedTo === key || same) {
+    if (state.info.adaptedTo !== key) { state.info.adaptedTo = key; api('/api/adapted?key=' + key, { method: 'POST' }).catch(() => { }); }
+    return;
+  }
+  if (!state.info.adaptedTo && !state.dirty) { adaptAll(); toast(`Grille adaptée à ton téléphone (${rec.cols}×${rec.rows})`); return; }
+  bar.append(el('button', { onclick: adaptAll, title: 'Remplit tout l\'écran du téléphone' }, `📱 Adapter la grille à ce téléphone (${rec.cols}×${rec.rows})`));
 }
 function addRootPage() {
   const name = prompt('Nom de la nouvelle page :', 'Page ' + (state.cfg.pages.filter(isRoot).length + 1));
@@ -720,19 +841,25 @@ function renderInspector() {
     ondrop: (e) => { e.preventDefault(); const id = e.dataTransfer.getData('application/x-pd-button'); if (id) deleteButton(id); } }, 'Glisse ici pour supprimer'));
 }
 function renderWidgetInspector(box, fw) {
-  const w = fw.widget, info = WIDGET_INFO[w.type] || { name: w.type, desc: '' };
-  const resize = (dw, dh) => {
-    const nw = Math.max(1, w.w + dw), nh = Math.max(1, w.h + dh);
+  const w = fw.widget, info = WIDGET_INFO[w.type] || { name: w.type, desc: '', icon: '▫' };
+  const pick = (m) => {
+    if (m.id === w.model) return;
     pushUndo();
-    if (!placeWidget(fw.page, w, w.slot, nw, nh)) { state.undo.pop(); toast('Pas assez de place'); return; }
+    let ok = placeWidget(fw.page, w, w.slot, m.w, m.h);
+    if (!ok) { // pas la place ici : on cherche une autre position libre
+      const { cols, rows } = pageGrid(fw.page);
+      for (let s = 0; s < cols * (rows + 2) && !ok; s++) ok = placeWidget(fw.page, w, s, m.w, m.h);
+    }
+    if (!ok) { state.undo.pop(); toast('Pas assez de place pour ce modèle'); return; }
+    w.model = m.id;
     changed();
   };
   box.append(el('h2', {}, 'Widget'), el('div', { style: 'font-size:18px;font-weight:600' }, info.icon + ' ' + info.name),
     el('div', { class: 'hint', style: 'margin:6px 0 12px' }, info.desc),
-    el('label', {}, 'Taille (en cases)'),
-    el('div', { class: 'row' },
-      el('div', { class: 'stepper' }, 'Largeur', el('button', { onclick: () => resize(-1, 0) }, '−'), el('b', {}, w.w), el('button', { onclick: () => resize(1, 0) }, '+')),
-      el('div', { class: 'stepper' }, 'Hauteur', el('button', { onclick: () => resize(0, -1) }, '−'), el('b', {}, w.h), el('button', { onclick: () => resize(0, 1) }, '+'))),
+    el('label', {}, 'Modèle (taille fixe)'),
+    el('div', { class: 'models' }, ...(WIDGET_MODELS[w.type] || []).map(m =>
+      el('button', { class: 'model' + (m.id === w.model ? ' on' : ''), onclick: () => pick(m) },
+        el('i', { style: `width:${m.w * 14}px;height:${m.h * 14}px` }), el('span', {}, m.name), el('small', {}, `${m.w}×${m.h}`)))),
     el('div', { class: 'row', style: 'margin-top:18px' }, el('button', { class: 'danger', onclick: () => deleteWidget(w.id) }, '🗑 Supprimer')));
 }
 function deleteWidget(id) {
@@ -918,6 +1045,7 @@ async function refreshInfo() {
     $('#connText').textContent = n ? 'Connecté : ' + info.clients.join(', ') : 'Aucun téléphone connecté';
     if (!state.dirty && info.version !== state.version) { await loadAll(); }
     else if (!!was !== !!n) renderStage();
+    checkAdapt();
     if (info.error) setSaved(info.error, true);
   } catch { /* le PC est peut-être en train de redémarrer */ }
 }
@@ -966,7 +1094,7 @@ $('#appClose').onclick = () => $('#appDlg').close();
 $('#colMinus').onclick = () => setGrid(-1, 0); $('#colPlus').onclick = () => setGrid(1, 0);
 $('#rowMinus').onclick = () => setGrid(0, -1); $('#rowPlus').onclick = () => setGrid(0, 1);
 $('#appSearch').oninput = renderApps;
-document.querySelectorAll('[data-widget]').forEach(b => b.onclick = () => addWidget(b.dataset.widget));
+renderGallery();
 document.querySelectorAll('[data-add]').forEach(b => b.onclick = () => addFromPalette(b.dataset.add));
 window.addEventListener('resize', () => state.cfg && renderStage());
 window.addEventListener('dragover', (e) => e.preventDefault());

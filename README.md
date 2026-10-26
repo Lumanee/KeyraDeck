@@ -91,12 +91,16 @@ La configuration est enregistrée dans `%APPDATA%\PhoneDeckPC\config.json` (bout
 
 Comme sur Nova Launcher, un widget se pose sur plusieurs cases d'une page. Dans le configurateur, section **Widgets** à gauche :
 
-- **Pavé média** : précédent, lecture/pause, suivant. Avec 2 lignes de haut, on ajoute volume −, muet et volume +.
-- **Volume général** : un curseur pour le volume Windows (vertical si le widget est plus haut que large).
-- **Horloge** : l'heure et la date.
-- **CPU / RAM** : la charge du processeur et de la mémoire du PC.
+Chaque widget existe en plusieurs **modèles à taille fixe** (ex. Horloge 1×1, 2×1, 2×2 ; CPU/RAM Mini, Compact, Barre, Anneaux) : le contenu est dessiné pour cette taille et ne disparaît jamais. Clique sur un modèle pour l'ajouter ; pour en changer, sélectionne le widget et choisis un autre modèle dans le panneau de droite.
 
-Glisse un widget pour le déplacer, règle sa taille avec les boutons **+ / −** dans le panneau de droite.
+- **Pavé média** : 1×1 (lecture/pause), 3×1 (précédent, lecture, suivant), 2×2, 3×2 (avec volume − / muet / +).
+- **Volume général** : barres 3×1 ou 4×1, ou verticales 1×2 et 1×3.
+- **Horloge** : 1×1 (heure), 2×1 (heure et date), 2×2 (grande horloge).
+- **CPU / RAM** : charge du processeur et de la mémoire, en 1×1, 2×1, 3×1 ou 2×2 (anneaux).
+
+## Écran du téléphone
+
+À la connexion, le téléphone indique la taille de son écran. Le boîtier remplit alors tout l'écran du téléphone, et le configurateur affiche un boîtier **aux mêmes proportions**. À la première connexion, la grille est adaptée automatiquement (touches de bonne taille, écran bien rempli) ; si tu changes de téléphone, un bouton **« Adapter la grille à ce téléphone »** apparaît sous le boîtier. Quand tu changes la taille de la grille, les boutons et widgets restent à leur place s'ils y tiennent, sinon ils sont replacés.
 
 ## Réglages et thèmes
 
