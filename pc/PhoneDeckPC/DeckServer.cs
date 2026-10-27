@@ -529,7 +529,7 @@ public class DeckServer
                     {
                         id = b.Id,
                         label = b.Label,
-                        hideLabel = cfg.HideLabels || b.HideLabel,
+                        hideLabel = b.HideLabel ?? cfg.HideLabels,
                         color = b.Color,
                         icon = SafeIcon(b, Children),
                         slot = slots[b.Id],

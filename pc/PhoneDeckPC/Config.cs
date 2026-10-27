@@ -99,7 +99,7 @@ public class DeckButton
     /// <summary>Case dans la grille (0 = en haut à gauche, on compte ligne par ligne). Vide = première case libre.</summary>
     public int? Slot { get; set; }
     /// <summary>Cache le nom de ce bouton (l'icône prend toute la place).</summary>
-    public bool HideLabel { get; set; }
+    public bool? HideLabel { get; set; }
     public DeckAction Action { get; set; } = new();
 }
 

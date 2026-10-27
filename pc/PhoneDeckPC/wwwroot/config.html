@@ -613,7 +613,7 @@ function renderStage() {
       const ic = iconFor(b);
       if (ic) face.append(el('img', { class: 'icon', src: ic, draggable: 'false' }));
       else face.append(el('div', { style: 'flex:1' }));
-      if (key >= 56 && !(state.cfg.hideLabels || b.hideLabel)) face.append(el('div', { class: 'lbl' }, b.label));
+      if (key >= 56 && !(b.hideLabel ?? state.cfg.hideLabels)) face.append(el('div', { class: 'lbl' }, b.label));
       if (b.action.type === 'folder') face.append(el('span', { class: 'badge' }, '📁'));
       k.append(face);
       k.draggable = true;
@@ -1005,8 +1005,11 @@ function renderInspector() {
       el('input', { type: 'file', id: 'fileIn', accept: 'image/*', style: 'display:none', onchange: (e) => e.target.files[0] && uploadIcon(b.id, e.target.files[0]) }))));
 
   box.append(el('label', {}, 'Nom'), el('input', { type: 'text', value: b.label, oninput: (e) => { if (!inspector.typing) { pushUndo(); inspector.typing = true; } b.label = e.target.value; changed2(); }, onchange: () => inspector.typing = false }));
-  box.append(el('label', { style: 'display:flex;gap:8px;align-items:center;color:var(--text);cursor:pointer' },
-    el('input', { type: 'checkbox', checked: !!b.hideLabel, style: 'width:auto', onchange: (e) => upd(() => { if (e.target.checked) b.hideLabel = true; else delete b.hideLabel; }) }), 'Masquer le nom (icône en plein)'));
+  box.append(el('label', {}, 'Nom sur la touche'),
+    el('select', { onchange: (e) => upd(() => { const v = e.target.value; if (v === 'auto') delete b.hideLabel; else b.hideLabel = v === 'hide'; }) },
+      el('option', { value: 'auto', selected: b.hideLabel == null }, 'Comme le réglage général (' + (state.cfg.hideLabels ? 'masqué' : 'affiché') + ')'),
+      el('option', { value: 'show', selected: b.hideLabel === false }, 'Toujours afficher'),
+      el('option', { value: 'hide', selected: b.hideLabel === true }, 'Toujours masquer (icône en plein)')));
   box.append(el('label', {}, 'Couleur de fond (facultatif)'),
     el('div', { class: 'row' },
       el('input', { type: 'color', value: b.color || '#1b1b21', style: 'height:34px;padding:2px', oninput: (e) => { b.color = e.target.value; changed2(); }, onchange: () => pushUndo() }),
