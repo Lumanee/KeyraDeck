@@ -6,7 +6,10 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import org.json.JSONObject
+import java.net.InetAddress
+import java.net.Socket
 import java.util.concurrent.TimeUnit
+import javax.net.SocketFactory
 
 /** Connexion WebSocket vers l'appli PC. Les rappels arrivent sur un fil d'OkHttp. */
 class DeckClient(private val listener: Listener) {
@@ -18,6 +21,7 @@ class DeckClient(private val listener: Listener) {
     }
 
     private val http = OkHttpClient.Builder()
+        .socketFactory(NoDelaySocketFactory())
         .connectTimeout(5, TimeUnit.SECONDS)
         .pingInterval(15, TimeUnit.SECONDS)
         .build()
@@ -72,4 +76,15 @@ class DeckClient(private val listener: Listener) {
         socket = null
         s?.close(1000, null)
     }
+}
+
+/** Désactive l'algorithme de Nagle : sans ça, Android regroupe les petits messages (souris) et le curseur saccade. */
+class NoDelaySocketFactory : SocketFactory() {
+    private val base = getDefault()
+    private fun cfg(s: Socket): Socket = s.apply { tcpNoDelay = true }
+    override fun createSocket(): Socket = cfg(base.createSocket())
+    override fun createSocket(host: String?, port: Int): Socket = cfg(base.createSocket(host, port))
+    override fun createSocket(host: String?, port: Int, localAddress: InetAddress?, localPort: Int): Socket = cfg(base.createSocket(host, port, localAddress, localPort))
+    override fun createSocket(host: InetAddress?, port: Int): Socket = cfg(base.createSocket(host, port))
+    override fun createSocket(address: InetAddress?, port: Int, localAddress: InetAddress?, localPort: Int): Socket = cfg(base.createSocket(address, port, localAddress, localPort))
 }

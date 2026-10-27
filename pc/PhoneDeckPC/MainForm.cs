@@ -16,18 +16,29 @@ public class MainForm : Form
     private bool _exiting;
     private bool _trayHintShown;
 
+    private static Icon AppIcon()
+    {
+        try
+        {
+            using var s = typeof(MainForm).Assembly.GetManifestResourceStream("app.ico");
+            if (s != null) return new Icon(s);
+        }
+        catch { }
+        return SystemIcons.Application;
+    }
+
     public MainForm(ConfigStore store, DeckServer server, bool minimized = false)
     {
         _store = store;
         Text = "PhoneDeck PC";
-        Icon = SystemIcons.Application;
+        Icon = AppIcon();
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1180, 760);
         MinimumSize = new Size(900, 600);
         BackColor = Color.FromArgb(17, 17, 20);
         Controls.Add(_web);
 
-        _tray.Icon = SystemIcons.Application;
+        _tray.Icon = AppIcon();
         _tray.Text = "PhoneDeck PC";
         _tray.Visible = true;
         _tray.DoubleClick += (_, _) => ShowFromTray();

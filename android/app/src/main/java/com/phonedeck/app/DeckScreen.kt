@@ -16,6 +16,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -330,6 +331,8 @@ private fun StatusStrip(vm: DeckViewModel, pageIndex: Int, pageCount: Int, modif
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(7.dp).shadow(4.dp, CircleShape).clip(CircleShape).background(led))
         Spacer(Modifier.width(8.dp))
+        Image(painterResource(R.drawable.ic_logo), contentDescription = null, modifier = Modifier.height(14.dp))
+        Spacer(Modifier.width(6.dp))
         Text(
             "PHONEDECK",
             color = Color(0xFF6E6E78),

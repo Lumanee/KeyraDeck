@@ -91,10 +91,82 @@ public static class KeySender
 
     // ---- Souris (page « souris / clavier » du téléphone) ----
 
-    public static void MouseMove(int dx, int dy) => SendMouse(dx, dy, 0, MOUSEEVENTF_MOVE);
+    // Les déplacements arrivent par paquets irréguliers (Wi-Fi) : on les met en file et un fil dédié les répartit
+    // en petits pas toutes les ~4 ms, ce qui donne un curseur fluide au lieu de sauts.
+    private static readonly object MouseLock = new();
+    private static readonly AutoResetEvent MouseSignal = new(false);
+    private static double _pendX, _pendY, _remX, _remY;
+    private static Thread? _mouseThread;
 
-    public static void MouseButton(bool right, bool down) =>
+    public static void MouseMove(int dx, int dy)
+    {
+        lock (MouseLock) { _pendX += dx; _pendY += dy; }
+        if (_mouseThread == null)
+        {
+            lock (MouseLock)
+            {
+                if (_mouseThread == null)
+                {
+                    try { timeBeginPeriod(1); } catch { }
+                    _mouseThread = new Thread(MouseLoop) { IsBackground = true, Priority = ThreadPriority.AboveNormal, Name = "PhoneDeck souris" };
+                    _mouseThread.Start();
+                }
+            }
+        }
+        MouseSignal.Set();
+    }
+
+    private static double TakeStep(ref double pending)
+    {
+        if (Math.Abs(pending) < 1) { var v = pending; pending = 0; return v; }
+        var step = pending * 0.5;
+        if (Math.Abs(step) < 1) step = Math.Sign(pending);
+        pending -= step;
+        return step;
+    }
+
+    private static void MouseLoop()
+    {
+        while (true)
+        {
+            double sx, sy;
+            lock (MouseLock)
+            {
+                if (Math.Abs(_pendX) < 0.01 && Math.Abs(_pendY) < 0.01) { sx = sy = 0; }
+                else { sx = TakeStep(ref _pendX); sy = TakeStep(ref _pendY); }
+            }
+            if (sx == 0 && sy == 0) { MouseSignal.WaitOne(); continue; }
+            _remX += sx; _remY += sy;
+            var ix = (int)_remX; var iy = (int)_remY;
+            if (ix != 0 || iy != 0)
+            {
+                _remX -= ix; _remY -= iy;
+                try { SendMouse(ix, iy, 0, MOUSEEVENTF_MOVE); } catch { }
+            }
+            Thread.Sleep(4);
+        }
+    }
+
+    /// <summary>Applique tout de suite les déplacements en attente (avant un clic, pour qu'il tombe au bon endroit).</summary>
+    private static void FlushMouse()
+    {
+        int ix, iy;
+        lock (MouseLock)
+        {
+            _remX += _pendX; _remY += _pendY; _pendX = _pendY = 0;
+            ix = (int)_remX; iy = (int)_remY; _remX -= ix; _remY -= iy;
+        }
+        if (ix != 0 || iy != 0) SendMouse(ix, iy, 0, MOUSEEVENTF_MOVE);
+    }
+
+    public static void MouseButton(bool right, bool down)
+    {
+        FlushMouse();
         SendMouse(0, 0, 0, right ? (down ? MOUSEEVENTF_RIGHTDOWN : MOUSEEVENTF_RIGHTUP) : (down ? MOUSEEVENTF_LEFTDOWN : MOUSEEVENTF_LEFTUP));
+    }
+
+    [DllImport("winmm.dll")]
+    private static extern uint timeBeginPeriod(uint ms);
 
     /// <summary>Molette : delta positif = vers le haut (une « encoche » = 120).</summary>
     public static void MouseWheel(int delta) => SendMouse(0, 0, (uint)delta, MOUSEEVENTF_WHEEL);

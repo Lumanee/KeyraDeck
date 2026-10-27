@@ -122,7 +122,7 @@ Le bouton **🖱 Souris** de la barre du boîtier (visible sur toutes les pages)
 
 ## Réglages et thèmes
 
-Le bouton **⚙ Réglages** du configurateur propose des thèmes de couleurs (le boîtier du téléphone change de couleur), des couleurs libres, et le lancement de PhoneDeck PC au démarrage de Windows. Sur le téléphone, le menu ⋮ → **Réglages** règle la vibration, l'écran allumé et l'orientation.
+Le bouton **Réglages** du configurateur propose 5 thèmes : **Noir OLED**, **Blanc**, **Rouge**, **Bleu** et **Bordeaux**. Ils changent la couleur du boîtier, des touches, de l'accent et des widgets (verre teinté aux couleurs du thème). Il permet aussi de masquer le nom des boutons et de lancer PhoneDeck PC au démarrage de Windows. Sur le téléphone, le menu ⋮ → **Réglages** règle la vibration, l'écran allumé et l'orientation.
 
 **Pages automatiques** : clique dans une zone vide du configurateur, puis indique dans « Activer cette page… » les applis (ex. `reaper, discord`). Le téléphone change de page quand l'une de ces applis est au premier plan.
 

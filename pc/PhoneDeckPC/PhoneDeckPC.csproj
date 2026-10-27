@@ -12,6 +12,7 @@
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <BuildNumber Condition="'$(BuildNumber)' == ''">0</BuildNumber>
     <Version>0.3.$(BuildNumber)</Version>
+    <ApplicationIcon>app.ico</ApplicationIcon>
     <NoWarn>$(NoWarn);MSB3277</NoWarn>
   </PropertyGroup>
 
@@ -24,6 +25,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="wwwroot/config.html" LogicalName="config.html" />
+    <EmbeddedResource Include="app.ico" LogicalName="app.ico" />
   </ItemGroup>
 
 </Project>

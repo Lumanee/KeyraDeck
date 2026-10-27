@@ -62,8 +62,9 @@ fun DeckWidgetView(widget: DeckWidget, width: Dp, height: Dp, unit: Dp, vm: Deck
     val theme = LocalTheme.current
     // Un widget est un petit écran tactile encastré dans le boîtier : verre sombre, sans capuchon de touche ni relief.
     val shape = RoundedCornerShape(unit * 0.12f)
-    val glass = Brush.verticalGradient(listOf(lerp(Color(0xFF14151B), theme.accent, 0.10f), Color(0xFF050509)))
-    val edge = Brush.verticalGradient(listOf(Color(0x40FFFFFF), Color(0x10FFFFFF)))
+    // Le verre prend les couleurs du thème : touches teintées par l'accent en haut, très sombres en bas.
+    val glass = Brush.verticalGradient(listOf(lerp(theme.key, theme.accent, 0.28f), lerp(theme.key, Color.Black, 0.60f)))
+    val edge = Brush.verticalGradient(listOf(theme.accent.copy(alpha = 0.55f), theme.accent.copy(alpha = 0.12f)))
     Box(
         Modifier
             .size(width, height)

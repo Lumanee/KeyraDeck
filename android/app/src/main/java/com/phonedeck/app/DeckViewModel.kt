@@ -358,7 +358,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         moveX += dx
         moveY += dy
         val now = android.os.SystemClock.uptimeMillis()
-        if (now - lastMoveAt >= 12) flushMouse()
+        if (now - lastMoveAt >= 8) flushMouse()
     }
 
     fun flushMouse() {
