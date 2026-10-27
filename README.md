@@ -103,12 +103,18 @@ Chaque widget existe en plusieurs **modèles à taille fixe** (ex. Horloge 1×1,
 
 - **Météo** : température et conditions de la ville choisie (1×1, 2×1, 2×2). Sélectionne le widget, tape ta ville dans le panneau de droite. Le PC doit avoir internet (service gratuit Open-Meteo, sans compte).
 
+Les widgets s'affichent comme de petits **écrans tactiles encastrés** dans le boîtier (verre sombre, sans relief de touche), pour se distinguer clairement de la grille de boutons.
+
 ## Volume, retour visuel, notifications
 
 - **Mélangeur** : le bouton Volume ouvre une fenêtre avec une tranche verticale par appli, comme une table de mixage (volume général en premier). Glisse vers le haut / bas, touche 🔈 pour couper. Pour fermer : croix ✕ ou touche à côté de la fenêtre.
 - **Changer de page** : glisse le doigt, ou touche les flèches ‹ › en bas du boîtier (elles apparaissent dès qu'il y a plusieurs pages). Les marges du boîtier sont proportionnelles à la taille de l'écran.
 - **Retour visuel** : chaque touche s'illumine à la couleur d'accent quand tu appuies (en plus de la vibration).
 - **Notifications** : un message envoyé au PC s'affiche en bandeau sur le téléphone pendant quelques secondes, puis une pastille 🔔 avec le nombre apparaît dans la barre du boîtier (touche-la pour lire la liste). Pour l'instant la source est l'API locale `POST http://localhost:8765/api/notify` (`app`, `title`, `text`) ; la lecture automatique des notifications Windows n'est pas encore branchée.
+
+## Souris et clavier
+
+Le bouton **🖱 Souris** de la barre du boîtier (visible sur toutes les pages) ouvre un **trackpad** : glisse un doigt pour déplacer le curseur du PC, touche pour cliquer, glisse à deux doigts pour défiler, touche à deux doigts pour le clic droit. Les boutons **Clic gauche / Clic droit** en bas restent enfoncés tant que tu appuies (glisser-déposer possible). Le bouton **Clavier** ouvre le clavier du téléphone : ce que tu tapes arrive dans la fenêtre active du PC, avec une rangée de touches spéciales (Échap, Tab, flèches, Suppr…) et des modificateurs Ctrl / Alt / Maj / Win à toucher avant une lettre (ex. Ctrl puis C).
 
 ## Écran du téléphone
 

@@ -168,6 +168,9 @@
   svg.cl polyline { fill: none; stroke: #9a9aa5; stroke-width: 1; }
   svg.cl circle { fill: #fff; }
   .key.selected, .wdg.selected { outline: 2px solid var(--accent); outline-offset: 3px; }
+  /* Les widgets sont des écrans tactiles encastrés : verre sombre, pas de capuchon de touche */
+  .wdg { background: linear-gradient(color-mix(in srgb, #14151b, var(--tacc) 10%), #050509); border: 1px solid #ffffff2e; border-radius: 12%; padding: 0; box-shadow: inset 0 0 14px #000, 0 0 0 1px #000; }
+  .wdg .face { background: transparent; background-image: linear-gradient(135deg, #ffffff12, #ffffff00 45%); border-radius: inherit; }
   .box { background: transparent; border: 0; padding: 0; }
   dialog { border-radius: 12px; background: #111114; }
 </style>

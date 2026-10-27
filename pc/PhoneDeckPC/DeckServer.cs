@@ -192,6 +192,41 @@ public class DeckServer
                 break;
             }
 
+            case "mouse":
+            {
+                // Souris du téléphone : traité tout de suite et dans l'ordre (pas de Task.Run) pour rester fluide.
+                var action = root.GetProperty("action").GetString() ?? "";
+                switch (action)
+                {
+                    case "move":
+                        KeySender.MouseMove(Math.Clamp(root.GetProperty("dx").GetInt32(), -500, 500), Math.Clamp(root.GetProperty("dy").GetInt32(), -500, 500));
+                        break;
+                    case "down": case "up":
+                        KeySender.MouseButton((root.GetProperty("button").GetString() ?? "") == "right", action == "down");
+                        break;
+                    case "scroll":
+                        KeySender.MouseWheel(Math.Clamp(root.GetProperty("dy").GetInt32(), -1200, 1200));
+                        break;
+                }
+                break;
+            }
+
+            case "type":
+            {
+                // Clavier du téléphone : du texte, ou une touche / un raccourci simple (Ctrl+C, Enter, Back…).
+                if (root.TryGetProperty("text", out var tx))
+                {
+                    var typed = tx.GetString() ?? "";
+                    if (typed.Length is > 0 and <= 200) await Task.Run(() => KeySender.TypeText(typed));
+                }
+                else if (root.TryGetProperty("key", out var kk))
+                {
+                    var spec = kk.GetString() ?? "";
+                    if (KeySender.IsSafeSpec(spec)) await Task.Run(() => KeySender.Send(spec));
+                }
+                break;
+            }
+
             case "getMixer":
             {
                 var full = root.TryGetProperty("full", out var f) && f.GetBoolean();

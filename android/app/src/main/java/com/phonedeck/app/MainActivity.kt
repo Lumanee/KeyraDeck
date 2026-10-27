@@ -96,6 +96,7 @@ fun App(vm: DeckViewModel) {
                 Surface(Modifier.fillMaxSize(), color = Background) {
                     when {
                         vm.serverUrl == null -> ConnectScreen(vm)
+                        vm.showPad -> PadScreen(vm)
                         else -> DeckScreen(vm)
                     }
                 }

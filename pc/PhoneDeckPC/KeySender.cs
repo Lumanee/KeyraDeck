@@ -36,6 +36,26 @@ public static class KeySender
         Keys.VolumeMute, Keys.VolumeUp, Keys.VolumeDown, Keys.PrintScreen,
     };
 
+    private static readonly HashSet<string> PadKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Ctrl", "Alt", "Shift", "Win", "Back", "Enter", "Tab", "Escape", "Left", "Right", "Up", "Down",
+        "Delete", "Home", "End", "PageUp", "PageDown", "Space",
+    };
+
+    /// <summary>Raccourcis acceptés depuis la page clavier : modificateurs + une touche simple (lettre, chiffre, F1-F12, flèches…).</summary>
+    public static bool IsSafeSpec(string spec)
+    {
+        if (spec.Length == 0 || spec.Length > 40) return false;
+        foreach (var part in spec.Split('+'))
+        {
+            if (PadKeys.Contains(part)) continue;
+            if (part.Length == 1 && char.IsLetterOrDigit(part[0])) continue;
+            if (part.Length is 2 or 3 && (part[0] is 'F' or 'f') && int.TryParse(part[1..], out var n) && n is >= 1 and <= 12) continue;
+            return false;
+        }
+        return true;
+    }
+
     /// <summary>Renvoie null si tout va bien, sinon un message d'erreur.</summary>
     public static string? Send(string spec)
     {
@@ -68,6 +88,30 @@ public static class KeySender
         }
         return null;
     }
+
+    // ---- Souris (page « souris / clavier » du téléphone) ----
+
+    public static void MouseMove(int dx, int dy) => SendMouse(dx, dy, 0, MOUSEEVENTF_MOVE);
+
+    public static void MouseButton(bool right, bool down) =>
+        SendMouse(0, 0, 0, right ? (down ? MOUSEEVENTF_RIGHTDOWN : MOUSEEVENTF_RIGHTUP) : (down ? MOUSEEVENTF_LEFTDOWN : MOUSEEVENTF_LEFTUP));
+
+    /// <summary>Molette : delta positif = vers le haut (une « encoche » = 120).</summary>
+    public static void MouseWheel(int delta) => SendMouse(0, 0, (uint)delta, MOUSEEVENTF_WHEEL);
+
+    private static void SendMouse(int dx, int dy, uint data, uint flags)
+    {
+        var input = new INPUT { type = INPUT_MOUSE, U = new InputUnion { mi = new MOUSEINPUT { dx = dx, dy = dy, mouseData = data, dwFlags = flags } } };
+        SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>());
+    }
+
+    private const uint INPUT_MOUSE = 0;
+    private const uint MOUSEEVENTF_MOVE = 0x0001;
+    private const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
+    private const uint MOUSEEVENTF_LEFTUP = 0x0004;
+    private const uint MOUSEEVENTF_RIGHTDOWN = 0x0008;
+    private const uint MOUSEEVENTF_RIGHTUP = 0x0010;
+    private const uint MOUSEEVENTF_WHEEL = 0x0800;
 
     /// <summary>Tape un texte caractère par caractère (accents et emojis compris).</summary>
     public static string? TypeText(string text)

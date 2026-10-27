@@ -346,6 +346,56 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         }
     }
 
+    // ---------- Page souris / clavier ----------
+
+    var showPad by mutableStateOf(false)
+    private var moveX = 0f
+    private var moveY = 0f
+    private var lastMoveAt = 0L
+
+    /** Déplace le curseur du PC ; les petits mouvements sont regroupés (un message toutes les ~12 ms). */
+    fun mouseMove(dx: Float, dy: Float) {
+        moveX += dx
+        moveY += dy
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now - lastMoveAt >= 12) flushMouse()
+    }
+
+    fun flushMouse() {
+        val ix = moveX.toInt()
+        val iy = moveY.toInt()
+        if (ix != 0 || iy != 0) {
+            moveX -= ix
+            moveY -= iy
+            send(JSONObject().put("type", "mouse").put("action", "move").put("dx", ix).put("dy", iy))
+        }
+        lastMoveAt = android.os.SystemClock.uptimeMillis()
+    }
+
+    fun mouseButton(button: String, down: Boolean) {
+        flushMouse()
+        send(JSONObject().put("type", "mouse").put("action", if (down) "down" else "up").put("button", button))
+    }
+
+    fun mouseClick(button: String) {
+        mouseButton(button, true)
+        mouseButton(button, false)
+    }
+
+    /** dy > 0 : vers le haut. */
+    fun mouseScroll(dy: Int) {
+        send(JSONObject().put("type", "mouse").put("action", "scroll").put("dy", dy))
+    }
+
+    fun typeText(text: String) {
+        send(JSONObject().put("type", "type").put("text", text))
+    }
+
+    /** Touche ou raccourci simple, ex. "Enter" ou "Ctrl+C". */
+    fun typeKey(spec: String) {
+        send(JSONObject().put("type", "type").put("key", spec))
+    }
+
     /** Touches média (lecture, suivant…) pour le widget « Pavé média ». */
     fun sendMedia(key: String) {
         send(JSONObject().put("type", "media").put("key", key))

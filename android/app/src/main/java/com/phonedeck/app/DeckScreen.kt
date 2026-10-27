@@ -348,6 +348,11 @@ private fun StatusStrip(vm: DeckViewModel, pageIndex: Int, pageCount: Int, modif
         )
         NotificationBadge(vm)
         Spacer(Modifier.width(6.dp))
+        // Accès à la page souris / clavier, depuis n'importe quelle page.
+        Box(
+            Modifier.clip(RoundedCornerShape(50)).background(Color(0x22FFFFFF)).clickable { vm.showPad = true }.padding(horizontal = 8.dp, vertical = 3.dp),
+        ) { Text("🖱 Souris", color = Color(0xFFDDDDE6), fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+        Spacer(Modifier.width(6.dp))
         if (pageCount > 1) {
             // Un petit point par page ; le point clair est la page affichée.
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {

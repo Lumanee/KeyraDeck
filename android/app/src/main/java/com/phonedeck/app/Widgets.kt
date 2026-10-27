@@ -2,6 +2,7 @@ package com.phonedeck.app
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -59,24 +60,20 @@ private val WidgetGloss = Brush.verticalGradient(listOf(Color(0x1FFFFFFF), Color
 @Composable
 fun DeckWidgetView(widget: DeckWidget, width: Dp, height: Dp, unit: Dp, vm: DeckViewModel) {
     val theme = LocalTheme.current
-    val capShape = RoundedCornerShape(unit * 0.2f)
+    // Un widget est un petit écran tactile encastré dans le boîtier : verre sombre, sans capuchon de touche ni relief.
+    val shape = RoundedCornerShape(unit * 0.12f)
+    val glass = Brush.verticalGradient(listOf(lerp(Color(0xFF14151B), theme.accent, 0.10f), Color(0xFF050509)))
+    val edge = Brush.verticalGradient(listOf(Color(0x40FFFFFF), Color(0x10FFFFFF)))
     Box(
         Modifier
             .size(width, height)
-            .shadow(5.dp, capShape)
-            .clip(capShape)
-            .background(WidgetCap)
-            .padding(unit * 0.05f),
+            .clip(shape)
+            .background(glass)
+            .border(1.dp, edge, shape)
+            .padding(unit * 0.08f),
+        contentAlignment = Alignment.Center,
     ) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .clip(RoundedCornerShape(unit * 0.14f))
-                .background(theme.key)
-                .background(WidgetGloss)
-                .padding(unit * 0.07f),
-            contentAlignment = Alignment.Center,
-        ) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             when (widget.type) {
                 "media" -> MediaWidget(widget, vm)
                 "volume" -> VolumeWidget(widget, vm)
