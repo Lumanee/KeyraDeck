@@ -94,6 +94,8 @@ La configuration est enregistrée dans `%APPDATA%\PhoneDeckPC\config.json` (bout
 
 Comme sur Nova Launcher, un widget se pose sur plusieurs cases d'une page. Dans le configurateur, section **Widgets** à gauche :
 
+Dans le configurateur, les widgets s'affichent **en direct** comme sur le téléphone (heure, charge CPU/RAM, volume, météo, touches média).
+
 Chaque widget existe en plusieurs **modèles à taille fixe** (ex. Horloge 1×1, 2×1, 2×2 ; CPU/RAM Mini, Compact, Barre, Anneaux) : le contenu est dessiné pour cette taille et ne disparaît jamais. Clique sur un modèle pour l'ajouter ; pour en changer, sélectionne le widget et choisis un autre modèle dans le panneau de droite.
 
 - **Pavé média** : 1×1 (lecture/pause), 3×1 (précédent, lecture, suivant), 2×2, 3×2 (avec volume − / muet / +).

@@ -64,6 +64,7 @@ public class ConfigApi
                         port = _store.Config.Port,
                         addresses = LocalNetwork.Addresses(),
                         clients = _server.ClientNames,
+                        live = _server.Live,
                         version = _server.LayoutVersion,
                         configPath = _store.ConfigPath,
                         error = _store.LastError,

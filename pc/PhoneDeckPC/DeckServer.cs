@@ -353,12 +353,22 @@ public class DeckServer
         foreach (var c in clients) { try { await c.SendRawAsync(json); } catch { } }
     }
 
+    /// <summary>Dernières valeurs des widgets (CPU, RAM, volume, météo) : le configurateur les affiche en direct.</summary>
+    public object Live { get; private set; } = new { };
+
     private string StatesJson(Dictionary<string, bool> states)
     {
         float? volume = null; bool? muted = null; int? cpu = null, ram = null;
         WeatherData? weather = _needWeather ? _weather.Current(_store.Config.WeatherCity) : null;
         if (_needVolume) { volume = _audio.MasterVolume(); muted = _audio.MasterMuted(); }
         if (_needSystem) { var (c, r) = _systemStats.Read(); cpu = c; ram = r; }
+        Live = new
+        {
+            cpu, ram,
+            volume = volume == null ? (int?)null : (int)Math.Round(volume.Value * 100),
+            muted,
+            weather = weather == null ? null : new { temp = weather.Temp, code = weather.Code, wind = weather.Wind, humidity = weather.Humidity, city = weather.City },
+        };
         return JsonSerializer.Serialize(new
         {
             type = "states",
@@ -377,8 +387,8 @@ public class DeckServer
         {
             List<Client> clients;
             lock (_clients) clients = _clients.ToList();
-            if (clients.Count == 0) return;
             var json = StatesJson(await Task.Run(ComputeStates));
+            if (clients.Count == 0) return;
             if (!force && json == _lastStates) return;
             _lastStates = json;
             foreach (var c in clients)

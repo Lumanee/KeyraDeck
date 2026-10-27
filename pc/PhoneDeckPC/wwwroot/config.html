@@ -80,11 +80,6 @@
   .key[draggable=true] { cursor: grab; }
   .wdg { background: #060608; border-radius: 8%; padding: 2.5%; position: relative; box-shadow: 0 4px 6px #0008; cursor: grab; }
   .wdg .face { width: 100%; height: 100%; border-radius: 6%; background: var(--keyface); background-image: linear-gradient(#ffffff1f, #ffffff00); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #fff; text-align: center; padding: 6px; overflow: hidden; }
-  .wdg .face b { font-size: 26px; font-weight: 600; }
-  .wdg .face small { opacity: .7; font-size: 11px; line-height: 1.1; }
-  .wdg.one .face { flex-direction: row; gap: 6px; padding: 2px 6px; }
-  .wdg.one .face b { font-size: 18px; }
-  .wdg.one .face small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .wdg.selected { outline: 3px solid var(--accent); outline-offset: 2px; }
   .key .badge { position: absolute; top: 4%; right: 6%; font-size: 11px; opacity: .8; pointer-events: none; }
 
@@ -645,14 +640,65 @@ function renderStage() {
     const info = WIDGET_INFO[w.type] || { name: w.type, icon: '▫' };
     const c = w.slot % cols, r = Math.floor(w.slot / cols);
     const d = el('div', { 'data-id': w.id, class: 'wdg' + (w.h === 1 ? ' one' : '') + (w.id === state.selected ? ' selected' : ''), draggable: 'true', style: `grid-column:${c + 1} / span ${w.w};grid-row:${r + 1} / span ${w.h}` },
-      el('div', { class: 'face' }, el('b', {}, info.icon), el('small', {}, `${info.name} · ${(modelOf(w) || { name: '' }).name}`)));
+      el('div', { class: 'face' }));
     d.addEventListener('dragstart', (e) => { e.dataTransfer.setData('application/x-pd-widget', w.id); e.dataTransfer.effectAllowed = 'move'; select(w.id, true); });
     d.addEventListener('click', () => select(w.id));
     grid.append(d);
   }
   holder.append(grid);
-  requestAnimationFrame(() => drawCallout(state.selected));
+  requestAnimationFrame(() => { paintWidgets(); drawCallout(state.selected); });
 }
+
+// ---- Rendu en direct des widgets (mêmes dispositions que sur le téléphone) ----
+const WX = { 0: '☀️', 1: '🌤️', 2: '🌤️', 3: '☁️', 45: '🌫️', 48: '🌫️' };
+const wxIcon = (c) => WX[c] || (c >= 51 && c <= 57 ? '🌦️' : (c >= 61 && c <= 67) || (c >= 80 && c <= 82) ? '🌧️' : (c >= 71 && c <= 77) || c === 85 || c === 86 ? '❄️' : c >= 95 ? '⛈️' : '🌡️');
+const wxText = (c) => c === 0 ? 'Ciel dégagé' : c <= 2 ? 'Éclaircies' : c === 3 ? 'Couvert' : c <= 48 ? 'Brouillard' : c <= 57 ? 'Bruine' : c <= 67 || (c >= 80 && c <= 82) ? 'Pluie' : c <= 77 ? 'Neige' : c >= 95 ? 'Orage' : '—';
+function paintWidget(d, w) {
+  const W = d.clientWidth, H = d.clientHeight; if (!W || !H) return;
+  const live = (state.info && state.info.live) || {};
+  const m = w.model || '';
+  const acc = 'var(--tacc)';
+  const bar = (label, v, big) => `<div style="width:100%"><div style="display:flex;justify-content:space-between;font-size:${big}px"><span style="opacity:.75">${label}</span><b>${v == null ? '—' : v + ' %'}</b></div><div style="height:${Math.max(3, big * .45)}px;background:#ffffff1c;border-radius:9px;margin-top:2px"><div style="height:100%;width:${v || 0}%;background:${acc};border-radius:9px"></div></div></div>`;
+  const ring = (label, v, size) => { const r = size * .4, c = 2 * Math.PI * r; return `<div style="position:relative;width:${size}px;height:${size}px"><svg width="${size}" height="${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="#ffffff1c" stroke-width="${size * .09}"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${acc}" stroke-width="${size * .09}" stroke-linecap="round" stroke-dasharray="${c * (v || 0) / 100} ${c}" transform="rotate(-90 ${size / 2} ${size / 2})"/></svg><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:${size * .2}px;line-height:1.1"><b>${v == null ? '—' : v}</b><span style="opacity:.7;font-size:${size * .15}px">${label}</span></div></div>`; };
+  let html = '';
+  if (w.type === 'clock') {
+    const now = new Date();
+    const t = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const dt = now.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+    if (m === 'clock-1x1') html = `<b style="font-size:${W * .27}px">${t}</b>`;
+    else if (m === 'clock-2x2') html = `<b style="font-size:${Math.min(W * .3, H * .36)}px">${t}</b><span style="color:${acc};font-size:${Math.min(W * .12, H * .14)}px">${String(now.getSeconds()).padStart(2, '0')}</span><span style="opacity:.7;font-size:${Math.min(W * .085, H * .12)}px">${dt}</span>`;
+    else html = `<b style="font-size:${Math.min(W * .2, H * .4)}px">${t}</b><span style="opacity:.7;font-size:${Math.max(9, Math.min(W * .065, H * .15))}px">${dt}</span>`;
+  } else if (w.type === 'system') {
+    if (m === 'system-2x2') html = `<div style="display:flex;gap:${W * .06}px;align-items:center">${ring('CPU', live.cpu, Math.min(W / 2.2, H * .75))}${ring('RAM', live.ram, Math.min(W / 2.2, H * .75))}</div>`;
+    else if (m === 'system-3x1') html = `<div style="display:flex;gap:14px;width:100%;padding:0 4px">${bar('CPU', live.cpu, 13)}${bar('RAM', live.ram, 13)}</div>`;
+    else if (m === 'system-1x1') html = `<div style="display:flex;flex-direction:column;gap:4px;width:100%">${bar('CPU', live.cpu, 9)}${bar('RAM', live.ram, 9)}</div>`;
+    else html = `<div style="display:flex;flex-direction:column;gap:6px;width:100%;padding:0 4px">${bar('CPU', live.cpu, 12)}${bar('RAM', live.ram, 12)}</div>`;
+  } else if (w.type === 'volume') {
+    const v = live.volume == null ? 0 : live.volume, vertical = w.h > w.w;
+    const icon = live.muted || v === 0 ? '🔇' : '🔊';
+    if (vertical) html = `<div style="display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;width:100%"><span style="font-size:20px">${icon}</span><div style="flex:1;width:30px;background:#0a0a0d;border-radius:30px;position:relative;overflow:hidden"><div style="position:absolute;bottom:0;left:0;right:0;height:${v}%;background:${live.muted ? '#888' : acc}"></div></div><span style="font-size:12px">${live.muted ? 'Muet' : v + ' %'}</span></div>`;
+    else html = `<div style="display:flex;align-items:center;gap:10px;width:100%"><span style="font-size:22px">${icon}</span><div style="flex:1;height:30px;background:#0a0a0d;border-radius:30px;position:relative;overflow:hidden"><div style="position:absolute;top:0;bottom:0;left:0;width:${v}%;background:${live.muted ? '#888' : acc}"></div></div><span style="font-size:13px;min-width:42px;text-align:right">${live.muted ? 'Muet' : v + ' %'}</span></div>`;
+  } else if (w.type === 'media') {
+    const B = { play: '⏯', prev: '⏮', next: '⏭', vd: '🔉', mute: '🔇', vu: '🔊' };
+    const rows = m === 'media-1x1' ? [['play']] : m === 'media-3x1' ? [['prev', 'play', 'next']] : m === 'media-2x2' ? [['prev', 'next'], ['play', 'mute']] : [['prev', 'play', 'next'], ['vd', 'mute', 'vu']];
+    html = `<div style="display:flex;flex-direction:column;gap:6px;width:100%;height:100%">${rows.map(r => `<div style="flex:1;display:flex;gap:6px">${r.map(k => `<div style="flex:1;background:#ffffff14;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:${Math.min(22, H / rows.length * .5)}px">${B[k]}</div>`).join('')}</div>`).join('')}</div>`;
+  } else if (w.type === 'weather') {
+    const x = live.weather;
+    if (!x) html = `<span style="opacity:.7;font-size:11px;text-align:center">Météo…<br>(choisis une ville)</span>`;
+    else if (m === 'weather-2x2') html = `<span style="opacity:.7;font-size:${H * .09}px">${x.city}</span><span style="font-size:${H * .28}px">${wxIcon(x.code)}</span><b style="font-size:${H * .24}px">${x.temp}°</b><span style="opacity:.7;font-size:${H * .09}px">${wxText(x.code)}</span><span style="opacity:.7;font-size:${H * .075}px">💨 ${x.wind} km/h  💧 ${x.humidity} %</span>`;
+    else if (m === 'weather-2x1') html = `<div style="display:flex;gap:10px;align-items:center;justify-content:space-around;width:100%"><span style="font-size:${Math.min(W * .24, H * .5)}px">${wxIcon(x.code)}</span><div style="text-align:center"><b style="font-size:${Math.min(W * .2, H * .4)}px">${x.temp}°</b><br><span style="opacity:.7;font-size:${Math.max(9, Math.min(W * .07, H * .14))}px">${x.city}</span></div></div>`;
+    else html = `<span style="font-size:${H * .38}px">${wxIcon(x.code)}</span><b style="font-size:${H * .28}px">${x.temp}°</b>`;
+  }
+  d.innerHTML = `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;overflow:hidden">${html}</div>`;
+}
+function paintWidgets() {
+  if (!state.cfg) return;
+  document.querySelectorAll('#device .wdg').forEach(d => {
+    const fw = findWidget(d.dataset.id); const face = d.querySelector('.face');
+    if (fw && face) paintWidget(face, fw.widget);
+  });
+}
+setInterval(paintWidgets, 1000);
 
 function actionSummary(b) {
   const a = b.action || {};
