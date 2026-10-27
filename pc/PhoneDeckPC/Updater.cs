@@ -14,7 +14,12 @@ public record UpdateInfo(bool Available, int Current, int Latest, string? Error)
 /// </summary>
 public class Updater
 {
-    private const string ReleaseApi = "https://api.github.com/repos/Lumanee/PhoneDeck/releases/tags/derniere-version";
+    // Adresse du dépôt : la nouvelle (KeyraDeck) d'abord, puis l'ancienne (GitHub redirige aussi l'ancienne après un renommage).
+    private static readonly string[] ReleaseApis =
+    {
+        "https://api.github.com/repos/Lumanee/KeyraDeck/releases/tags/derniere-version",
+        "https://api.github.com/repos/Lumanee/PhoneDeck/releases/tags/derniere-version",
+    };
     private const string AssetName = "PhoneDeckPC-Windows.zip";
 
     private static readonly HttpClient Http = CreateClient();
@@ -42,7 +47,13 @@ public class Updater
         var current = CurrentBuild;
         try
         {
-            using var doc = JsonDocument.Parse(await Http.GetStringAsync(ReleaseApi));
+            string? json = null; Exception? last = null;
+            foreach (var api in ReleaseApis)
+            {
+                try { json = await Http.GetStringAsync(api); break; } catch (Exception ex) { last = ex; }
+            }
+            if (json == null) throw last ?? new InvalidOperationException("Aucune adresse n'a répondu");
+            using var doc = JsonDocument.Parse(json);
             var body = doc.RootElement.GetProperty("body").GetString() ?? "";
             var m = Regex.Match(body, @"build:(\d+)");
             if (!m.Success) return new UpdateInfo(false, current, 0, null);

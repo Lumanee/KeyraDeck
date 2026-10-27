@@ -17,7 +17,11 @@ data class UpdateInfo(val build: Int, val apkUrl: String)
 
 /** Mise à jour automatique : compare avec la dernière version publiée, télécharge l'APK et lance l'installation. */
 object Updater {
-    private const val RELEASE_API = "https://api.github.com/repos/Lumanee/PhoneDeck/releases/tags/derniere-version"
+    // La nouvelle adresse (KeyraDeck) d'abord, puis l'ancienne : GitHub redirige aussi l'ancienne après un renommage.
+    private val RELEASE_APIS = listOf(
+        "https://api.github.com/repos/Lumanee/KeyraDeck/releases/tags/derniere-version",
+        "https://api.github.com/repos/Lumanee/PhoneDeck/releases/tags/derniere-version",
+    )
     private const val APK_NAME = "PhoneDeck.apk"
 
     private val http = OkHttpClient.Builder()
@@ -34,11 +38,17 @@ object Updater {
     /** Renvoie la mise à jour si elle est plus récente que l'appli installée, sinon null (ou en cas d'erreur réseau). */
     fun check(context: Context): UpdateInfo? {
         return try {
-            val request = Request.Builder().url(RELEASE_API)
-                .header("Accept", "application/vnd.github+json").build()
-            http.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return null
-                val json = JSONObject(response.body?.string() ?: return null)
+            var text: String? = null
+            for (api in RELEASE_APIS) {
+                val request = Request.Builder().url(api).header("Accept", "application/vnd.github+json").build()
+                val body = try {
+                    http.newCall(request).execute().use { r -> if (r.isSuccessful) r.body?.string() else null }
+                } catch (e: Exception) { null }
+                if (body != null) { text = body; break }
+            }
+            val t = text ?: return null
+            run {
+                val json = JSONObject(t)
                 val build = Regex("build:(\\d+)").find(json.optString("body"))?.groupValues?.get(1)?.toIntOrNull()
                     ?: return null
                 val assets = json.optJSONArray("assets") ?: return null
