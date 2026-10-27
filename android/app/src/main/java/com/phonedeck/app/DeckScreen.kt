@@ -334,7 +334,7 @@ private fun StatusStrip(vm: DeckViewModel, pageIndex: Int, pageCount: Int, modif
         Image(painterResource(R.drawable.ic_logo), contentDescription = null, modifier = Modifier.height(14.dp))
         Spacer(Modifier.width(6.dp))
         Text(
-            "PHONEDECK",
+            "KEYRADECK",
             color = Color(0xFF6E6E78),
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold,

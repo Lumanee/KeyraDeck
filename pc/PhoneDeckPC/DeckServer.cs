@@ -82,7 +82,7 @@ public class DeckServer
         if (ctx.Request.Path != "/ws")
         {
             if (Api != null) await Api.HandleAsync(ctx);
-            else await ctx.Response.WriteAsync("PhoneDeck PC fonctionne.");
+            else await ctx.Response.WriteAsync("KeyraDeck fonctionne.");
             return;
         }
         if (!ctx.WebSockets.IsWebSocketRequest)

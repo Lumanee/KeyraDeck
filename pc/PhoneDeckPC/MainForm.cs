@@ -65,7 +65,7 @@ public class MainForm : Form
     public MainForm(ConfigStore store, DeckServer server, bool minimized = false)
     {
         _store = store;
-        Text = "PhoneDeck PC";
+        Text = "KeyraDeck";
         Icon = AppIcon();
         StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(1180, 760);
@@ -74,7 +74,7 @@ public class MainForm : Form
         Controls.Add(_web);
 
         _tray.Icon = AppIcon();
-        _tray.Text = "PhoneDeck PC";
+        _tray.Text = "KeyraDeck";
         _tray.Visible = true;
         _tray.DoubleClick += (_, _) => ShowFromTray();
         var menu = new ContextMenuStrip();
@@ -141,7 +141,7 @@ public class MainForm : Form
             if (!_trayHintShown)
             {
                 _trayHintShown = true;
-                _tray.ShowBalloonTip(3000, "PhoneDeck PC", "Toujours actif ici. Clic droit > Quitter pour fermer.", ToolTipIcon.Info);
+                _tray.ShowBalloonTip(3000, "KeyraDeck", "Toujours actif ici. Clic droit > Quitter pour fermer.", ToolTipIcon.Info);
             }
             return;
         }

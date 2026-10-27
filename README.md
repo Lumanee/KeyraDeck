@@ -1,10 +1,10 @@
-# PhoneDeck
+# KeyraDeck
 
 Transforme ton téléphone Android en Stream Deck / Touch Portal pour ton PC Windows :
 des gros boutons pour lancer tes applis, des raccourcis clavier, et un mélangeur de volume par appli.
 
-- **PhoneDeck PC** (`pc/`) : petite appli Windows (C# .NET 8) qui reçoit les appuis et agit sur le PC.
-- **PhoneDeck** (`android/`) : l'appli Android (Kotlin, Jetpack Compose) avec les boutons.
+- **KeyraDeck PC** (`pc/`) : petite appli Windows (C# .NET 8) qui reçoit les appuis et agit sur le PC.
+- **KeyraDeck** (`android/`) : l'appli Android (Kotlin, Jetpack Compose) avec les boutons.
 
 Les deux communiquent en Wi-Fi local (WebSocket). L'appairage se fait en scannant un QR code.
 
@@ -26,6 +26,8 @@ Page d'accueil :
 - **Appui long** sur un bouton : choisir une image de la galerie du téléphone (elle est envoyée et gardée sur le PC), ou revenir à l'icône automatique.
 - Le dossier **Launchers** reprend automatiquement le contenu du dossier « Launcher » de ton menu Démarrer s'il existe. Ajoute un raccourci dans ce dossier, il apparaît sur le téléphone.
 - Les dossiers s'ouvrent par-dessus la page, comme sur Android. Ils se referment après avoir lancé une appli, mais restent ouverts pour Micro / Sourdine.
+
+> Anciennement « PhoneDeck » : certains noms techniques (fichiers `PhoneDeckPC.exe`, `PhoneDeck.apk`, dossier `%APPDATA%\PhoneDeckPC`, dépôt GitHub) gardent l'ancien nom pour que les mises à jour automatiques et les réglages existants continuent de fonctionner.
 
 ## Installer et essayer
 
@@ -52,7 +54,7 @@ Fermer la fenêtre la range près de l'horloge (l'appli reste active). Pour quit
 
 1. Copie `PhoneDeck.apk` sur le téléphone (ou télécharge-le directement depuis le téléphone) et ouvre-le.
 2. Android demande d'autoriser l'installation d'applis inconnues pour ton navigateur / gestionnaire de fichiers : accepte.
-3. Ouvre **PhoneDeck**, touche **Scanner le QR code** et vise l'écran du PC.
+3. Ouvre **KeyraDeck**, touche **Scanner le QR code** et vise l'écran du PC.
 
 Le téléphone et le PC doivent être sur le **même réseau Wi-Fi / box**.
 Si le scan ne marche pas, saisis l'adresse IP, le port (8765) et le code affichés sur le PC.
@@ -72,7 +74,7 @@ Le bouton bascule l'état mais n'affiche pas encore si tu es muet ou non (ça de
 Inspiré de Logitech G HUB : le panneau **Affectations** à gauche (onglets Commandes, Widgets, Applis, avec recherche) liste tout ce qu'on peut ajouter ; on **glisse** une commande sur une case du boîtier (ou on clique dessus). Au centre, le **contour réel de ton téléphone** (taille, coins arrondis, caméra) tel que détecté à la connexion ; quand tu survoles ou sélectionnes une touche, une étiquette reliée par un trait indique ce qu'elle fait. Option **« Masquer le nom des boutons »** (dans Réglages, ou par bouton, indépendamment du réglage général) pour afficher l'icône en plein.
 
 
-La fenêtre de PhoneDeck PC est un **configurateur** : elle affiche une copie du Stream Deck de ton téléphone, et tout ce que tu changes apparaît tout de suite sur le téléphone.
+La fenêtre de KeyraDeck PC est un **configurateur** : elle affiche une copie du Stream Deck de ton téléphone, et tout ce que tu changes apparaît tout de suite sur le téléphone.
 
 - **Déplacer** un bouton : glisse-le sur une autre case (si la case est prise, les deux boutons s'échangent).
 - **Ajouter une appli** : glisse-la depuis la liste « Applis installées » sur une case, ou clique dessus pour la mettre dans la première case libre.
@@ -124,7 +126,7 @@ Le bouton **🖱 Souris** de la barre du boîtier (visible sur toutes les pages)
 
 ## Réglages et thèmes
 
-Le bouton **Réglages** du configurateur propose 5 thèmes : **Noir OLED**, **Blanc**, **Rouge**, **Bleu** et **Bordeaux**. Ils changent la couleur du boîtier, des touches, de l'accent et des widgets (verre teinté aux couleurs du thème). Il permet aussi de masquer le nom des boutons et de lancer PhoneDeck PC au démarrage de Windows. Sur le téléphone, le menu ⋮ → **Réglages** règle la vibration, l'écran allumé et l'orientation.
+Le bouton **Réglages** du configurateur propose 5 thèmes : **Noir OLED**, **Blanc**, **Rouge**, **Bleu** et **Bordeaux**. Ils changent la couleur du boîtier, des touches, de l'accent et des widgets (verre teinté aux couleurs du thème). Il permet aussi de masquer le nom des boutons et de lancer KeyraDeck PC au démarrage de Windows. Sur le téléphone, le menu ⋮ → **Réglages** règle la vibration, l'écran allumé et l'orientation.
 
 **Pages automatiques** : clique dans une zone vide du configurateur, puis indique dans « Activer cette page… » les applis (ex. `reaper, discord`). Le téléphone change de page quand l'une de ces applis est au premier plan.
 
@@ -132,8 +134,8 @@ Le bouton **Réglages** du configurateur propose 5 thèmes : **Noir OLED**, **Bl
 
 À chaque amélioration, GitHub fabrique une nouvelle version. Une fois la version « 0.3 » ou plus récente installée :
 
-- **PC** : un bouton **« Mettre à jour »** apparaît en haut de la fenêtre. Un clic télécharge la nouvelle version, ferme PhoneDeck PC et le relance.
-- **Téléphone** : un bandeau **« Mise à jour disponible »** apparaît en bas. Appuie sur **Installer**. Android demande une seule fois l'autorisation d'installer des applis depuis PhoneDeck, puis propose d'installer la mise à jour.
+- **PC** : un bouton **« Mettre à jour »** apparaît en haut de la fenêtre. Un clic télécharge la nouvelle version, ferme KeyraDeck PC et le relance.
+- **Téléphone** : un bandeau **« Mise à jour disponible »** apparaît en bas. Appuie sur **Installer**. Android demande une seule fois l'autorisation d'installer des applis depuis KeyraDeck, puis propose d'installer la mise à jour.
 
 Tes boutons et réglages sont conservés.
 

@@ -72,5 +72,5 @@ jobs:
           gh release delete derniere-version --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
           gh release create derniere-version PhoneDeck.apk PhoneDeckPC-Windows.zip \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
-            --title "Dernière version (prototype)" \
-            --notes "build:${{ github.run_number }} — fabriquée automatiquement depuis le commit $GITHUB_SHA. PhoneDeck.apk = téléphone Android, PhoneDeckPC-Windows.zip = PC."
+            --title "KeyraDeck : dernière version" \
+            --notes "build:${{ github.run_number }} — fabriquée automatiquement depuis le commit $GITHUB_SHA. PhoneDeck.apk = KeyraDeck pour Android, PhoneDeckPC-Windows.zip = KeyraDeck pour Windows (les noms de fichiers restent les mêmes pour que la mise à jour automatique continue de fonctionner)."

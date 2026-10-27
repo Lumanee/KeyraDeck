@@ -51,10 +51,10 @@ fun ConnectScreen(vm: DeckViewModel) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text("PhoneDeck", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Text("KeyraDeck", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Color.White)
         Spacer(Modifier.height(12.dp))
         Text(
-            "Ouvre PhoneDeck PC sur ton ordinateur, puis scanne le QR code affiché. " +
+            "Ouvre KeyraDeck sur ton ordinateur, puis scanne le QR code affiché. " +
                 "Le téléphone et le PC doivent être sur le même Wi-Fi.",
             textAlign = TextAlign.Center,
             color = Color(0xFFBBBBC4),

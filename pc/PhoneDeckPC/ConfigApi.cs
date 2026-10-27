@@ -36,7 +36,7 @@ public class ConfigApi
     {
         if (!IsLocal(ctx))
         {
-            await ctx.Response.WriteAsync("PhoneDeck PC fonctionne. Connecte l'appli Android avec le QR code.");
+            await ctx.Response.WriteAsync("KeyraDeck fonctionne. Connecte l'appli Android avec le QR code.");
             return;
         }
 

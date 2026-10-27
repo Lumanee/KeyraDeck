@@ -136,7 +136,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         viewModelScope.launch(Dispatchers.IO) {
             val found = Updater.check(getApplication())
             post { update = found }
-            if (manual) toast(if (found == null) "PhoneDeck est à jour ✓" else "Mise à jour disponible")
+            if (manual) toast(if (found == null) "KeyraDeck est à jour ✓" else "Mise à jour disponible")
         }
     }
 
@@ -148,7 +148,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         val info = update ?: return
         val app = getApplication<Application>()
         if (!Updater.canInstall(app)) {
-            toast("Autorise PhoneDeck à installer des applis, puis reviens et réessaie")
+            toast("Autorise KeyraDeck à installer des applis, puis reviens et réessaie")
             Updater.openInstallPermission(app)
             return
         }
@@ -172,7 +172,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
     fun pair(url: String) {
         val clean = url.trim()
         if (!clean.startsWith("ws://") && !clean.startsWith("wss://")) {
-            toast("Ce QR code ne vient pas de PhoneDeck PC")
+            toast("Ce QR code ne vient pas de KeyraDeck")
             return
         }
         prefs.edit().putString("url", clean).apply()

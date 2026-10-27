@@ -13,6 +13,10 @@
     <BuildNumber Condition="'$(BuildNumber)' == ''">0</BuildNumber>
     <Version>0.3.$(BuildNumber)</Version>
     <ApplicationIcon>app.ico</ApplicationIcon>
+    <Product>KeyraDeck</Product>
+    <AssemblyTitle>KeyraDeck</AssemblyTitle>
+    <Description>KeyraDeck</Description>
+    <Company>KeyraDeck</Company>
     <NoWarn>$(NoWarn);MSB3277</NoWarn>
   </PropertyGroup>
 

@@ -53,8 +53,8 @@ internal static class Program
         {
             MessageBox.Show(
                 $"Impossible de démarrer le serveur sur le port {store.Config.Port}.\n" +
-                "PhoneDeck PC est peut-être déjà ouvert (regarde près de l'horloge).\n\n" + e.Message,
-                "PhoneDeck PC", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                "KeyraDeck est peut-être déjà ouvert (regarde près de l'horloge).\n\n" + e.Message,
+                "KeyraDeck", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
         Application.Run(new MainForm(store, server, minimized));
