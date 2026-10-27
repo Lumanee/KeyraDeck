@@ -32,36 +32,39 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.fillMaxHeight
 import kotlin.math.roundToInt
 
-/** Mélangeur : une fenêtre avec une tranche verticale (comme une table de mixage) par appli qui joue du son sur le PC. */
+/** Mélangeur : une fenêtre centrée avec une tranche verticale (comme une table de mixage) par appli qui joue du son sur le PC. */
 @Composable
 fun MixerDialog(vm: DeckViewModel) {
     val theme = LocalTheme.current
-    Dialog(onDismissRequest = { vm.closeMixer() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        // Toute la fenêtre est un fond cliquable : toucher à côté du mélangeur le ferme.
-        Box(
-            Modifier.fillMaxSize().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { vm.closeMixer() },
-            contentAlignment = Alignment.Center,
-        ) {
+    BackHandler { vm.closeMixer() }
+    // Fond assombri : toucher à côté de la fenêtre la ferme.
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color(0xB0000000))
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { vm.closeMixer() },
+        contentAlignment = Alignment.Center,
+    ) {
         Column(
             Modifier
-                .padding(horizontal = 12.dp)
-                .fillMaxWidth()
-                .height(420.dp)
-                .clip(RoundedCornerShape(22.dp))
+                .fillMaxWidth(0.92f)
+                .fillMaxHeight(0.72f)
+                .clip(RoundedCornerShape(24.dp))
                 .background(lerp(theme.body, Color.Black, 0.25f))
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { }
-                .padding(14.dp),
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("Volume", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 Box(
-                    Modifier.size(44.dp).clip(CircleShape).background(Color(0x26FFFFFF)).clickable { vm.closeMixer() },
+                    Modifier.size(48.dp).clip(CircleShape).background(theme.accent).clickable { vm.closeMixer() },
                     contentAlignment = Alignment.Center,
-                ) { Text("✕", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+                ) { Text("✕", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold) }
             }
             if (vm.mixer.isEmpty()) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -75,7 +78,10 @@ fun MixerDialog(vm: DeckViewModel) {
                     for (channel in vm.mixer) ChannelStrip(channel, vm)
                 }
             }
-        }
+            Box(
+                Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(14.dp)).background(Color(0x26FFFFFF)).clickable { vm.closeMixer() },
+                contentAlignment = Alignment.Center,
+            ) { Text("Fermer", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
         }
     }
 }

@@ -117,8 +117,9 @@
   #toast.show { opacity: 1; }
 
   .logoimg { width: 26px; height: 26px; margin-right: -6px; }
+  :root { --chrome: #000; }
   /* ===== Look « G HUB » : noir, à plat, sobre ===== */
-  :root { --bg: #000; --panel: #0e0e10; --panel2: #18181b; --line: #232328; --text: #e9e9ee; --muted: #85858f; --accent: #1da1ff; --accent2: #0f7fd0; }
+  :root { --bg: var(--chrome); --panel: color-mix(in srgb, var(--chrome), white 7%); --panel2: color-mix(in srgb, var(--chrome), white 13%); --line: #232328; --text: #e9e9ee; --muted: #85858f; --accent: #1da1ff; --accent2: #0f7fd0; }
   body { font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; }
   button { background: #1c1c20; border: 1px solid transparent; border-radius: 6px; }
   button:hover { background: #26262b; border-color: #34343b; }
@@ -127,7 +128,7 @@
   input[type=text], input[type=number], select, textarea { background: #0a0a0c; border: 0; border-bottom: 1px solid #3a3a42; border-radius: 4px 4px 0 0; }
   input:focus, select:focus, textarea:focus { outline: 0; border-bottom-color: var(--accent); }
   h2 { font-size: 20px; font-weight: 400; text-transform: none; letter-spacing: .02em; color: var(--text); margin: 0 0 12px; }
-  header { background: #000; border-bottom: 1px solid #16161a; padding: 8px 18px; }
+  header { background: var(--chrome); border-bottom: 0; padding: 8px 18px; }
   header .logo { font-weight: 600; letter-spacing: .28em; font-size: 12px; color: #b5b5bf; }
   main { grid-template-columns: 320px 1fr 320px; gap: 12px; padding: 0 12px 12px; }
   aside { background: var(--panel); border-radius: 12px; padding: 20px 18px; }
@@ -137,7 +138,7 @@
   .tab { background: transparent !important; border: 0 !important; border-radius: 0; padding: 4px 0 6px; color: var(--muted); font-size: 13px; letter-spacing: .06em; text-transform: uppercase; border-bottom: 2px solid transparent !important; }
   .tab:hover { color: var(--text); }
   .tab.active { color: #fff; border-bottom-color: var(--accent) !important; }
-  .stage { position: relative; background: radial-gradient(ellipse at 50% 45%, #14141a 0%, #000 70%); border-radius: 12px; }
+  .stage { position: relative; background: radial-gradient(ellipse at 50% 45%, color-mix(in srgb, var(--chrome), white 9%) 0%, var(--chrome) 70%); border-radius: 12px; }
   .gridbar { background: transparent; border-top: 0; padding: 10px 4px; }
   .ptitle { font-size: 22px; letter-spacing: .03em; margin-bottom: 14px; }
   .utabs { display: flex; gap: 16px; margin-bottom: 10px; }
@@ -395,6 +396,11 @@ function applyTheme() {
   const t = state.cfg && state.cfg.theme; if (!t) return;
   const r = document.documentElement.style;
   r.setProperty('--body', t.body); r.setProperty('--desk', t.desk); r.setProperty('--keyface', t.key); r.setProperty('--tacc', t.accent);
+  // « Châssis » de l'interface (et barre de titre Windows) : fond du thème, assombri si le thème est clair.
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(t.desk || '');
+  let chrome = t.desk;
+  if (m) { const [r0, g0, b0] = [1, 2, 3].map(i => parseInt(m[i], 16)); if ((0.299 * r0 + 0.587 * g0 + 0.114 * b0) / 255 > 0.5) chrome = `rgb(${Math.round(r0 * .12)},${Math.round(g0 * .12)},${Math.round(b0 * .12)})`; }
+  r.setProperty('--chrome', chrome);
 }
 function renderSettings() {
   const t = state.cfg.theme;

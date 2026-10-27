@@ -16,6 +16,41 @@ public class MainForm : Form
     private bool _exiting;
     private bool _trayHintShown;
 
+    /// <summary>Couleur du « châssis » de l'interface : le fond du thème (assombri pour les thèmes clairs). Même formule que config.html.</summary>
+    private static Color ChromeColor(string hex)
+    {
+        try
+        {
+            var c = ColorTranslator.FromHtml(hex);
+            var lum = (0.299 * c.R + 0.587 * c.G + 0.114 * c.B) / 255;
+            if (lum > 0.5) c = Color.FromArgb((int)(c.R * 0.12), (int)(c.G * 0.12), (int)(c.B * 0.12));
+            return c;
+        }
+        catch { return Color.Black; }
+    }
+
+    [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+
+    /// <summary>Barre de titre de Windows à la couleur du thème, sans séparation avec l'interface (Windows 11).</summary>
+    private void ApplyChrome()
+    {
+        try
+        {
+            if (!IsHandleCreated) return;
+            var c = ChromeColor(_store.Config.Theme.Desk);
+            BackColor = c;
+            _web.DefaultBackgroundColor = c;
+            int bgr = c.R | (c.G << 8) | (c.B << 16);
+            int white = 0x00FFFFFF, dark = 1;
+            DwmSetWindowAttribute(Handle, 20, ref dark, 4);     // thème sombre (boutons de fenêtre clairs)
+            DwmSetWindowAttribute(Handle, 35, ref bgr, 4);      // couleur de la barre de titre
+            DwmSetWindowAttribute(Handle, 34, ref bgr, 4);      // bordure de la fenêtre
+            DwmSetWindowAttribute(Handle, 36, ref white, 4);    // texte du titre
+        }
+        catch { /* Windows 10 : la barre garde sa couleur */ }
+    }
+
     private static Icon AppIcon()
     {
         try
@@ -51,6 +86,10 @@ public class MainForm : Form
             server.Api.ExitRequested = () => BeginInvoke(() => { _exiting = true; Close(); });
 
         Load += async (_, _) => await InitWebAsync();
+        HandleCreated += (_, _) => ApplyChrome();
+        void Refresh() { if (IsHandleCreated) BeginInvoke(ApplyChrome); }
+        store.Changed += Refresh;
+        store.Reloaded += Refresh;
         // Lancé avec Windows : on reste discret, près de l'horloge.
         if (minimized) { ShowInTaskbar = false; WindowState = FormWindowState.Minimized; Shown += (_, _) => { Hide(); ShowInTaskbar = true; }; }
     }
