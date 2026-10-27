@@ -69,6 +69,9 @@ Le bouton bascule l'état mais n'affiche pas encore si tu es muet ou non (ça de
 
 ## Le configurateur (fenêtre du PC)
 
+Inspiré de Logitech G HUB : le panneau **Affectations** à gauche (onglets Commandes, Widgets, Applis, avec recherche) liste tout ce qu'on peut ajouter ; on **glisse** une commande sur une case du boîtier (ou on clique dessus). Au centre, le **contour réel de ton téléphone** (taille, coins arrondis, caméra) tel que détecté à la connexion ; quand tu survoles ou sélectionnes une touche, une étiquette reliée par un trait indique ce qu'elle fait. Option **« Masquer le nom des boutons »** (dans Réglages, ou par bouton) pour afficher l'icône en plein.
+
+
 La fenêtre de PhoneDeck PC est un **configurateur** : elle affiche une copie du Stream Deck de ton téléphone, et tout ce que tu changes apparaît tout de suite sur le téléphone.
 
 - **Déplacer** un bouton : glisse-le sur une autre case (si la case est prise, les deux boutons s'échangent).

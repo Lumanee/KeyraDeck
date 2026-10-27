@@ -211,18 +211,22 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
 
     /** Taille de l'écran en dp, envoyée au PC pour que le configurateur affiche les mêmes proportions. */
     private var screenW = 0
+    private var screenCut = 0
+    private var screenRadius = 0
     private var screenH = 0
 
-    fun reportScreen(widthDp: Int, heightDp: Int) {
-        if (widthDp == screenW && heightDp == screenH) return
+    fun reportScreen(widthDp: Int, heightDp: Int, cutDp: Int = 0, radiusDp: Int = 0) {
+        if (widthDp == screenW && heightDp == screenH && cutDp == screenCut && radiusDp == screenRadius) return
         screenW = widthDp
         screenH = heightDp
+        screenCut = cutDp
+        screenRadius = radiusDp
         sendScreen()
     }
 
     private fun sendScreen() {
         if (screenW <= 0 || screenH <= 0) return
-        send(JSONObject().put("type", "device").put("w", screenW).put("h", screenH).put("name", Build.MODEL ?: "Android"))
+        send(JSONObject().put("type", "device").put("w", screenW).put("h", screenH).put("cut", screenCut).put("r", screenRadius).put("name", Build.MODEL ?: "Android"))
     }
 
     override fun onOpen() = post {

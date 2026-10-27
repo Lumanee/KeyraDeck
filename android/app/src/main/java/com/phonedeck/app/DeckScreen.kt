@@ -4,7 +4,12 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import android.os.Build
+import android.view.RoundedCorner
 import androidx.compose.animation.core.Animatable
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.ViewCompat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.rememberCoroutineScope
@@ -100,7 +105,18 @@ fun DeckScreen(vm: DeckViewModel) {
     }
 
     BoxWithConstraints(Modifier.fillMaxSize().background(deskBrush()), contentAlignment = Alignment.Center) {
-        LaunchedEffect(maxWidth, maxHeight) { vm.reportScreen(maxWidth.value.toInt(), maxHeight.value.toInt()) }
+        val view = LocalView.current
+        val density = LocalDensity.current.density
+        LaunchedEffect(maxWidth, maxHeight) {
+            // Encoche / caméra et rayon des coins : le configurateur PC dessine le vrai contour du téléphone.
+            var cut = 0
+            var radius = 0
+            ViewCompat.getRootWindowInsets(view)?.displayCutout?.let { cut = (it.safeInsetTop / density).toInt() }
+            if (Build.VERSION.SDK_INT >= 31) {
+                view.rootWindowInsets?.getRoundedCorner(RoundedCorner.POSITION_TOP_LEFT)?.let { radius = (it.radius / density).toInt() }
+            }
+            vm.reportScreen(maxWidth.value.toInt(), maxHeight.value.toInt(), cut, radius)
+        }
         val roots = vm.layout?.rootPages.orEmpty()
         if (roots.isEmpty()) {
             Device(vm, 5, 3, emptyList(), emptyList(), 0, 1, {}) { editing = it }
@@ -424,7 +440,7 @@ fun DeckKey(
             } else {
                 Spacer(Modifier.weight(1f))
             }
-            if (size >= 56.dp) {
+            if (size >= 56.dp && !button.hideLabel) {
                 Text(
                     button.label,
                     color = Color.White,

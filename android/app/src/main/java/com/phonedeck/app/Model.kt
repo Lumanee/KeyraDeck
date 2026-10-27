@@ -12,6 +12,7 @@ import org.json.JSONObject
 data class DeckButton(
     val id: String,
     val label: String,
+    val hideLabel: Boolean,
     val color: Color?,
     val icon: ImageBitmap?,
     /** Case dans la grille (0 = en haut à gauche). */
@@ -122,6 +123,7 @@ object Parser {
     private fun button(b: JSONObject, index: Int) = DeckButton(
         id = b.optString("id"),
         label = b.optString("label"),
+        hideLabel = b.optBoolean("hideLabel", false),
         color = color(b.optStringOrNull("color")),
         icon = image(b.optStringOrNull("icon")),
         slot = b.optInt("slot", index),

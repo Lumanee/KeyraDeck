@@ -120,6 +120,56 @@
   #trash.over { border-color: var(--bad); color: var(--bad); }
   #toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #000d; border: 1px solid var(--line); padding: 8px 16px; border-radius: 999px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 10; }
   #toast.show { opacity: 1; }
+
+  /* ===== Look « G HUB » : noir, à plat, sobre ===== */
+  :root { --bg: #000; --panel: #0e0e10; --panel2: #18181b; --line: #232328; --text: #e9e9ee; --muted: #85858f; --accent: #1da1ff; --accent2: #0f7fd0; }
+  body { font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; }
+  button { background: #1c1c20; border: 1px solid transparent; border-radius: 6px; }
+  button:hover { background: #26262b; border-color: #34343b; }
+  button.primary { background: var(--accent2); border-color: transparent; }
+  button.primary:hover { background: var(--accent); }
+  input[type=text], input[type=number], select, textarea { background: #0a0a0c; border: 0; border-bottom: 1px solid #3a3a42; border-radius: 4px 4px 0 0; }
+  input:focus, select:focus, textarea:focus { outline: 0; border-bottom-color: var(--accent); }
+  h2 { font-size: 20px; font-weight: 400; text-transform: none; letter-spacing: .02em; color: var(--text); margin: 0 0 12px; }
+  header { background: #000; border-bottom: 1px solid #16161a; padding: 8px 18px; }
+  header .logo { font-weight: 600; letter-spacing: .28em; font-size: 12px; color: #b5b5bf; }
+  main { grid-template-columns: 320px 1fr 320px; gap: 12px; padding: 0 12px 12px; }
+  aside { background: var(--panel); border-radius: 12px; padding: 20px 18px; }
+  aside.left, aside.right { border: 0; }
+  .center { background: transparent; }
+  .tabs { padding: 10px 0 0; gap: 22px; }
+  .tab { background: transparent !important; border: 0 !important; border-radius: 0; padding: 4px 0 6px; color: var(--muted); font-size: 13px; letter-spacing: .06em; text-transform: uppercase; border-bottom: 2px solid transparent !important; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: #fff; border-bottom-color: var(--accent) !important; }
+  .stage { position: relative; background: radial-gradient(ellipse at 50% 45%, #14141a 0%, #000 70%); border-radius: 12px; }
+  .gridbar { background: transparent; border-top: 0; padding: 10px 4px; }
+  .ptitle { font-size: 22px; letter-spacing: .03em; margin-bottom: 14px; }
+  .utabs { display: flex; gap: 16px; margin-bottom: 10px; }
+  .utabs button { background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 2px 0 4px; color: var(--muted); font-size: 12px; letter-spacing: .08em; }
+  .utabs button.on { color: #fff; border-bottom-color: #fff; }
+  .utabs button:hover { background: transparent; color: #fff; }
+  #appSearch { margin: 10px 0 12px; }
+  .pane[hidden] { display: none; }
+  .pane { overflow-y: auto; max-height: calc(100vh - 250px); }
+  .grp { font-weight: 700; font-size: 14px; margin: 16px 0 4px; display: flex; justify-content: space-between; }
+  .cmd { display: flex; gap: 10px; align-items: baseline; padding: 8px 4px; border-bottom: 1px solid #202025; cursor: grab; }
+  .cmd:hover { background: #17171b; }
+  .cmd .cn { flex: 0 0 46%; font-size: 12px; font-weight: 600; letter-spacing: .02em; }
+  .cmd .cd { color: var(--muted); font-size: 12px; }
+  .cmd.sz .cn { flex-basis: 34%; }
+  .appitem { border-bottom: 1px solid #202025; border-radius: 0; }
+  .phone { position: relative; display: flex; flex-direction: column; background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--desk), white 12%), var(--desk)); border: 3px solid #2b2b31; box-shadow: 0 0 0 1px #000, 0 0 0 5px #0b0b0d, 0 40px 90px #000c; overflow: hidden; flex: none; }
+  .phone .notch { position: absolute; top: 0; left: 50%; transform: translateX(-50%); background: #000; border-radius: 0 0 999px 999px; }
+  .phone .punch { position: absolute; background: #000; border-radius: 50%; left: 50%; transform: translateX(-50%); box-shadow: 0 0 0 2px #15151a; }
+  .callout { position: absolute; width: 170px; padding: 0 0 6px; border-bottom: 1px solid #9a9aa5; pointer-events: none; }
+  .callout b { display: block; font-size: 15px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .callout small { color: var(--muted); font-size: 12px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  svg.cl { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+  svg.cl polyline { fill: none; stroke: #9a9aa5; stroke-width: 1; }
+  svg.cl circle { fill: #fff; }
+  .key.selected, .wdg.selected { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .box { background: transparent; border: 0; padding: 0; }
+  dialog { border-radius: 12px; background: #111114; }
 </style>
 </head>
 <body>
@@ -130,43 +180,26 @@
   <button id="pairBtn" class="primary">Connecter un téléphone</button>
   <span class="spacer"></span>
   <button id="updBtn" class="primary" style="display:none"></button>
-  <button id="undoBtn" title="Annuler (Ctrl+Z)">↶ Annuler</button>
-  <button id="settingsBtn">⚙ Réglages</button>
+  <button id="undoBtn" title="Annuler (Ctrl+Z)">Annuler</button>
+  <button id="settingsBtn">Réglages</button>
   <button id="folderBtn" title="Ouvrir config.json et le dossier de configuration">Dossier de config</button>
   <span id="saved"></span>
 </header>
 
 <main>
   <aside class="left">
-    <div class="box">
-      <h2>Ajouter un bouton</h2>
-      <div class="addrow">
-        <button data-add="web">🌐 Site web</button>
-        <button data-add="keys">⌨️ Raccourci / macro</button>
-        <button data-add="text">✍️ Texte à taper</button>
-        <button data-add="folder">📁 Dossier</button>
-        <button data-add="mixer">🔊 Volume</button>
-        <button data-add="micmute">🎙 Micro Windows</button>
-        <button data-add="mastermute">🔇 Couper le son</button>
-        <button data-add="app">📦 Appli…</button>
-      </div>
-    </div>
-    <div class="box">
-      <h2>Widgets</h2>
-      <div id="wgal"></div>
-      <div class="hint" style="margin-top:8px">Chaque modèle a une taille fixe : tout y est lisible. Clique sur un modèle pour l'ajouter, glisse-le ensuite pour le déplacer. Pour en changer, choisis un autre modèle à droite.</div>
-    </div>
-    <div class="box" id="appBox">
-      <h2>Applis installées</h2>
-      <input type="text" id="appSearch" placeholder="Rechercher une appli">
-      <div class="hint" style="margin-top:6px">Glisse une appli sur une case, ou clique pour l'ajouter à la première case libre.</div>
-      <div class="applist" id="appList"></div>
-    </div>
+    <div class="ptitle">Affectations</div>
+    <div class="utabs"><button data-lt="cmd">COMMANDES</button><button data-lt="wdg">WIDGETS</button><button data-lt="app">APPLIS</button></div>
+    <div class="hint">Fais glisser une commande sur une case du boîtier pour l'ajouter (ou clique dessus).</div>
+    <input type="text" id="appSearch" placeholder="Rechercher une commande">
+    <div class="pane" id="paneCmd"></div>
+    <div class="pane" id="paneWdg" hidden></div>
+    <div class="pane" id="paneApp" hidden><div class="applist" id="appList"></div></div>
   </aside>
 
   <section class="center">
     <div class="tabs" id="tabs"></div>
-    <div class="stage" id="stage"><div class="device" id="device"></div></div>
+    <div class="stage" id="stage"><div class="phone" id="phone"><div class="device" id="device"></div></div></div>
     <div class="gridbar">
       <span>Grille : <span class="stepper"><button id="colMinus">−</button><b id="colVal"></b><button id="colPlus">+</button></span> colonnes ×
         <span class="stepper"><button id="rowMinus">−</button><b id="rowVal"></b><button id="rowPlus">+</button></span> lignes</span>
@@ -195,6 +228,10 @@
   <label style="margin-top:0">Thème de couleurs (boîtier du téléphone)</label>
   <div class="swatches" id="presets"></div>
   <div class="colors" id="colors"></div>
+  <label>Affichage</label>
+  <label style="display:flex;gap:8px;align-items:center;color:var(--text);cursor:pointer;margin-top:4px">
+    <input type="checkbox" id="hideLbl" style="width:auto"> Masquer le nom des boutons (l'icône prend toute la place)
+  </label>
   <label>Windows</label>
   <label style="display:flex;gap:8px;align-items:center;color:var(--text);cursor:pointer;margin-top:4px">
     <input type="checkbox" id="startWin" style="width:auto"> Lancer PhoneDeck PC au démarrage de Windows (discrètement, près de l'horloge)
@@ -295,14 +332,40 @@ const WIDGET_MODELS = {
   ],
 };
 const modelOf = (w) => (WIDGET_MODELS[w.type] || []).find(m => m.id === w.model);
-function renderGallery() {
-  const g = $('#wgal'); g.replaceChildren();
+const COMMANDS = [
+  { group: 'Applications et liens', items: [['app', 'Appli…', 'Lance une appli installée'], ['web', 'Site web', 'Ouvre une adresse'], ['folder', 'Dossier', 'Regroupe des boutons']] },
+  { group: 'Clavier', items: [['keys', 'Raccourci / macro', 'Touches ou enchaînement'], ['text', 'Texte à taper', 'Écrit dans la fenêtre active']] },
+  { group: 'Système', items: [['mixer', 'Mélangeur de volume', 'Un curseur par appli'], ['micmute', 'Micro Windows', 'Couper / rétablir'], ['mastermute', 'Son Windows', 'Couper / rétablir']] },
+];
+function cmdRow(name, desc, mime, payload, onclick, cls) {
+  const r = el('div', { class: 'cmd' + (cls ? ' ' + cls : ''), draggable: 'true', title: name + ' : ' + desc }, el('span', { class: 'cn' }, name), el('span', { class: 'cd' }, desc));
+  r.addEventListener('dragstart', (e) => { e.dataTransfer.setData(mime, payload); e.dataTransfer.effectAllowed = 'copy'; });
+  r.addEventListener('click', onclick);
+  return r;
+}
+function setLeftTab(t) { state.leftTab = t; renderLeft(); }
+function renderLeft() {
+  const tab = state.leftTab || 'cmd';
+  const q = $('#appSearch').value.trim().toLowerCase();
+  document.querySelectorAll('.utabs button').forEach(b => b.classList.toggle('on', b.dataset.lt === tab));
+  $('#paneCmd').hidden = tab !== 'cmd'; $('#paneWdg').hidden = tab !== 'wdg'; $('#paneApp').hidden = tab !== 'app';
+  $('#appSearch').placeholder = tab === 'app' ? 'Rechercher une appli' : 'Rechercher une commande';
+  const pc = $('#paneCmd'); pc.replaceChildren();
+  for (const g of COMMANDS) {
+    const items = g.items.filter(([k, n, d]) => !q || (n + ' ' + d).toLowerCase().includes(q));
+    if (!items.length) continue;
+    pc.append(el('div', { class: 'grp' }, g.group), ...items.map(([k, n, d]) => cmdRow(n, d, 'application/x-pd-cmd', k, () => (k === 'app' ? setLeftTab('app') : addFromPalette(k)))));
+  }
+  const pw = $('#paneWdg'); pw.replaceChildren();
   for (const [type, list] of Object.entries(WIDGET_MODELS)) {
     const info = WIDGET_INFO[type];
-    g.append(el('div', { class: 'gal-title' }, info.icon + ' ' + info.name),
-      el('div', { class: 'addrow' }, ...list.map(m => el('button', { title: m.name, onclick: () => addWidget(type, m) }, `${m.w}×${m.h} ${m.name}`))));
+    const items = list.filter(m => !q || (info.name + ' ' + m.name).toLowerCase().includes(q));
+    if (!items.length) continue;
+    pw.append(el('div', { class: 'grp' }, info.name), ...items.map(m => cmdRow(`${m.w}×${m.h}`, m.name, 'application/x-pd-newwidget', type + '|' + m.id, () => addWidget(type, m), 'sz')));
   }
+  if (tab === 'app') renderApps();
 }
+const renderGallery = renderLeft;
 // Anciens widgets sans modèle : on leur donne le modèle de même taille, ou le premier.
 function normalizeWidgets() {
   let touched = false;
@@ -354,6 +417,7 @@ async function openSettings() {
   try {
     const st = await api('/api/settings');
     $('#startWin').checked = st.startWithWindows;
+    $('#hideLbl').checked = !!state.cfg.hideLabels;
     $('#verText').textContent = 'PhoneDeck PC — version ' + st.build;
   } catch { }
   $('#setDlg').showModal();
@@ -436,7 +500,7 @@ function renderTabs() {
   const tabs = $('#tabs'); tabs.replaceChildren();
   state.cfg.pages.forEach((p, i) => {
     tabs.append(el('button', { class: 'tab' + (p.id === state.page ? ' active' : ''), onclick: () => { state.page = p.id; state.selected = null; renderAll(); } },
-      (isRoot(p) ? '🏠 ' : '📁 ') + (p.name || p.id)));
+      (p.name || p.id)));
   });
   tabs.append(el('button', { class: 'tab', title: 'Ajouter une page d\'accueil (on passe de l\'une à l\'autre en glissant sur le téléphone)', onclick: addRootPage }, '＋ Page'));
 }
@@ -468,7 +532,7 @@ const devMetrics = (W, H) => { const small = Math.min(W, H); return { margin: sm
 const navHeight = () => (state.cfg && state.cfg.pages.filter(isRoot).length > 1 ? DEV.navH : 0);
 function deviceDims() {
   const d = state.info && state.info.device;
-  return d && d.w > 0 && d.h > 0 ? { w: d.w, h: d.h, known: true, name: d.name } : { w: 412, h: 915, known: false, name: '' };
+  return d && d.w > 0 && d.h > 0 ? { w: d.w, h: d.h, known: true, name: d.name, cut: d.cut || 0, r: d.r || 0 } : { w: 412, h: 915, known: false, name: '', cut: 0, r: 0 };
 }
 function keySizeFor(cols, rows, W, H) {
   const m = devMetrics(W, H);
@@ -497,7 +561,9 @@ function renderStage() {
   const stage = $('#stage');
   const phone = deviceDims();
   // Le boîtier a les proportions de l'écran du téléphone ; scale = pixels de l'aperçu par dp du téléphone.
-  const scale = Math.min((stage.clientWidth - 32) / phone.w, (stage.clientHeight - 32) / phone.h);
+  const phoneEl = $('#phone');
+  const totalH = phone.h + phone.cut;
+  const scale = Math.min((stage.clientWidth - 40) / phone.w, (stage.clientHeight - 40) / totalH);
   const keyDp = keySizeFor(cols, rows, phone.w, phone.h);
   const key = keyDp * scale, g = DEV.gap;
   const dm = devMetrics(phone.w, phone.h);
@@ -505,6 +571,18 @@ function renderStage() {
   dev.style.height = (phone.h - 2 * dm.margin) * scale + 'px';
   dev.style.borderRadius = dm.radius * scale + 'px';
   dev.style.padding = dm.pad * scale + 'px';
+  // Contour réel du téléphone détecté : taille, coins arrondis, encoche / caméra.
+  phoneEl.style.width = phone.w * scale + 6 + 'px';
+  phoneEl.style.height = totalH * scale + 6 + 'px';
+  phoneEl.style.borderRadius = (phone.r || 36) * scale + 'px';
+  phoneEl.style.padding = `${(phone.cut + dm.margin) * scale}px ${dm.margin * scale}px ${dm.margin * scale}px`;
+  phoneEl.querySelectorAll('.notch, .punch').forEach(n => n.remove());
+  if (phone.known) {
+    if (phone.cut > 0) {
+      const pw = Math.min(phone.cut * 1.1, 22) * scale;
+      phoneEl.prepend(el('div', { class: 'punch', style: `top:${(phone.cut - 22 > 0 ? (phone.cut - 22) / 2 : 4) * scale + 3}px;width:${pw}px;height:${pw}px` }));
+    }
+  }
   dev.append(el('div', { class: 'strip', style: `height:${DEV.strip * scale}px;font-size:${Math.max(7, 10 * scale)}px` },
     el('span', { class: 'dot' + (state.info && state.info.clients.length ? ' on' : '') }), 'PHONEDECK',
     el('span', { style: 'letter-spacing:0;font-weight:400;opacity:.7' }, ' ' + (phone.known ? phone.name + ' · ' + phone.w + '×' + phone.h : 'écran type 412×915'))));
@@ -527,18 +605,20 @@ function renderStage() {
   for (let s = 0; s < cols * rows; s++) {
     if (covered.has(s)) continue;
     const b = bySlot.get(s);
-    const k = el('div', { class: 'key' + (b ? '' : ' empty') + (b && b.id === state.selected ? ' selected' : ''), 'data-slot': s, style: `--lbl:${Math.max(9, Math.min(15, key * 0.12))}px` });
+    const k = el('div', { class: 'key' + (b ? '' : ' empty') + (b && b.id === state.selected ? ' selected' : ''), 'data-slot': s, 'data-id': b ? b.id : null, style: `--lbl:${Math.max(9, Math.min(15, key * 0.12))}px` });
     if (b) {
       const face = el('div', { class: 'face', style: b.color ? `background-color:${b.color}` : '' });
       const ic = iconFor(b);
       if (ic) face.append(el('img', { class: 'icon', src: ic, draggable: 'false' }));
       else face.append(el('div', { style: 'flex:1' }));
-      if (key >= 56) face.append(el('div', { class: 'lbl' }, b.label));
+      if (key >= 56 && !(state.cfg.hideLabels || b.hideLabel)) face.append(el('div', { class: 'lbl' }, b.label));
       if (b.action.type === 'folder') face.append(el('span', { class: 'badge' }, '📁'));
       k.append(face);
       k.draggable = true;
       k.addEventListener('dragstart', (e) => { e.dataTransfer.setData('application/x-pd-button', b.id); e.dataTransfer.effectAllowed = 'move'; select(b.id, true); });
       k.addEventListener('click', () => select(b.id));
+      k.addEventListener('mouseenter', () => drawCallout(b.id));
+      k.addEventListener('mouseleave', () => drawCallout(state.selected));
       k.addEventListener('dblclick', () => { if (b.action.type === 'folder' && pageById(b.action.page)) { state.page = b.action.page; state.selected = null; renderAll(); } });
     } else if (gen.has(s)) {
       const gb = gen.get(s);
@@ -553,7 +633,7 @@ function renderStage() {
     }
     k.addEventListener('dragover', (e) => {
       const t = e.dataTransfer.types;
-      if (t.includes('application/x-pd-button') || t.includes('application/x-pd-app') || t.includes('application/x-pd-widget')) { e.preventDefault(); k.classList.add('over'); }
+      if (t.includes('application/x-pd-button') || t.includes('application/x-pd-app') || t.includes('application/x-pd-widget') || t.includes('application/x-pd-cmd') || t.includes('application/x-pd-newwidget')) { e.preventDefault(); k.classList.add('over'); }
       else if (t.includes('Files') && b) { e.preventDefault(); k.classList.add('fileover'); }
     });
     k.addEventListener('dragleave', () => k.classList.remove('over', 'fileover'));
@@ -563,13 +643,51 @@ function renderStage() {
   for (const w of widgets) {
     const info = WIDGET_INFO[w.type] || { name: w.type, icon: '▫' };
     const c = w.slot % cols, r = Math.floor(w.slot / cols);
-    const d = el('div', { class: 'wdg' + (w.h === 1 ? ' one' : '') + (w.id === state.selected ? ' selected' : ''), draggable: 'true', style: `grid-column:${c + 1} / span ${w.w};grid-row:${r + 1} / span ${w.h}` },
+    const d = el('div', { 'data-id': w.id, class: 'wdg' + (w.h === 1 ? ' one' : '') + (w.id === state.selected ? ' selected' : ''), draggable: 'true', style: `grid-column:${c + 1} / span ${w.w};grid-row:${r + 1} / span ${w.h}` },
       el('div', { class: 'face' }, el('b', {}, info.icon), el('small', {}, `${info.name} · ${(modelOf(w) || { name: '' }).name}`)));
     d.addEventListener('dragstart', (e) => { e.dataTransfer.setData('application/x-pd-widget', w.id); e.dataTransfer.effectAllowed = 'move'; select(w.id, true); });
     d.addEventListener('click', () => select(w.id));
     grid.append(d);
   }
   holder.append(grid);
+  requestAnimationFrame(() => drawCallout(state.selected));
+}
+
+function actionSummary(b) {
+  const a = b.action || {};
+  switch (a.type) {
+    case 'open': return 'Lance ' + (a.target || '…');
+    case 'url': return 'Ouvre ' + (a.target || '…');
+    case 'keys': return 'Raccourci : ' + (a.keys || 'à définir');
+    case 'text': return 'Tape du texte';
+    case 'micmute': return 'Coupe / rétablit le micro';
+    case 'mastermute': return 'Coupe / rétablit le son';
+    case 'folder': return 'Ouvre un dossier';
+    case 'mixer': return 'Ouvre le mélangeur de volume';
+    default: return '';
+  }
+}
+// Étiquette reliée à la touche par un trait, comme dans G HUB.
+function drawCallout(id) {
+  const stage = $('#stage'); if (!stage) return;
+  stage.querySelectorAll('.callout, svg.cl').forEach(n => n.remove());
+  if (!id) return;
+  const target = stage.querySelector(`[data-id="${CSS.escape(id)}"]`); if (!target) return;
+  const fb = findButton(id), fw = findWidget(id);
+  const title = fb ? fb.button.label : fw ? (WIDGET_INFO[fw.widget.type] || {}).name : ''; if (!title) return;
+  const sub = fb ? actionSummary(fb.button) : (modelOf(fw.widget) || {}).name || '';
+  const sr = stage.getBoundingClientRect(), tr = target.getBoundingClientRect(), pr = $('#phone').getBoundingClientRect();
+  const right = tr.left + tr.width / 2 > pr.left + pr.width / 2;
+  const cardW = 170, space = right ? sr.right - pr.right : pr.left - sr.left;
+  if (space < cardW + 40) return;
+  const x0 = (right ? tr.right : tr.left) - sr.left + (right ? -tr.width * 0.15 : tr.width * 0.15), y0 = tr.top + tr.height / 2 - sr.top;
+  const cardX = right ? pr.right - sr.left + 34 : pr.left - sr.left - 34 - cardW;
+  const cardY = Math.max(8, Math.min(y0 - 34, sr.height - 70));
+  const edgeX = right ? cardX : cardX + cardW, lineY = cardY + 38;
+  const elbow = right ? pr.right - sr.left + 14 : pr.left - sr.left - 14;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('class', 'cl');
+  svg.innerHTML = `<polyline points="${x0},${y0} ${elbow},${y0} ${right ? elbow + 12 : elbow - 12},${lineY} ${edgeX},${lineY}"/><circle cx="${x0}" cy="${y0}" r="3"/>`;
+  stage.append(svg, el('div', { class: 'callout', style: `left:${cardX}px;top:${cardY}px;text-align:${right ? 'left' : 'right'}` }, el('b', {}, title), el('small', {}, sub)));
 }
 
 async function onDropOnSlot(e, slot, existing) {
@@ -603,6 +721,18 @@ async function onDropOnSlot(e, slot, existing) {
     }
     changed(); return;
   }
+  const cmd = dt.getData('application/x-pd-cmd');
+  if (cmd) {
+    if (cmd === 'app') { setLeftTab('app'); return; }
+    state.dropSlot = slot; try { addFromPalette(cmd); } finally { state.dropSlot = undefined; }
+    return;
+  }
+  const nw = dt.getData('application/x-pd-newwidget');
+  if (nw) {
+    const [type, id] = nw.split('|'); const m = (WIDGET_MODELS[type] || []).find(x => x.id === id);
+    if (m) addWidget(type, m, slot);
+    return;
+  }
   const appData = dt.getData('application/x-pd-app');
   if (appData) {
     const a = JSON.parse(appData);
@@ -626,7 +756,7 @@ function placeWidget(page, widget, slot, w, h) {
   if (lastRow > rows) { if (page === state.cfg.pages[0]) state.cfg.rows = lastRow; else page.rows = lastRow; }
   return true;
 }
-function addWidget(type, model) {
+function addWidget(type, model, atSlot) {
   const page = currentPage(); const info = model;
   if (page.generated) { toast('Détache d\'abord cette page du menu Démarrer'); return; }
   pushUndo();
@@ -634,6 +764,11 @@ function addWidget(type, model) {
   const { cols, rows } = pageGrid(page);
   if (widget.w > cols) { state.undo.pop(); toast('Ce modèle est trop large pour la grille (' + cols + ' colonnes)'); return; }
   let done = false;
+  if (atSlot != null) {
+    const tmp = { ...widget };
+    if (!placeWidget(page, tmp, atSlot, widget.w, widget.h)) { state.undo.pop(); toast('Pas assez de place ici : dépose-le sur une zone libre'); return; }
+    Object.assign(widget, tmp); done = true;
+  }
   for (let s = 0; s < cols * (rows + 1) && !done; s++) { if (s % cols + widget.w <= cols) { const tmp = { ...widget }; if (placeWidget(page, tmp, s, widget.w, widget.h)) { Object.assign(widget, tmp); done = true; } } }
   if (!done) { state.undo.pop(); toast('Pas de place sur cette page'); return; }
   (page.widgets ||= []).push(widget);
@@ -654,7 +789,9 @@ function addButton(b, slot) {
   if (page.generated) {
     toast('Ce dossier est rempli depuis le menu Démarrer : clique sur « Détacher » pour le modifier.'); return;
   }
-  b.slot = slot ?? firstFreeSlot(page);
+  b.slot = slot ?? state.dropSlot ?? firstFreeSlot(page);
+  const hit = page.buttons.find(x => x.slot === b.slot);
+  if (hit) hit.slot = firstFreeSlot(page, b.slot);
   const { cols, rows } = pageGrid(page);
   // La grille s'agrandit d'une ligne si besoin.
   if (b.slot >= cols * rows) {
@@ -815,6 +952,8 @@ function renderInspector() {
       el('input', { type: 'file', id: 'fileIn', accept: 'image/*', style: 'display:none', onchange: (e) => e.target.files[0] && uploadIcon(b.id, e.target.files[0]) }))));
 
   box.append(el('label', {}, 'Nom'), el('input', { type: 'text', value: b.label, oninput: (e) => { if (!inspector.typing) { pushUndo(); inspector.typing = true; } b.label = e.target.value; changed2(); }, onchange: () => inspector.typing = false }));
+  box.append(el('label', { style: 'display:flex;gap:8px;align-items:center;color:var(--text);cursor:pointer' },
+    el('input', { type: 'checkbox', checked: !!b.hideLabel, style: 'width:auto', onchange: (e) => upd(() => { if (e.target.checked) b.hideLabel = true; else delete b.hideLabel; }) }), 'Masquer le nom (icône en plein)'));
   box.append(el('label', {}, 'Couleur de fond (facultatif)'),
     el('div', { class: 'row' },
       el('input', { type: 'color', value: b.color || '#1b1b21', style: 'height:34px;padding:2px', oninput: (e) => { b.color = e.target.value; changed2(); }, onchange: () => pushUndo() }),
@@ -1024,7 +1163,7 @@ function addFromPalette(kind) {
   } else if (kind === 'mixer') {
     pushUndo(); addButton({ id: uid('volume'), label: 'Volume', icon: 'builtin:volume', action: { type: 'mixer' } });
   } else if (kind === 'app') {
-    $('#appSearch').focus(); toast('Choisis une appli dans la liste ci-dessous');
+    setLeftTab('app'); $('#appSearch').focus();
   }
 }
 
@@ -1107,6 +1246,7 @@ $('#undoBtn').onclick = undo;
 $('#folderBtn').onclick = () => api('/api/openfolder', { method: 'POST' });
 $('#pairBtn').onclick = openPair;
 $('#settingsBtn').onclick = openSettings;
+$('#hideLbl').onchange = (e) => { pushUndo(); if (e.target.checked) state.cfg.hideLabels = true; else delete state.cfg.hideLabels; changed(); };
 $('#setClose').onclick = () => $('#setDlg').close();
 $('#verBtn').onclick = () => checkUpdate(true);
 $('#startWin').onchange = (e) => api('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ startWithWindows: e.target.checked }) }).catch(err => toast(err.message));
@@ -1114,9 +1254,9 @@ $('#pairClose').onclick = () => $('#pairDlg').close();
 $('#appClose').onclick = () => $('#appDlg').close();
 $('#colMinus').onclick = () => setGrid(-1, 0); $('#colPlus').onclick = () => setGrid(1, 0);
 $('#rowMinus').onclick = () => setGrid(0, -1); $('#rowPlus').onclick = () => setGrid(0, 1);
-$('#appSearch').oninput = renderApps;
+$('#appSearch').oninput = renderLeft;
 renderGallery();
-document.querySelectorAll('[data-add]').forEach(b => b.onclick = () => addFromPalette(b.dataset.add));
+document.querySelectorAll('.utabs button').forEach(b => b.onclick = () => setLeftTab(b.dataset.lt));
 window.addEventListener('resize', () => state.cfg && renderStage());
 window.addEventListener('dragover', (e) => e.preventDefault());
 window.addEventListener('drop', (e) => e.preventDefault());

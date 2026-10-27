@@ -172,9 +172,12 @@ public class DeckServer
                 var w = root.GetProperty("w").GetInt32();
                 var h = root.GetProperty("h").GetInt32();
                 var name = root.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-                if (w >= 200 && h >= 200 && (_store.Config.Device?.W != w || _store.Config.Device?.H != h || _store.Config.Device?.Name != name))
+                var cut = root.TryGetProperty("cut", out var cu) ? cu.GetInt32() : 0;
+                var rad = root.TryGetProperty("r", out var rr) ? rr.GetInt32() : 0;
+                var dv = _store.Config.Device;
+                if (w >= 200 && h >= 200 && (dv?.W != w || dv?.H != h || dv?.Name != name || dv?.Cut != cut || dv?.R != rad))
                 {
-                    _store.Config.Device = new DeckDevice { Name = name, W = w, H = h };
+                    _store.Config.Device = new DeckDevice { Name = name, W = w, H = h, Cut = cut, R = rad };
                     _store.Save();
                     LayoutVersion++; // le configurateur se rafraîchit
                 }
@@ -481,6 +484,7 @@ public class DeckServer
                     {
                         id = b.Id,
                         label = b.Label,
+                        hideLabel = cfg.HideLabels || b.HideLabel,
                         color = b.Color,
                         icon = SafeIcon(b, Children),
                         slot = slots[b.Id],

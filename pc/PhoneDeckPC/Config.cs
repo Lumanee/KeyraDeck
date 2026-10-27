@@ -14,6 +14,8 @@ public class DeckConfig
     public int Columns { get; set; } = 5;
     public int Rows { get; set; } = 3;
     public DeckTheme Theme { get; set; } = new();
+    /// <summary>Cache le nom des boutons : l'icône prend toute la place.</summary>
+    public bool HideLabels { get; set; }
     /// <summary>Ville du widget météo (Open-Meteo).</summary>
     public string WeatherCity { get; set; } = "";
     /// <summary>Dernier téléphone connecté : taille de l'écran en dp (le configurateur copie ses proportions).</summary>
@@ -30,6 +32,10 @@ public class DeckDevice
     public string Name { get; set; } = "";
     public int W { get; set; }
     public int H { get; set; }
+    /// <summary>Hauteur (dp) de la zone de caméra / encoche en haut de l'écran, 0 s'il n'y en a pas.</summary>
+    public int Cut { get; set; }
+    /// <summary>Rayon des coins de l'écran (dp), 0 si inconnu.</summary>
+    public int R { get; set; }
 }
 
 /// <summary>Couleurs du téléphone (boîtier, fond, touches…), au format #RRGGBB.</summary>
@@ -92,6 +98,8 @@ public class DeckButton
     public string? Color { get; set; }
     /// <summary>Case dans la grille (0 = en haut à gauche, on compte ligne par ligne). Vide = première case libre.</summary>
     public int? Slot { get; set; }
+    /// <summary>Cache le nom de ce bouton (l'icône prend toute la place).</summary>
+    public bool HideLabel { get; set; }
     public DeckAction Action { get; set; } = new();
 }
 
