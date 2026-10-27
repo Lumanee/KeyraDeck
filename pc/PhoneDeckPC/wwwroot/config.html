@@ -461,16 +461,19 @@ function iconFor(b) {
   return null;
 }
 
-// Mesures identiques à celles de l'appli Android (DeckScreen.kt, Device) : marge 10, remplissage 14, bandeau 26, écart 14 %, touche max 140 dp.
-const DEV = { margin: 10, pad: 14, strip: 26, gap: 0.14, cap: 140 };
+// Mesures identiques à celles de l'appli Android (DeckScreen.kt, Device) : marge 2,5 % et remplissage 3,4 % du petit côté de l'écran,
+// bandeau 26 dp, barre de flèches 34 dp (seulement s'il y a plusieurs pages), écart 14 %, touche max 140 dp.
+const DEV = { strip: 26, navH: 34, gap: 0.14, cap: 140 };
+const devMetrics = (W, H) => { const small = Math.min(W, H); return { margin: small * 0.025, pad: small * 0.034, radius: small * 0.075 }; };
+const navHeight = () => (state.cfg && state.cfg.pages.filter(isRoot).length > 1 ? DEV.navH : 0);
 function deviceDims() {
   const d = state.info && state.info.device;
   return d && d.w > 0 && d.h > 0 ? { w: d.w, h: d.h, known: true, name: d.name } : { w: 412, h: 915, known: false, name: '' };
 }
 function keySizeFor(cols, rows, W, H) {
-  const bodyW = W - 2 * DEV.margin, bodyH = H - 2 * DEV.margin;
-  const kw = (bodyW - 2 * DEV.pad) / (cols + (cols - 1) * DEV.gap);
-  const kh = (bodyH - 2 * DEV.pad - DEV.strip) / (rows + (rows - 1) * DEV.gap);
+  const m = devMetrics(W, H);
+  const kw = (W - 2 * m.margin - 2 * m.pad) / (cols + (cols - 1) * DEV.gap);
+  const kh = (H - 2 * m.margin - 2 * m.pad - DEV.strip - navHeight()) / (rows + (rows - 1) * DEV.gap);
   return Math.min(kw, kh, DEV.cap);
 }
 // Grille la plus agréable pour cet écran : touches d'environ 64 à 110 dp qui remplissent le mieux la place.
@@ -480,7 +483,8 @@ function recommendGrid(W, H) {
     const key = keySizeFor(cols, rows, W, H);
     if (key < 64 || key > 110) continue;
     const used = (cols * key + (cols - 1) * key * DEV.gap) * (rows * key + (rows - 1) * key * DEV.gap);
-    const score = used / ((W - 2 * DEV.margin - 2 * DEV.pad) * (H - 2 * DEV.margin - 2 * DEV.pad - DEV.strip)) + (cols * rows) * 0.002;
+    const m = devMetrics(W, H);
+    const score = used / ((W - 2 * m.margin - 2 * m.pad) * (H - 2 * m.margin - 2 * m.pad - DEV.strip - navHeight())) + (cols * rows) * 0.002;
     if (!best || score > best.score) best = { cols, rows, score, key };
   }
   return best || { cols: 4, rows: 6, key: 64 };
@@ -496,15 +500,23 @@ function renderStage() {
   const scale = Math.min((stage.clientWidth - 32) / phone.w, (stage.clientHeight - 32) / phone.h);
   const keyDp = keySizeFor(cols, rows, phone.w, phone.h);
   const key = keyDp * scale, g = DEV.gap;
-  dev.style.width = (phone.w - 2 * DEV.margin) * scale + 'px';
-  dev.style.height = (phone.h - 2 * DEV.margin) * scale + 'px';
-  dev.style.borderRadius = 30 * scale + 'px';
-  dev.style.padding = DEV.pad * scale + 'px';
+  const dm = devMetrics(phone.w, phone.h);
+  dev.style.width = (phone.w - 2 * dm.margin) * scale + 'px';
+  dev.style.height = (phone.h - 2 * dm.margin) * scale + 'px';
+  dev.style.borderRadius = dm.radius * scale + 'px';
+  dev.style.padding = dm.pad * scale + 'px';
   dev.append(el('div', { class: 'strip', style: `height:${DEV.strip * scale}px;font-size:${Math.max(7, 10 * scale)}px` },
     el('span', { class: 'dot' + (state.info && state.info.clients.length ? ' on' : '') }), 'PHONEDECK',
     el('span', { style: 'letter-spacing:0;font-weight:400;opacity:.7' }, ' ' + (phone.known ? phone.name + ' · ' + phone.w + '×' + phone.h : 'écran type 412×915'))));
   const holder = el('div', { style: 'flex:1;display:flex;align-items:center;justify-content:center;min-height:0' });
   dev.append(holder);
+  const nav = navHeight();
+  if (nav) {
+    const roots = state.cfg.pages.filter(isRoot); const idx = Math.max(0, roots.indexOf(page));
+    const arrow = (t) => el('span', { style: `width:${52 * scale}px;height:100%;border-radius:${12 * scale}px;background:#ffffff22;display:flex;align-items:center;justify-content:center;color:#ddd;font-size:${Math.max(10, 26 * scale)}px;font-weight:700` }, t);
+    dev.append(el('div', { style: `height:${nav * scale}px;display:flex;align-items:center;justify-content:space-between` }, arrow('‹'),
+      el('span', { style: 'display:flex;gap:5px' }, ...roots.map((_, i) => el('i', { style: `width:${6 * scale + 2}px;height:${6 * scale + 2}px;border-radius:50%;background:${i === idx ? '#ddd' : '#555'}` }))), arrow('›')));
+  }
 
   const grid = el('div', { class: 'grid', style: `grid-template-columns:repeat(${cols},${key}px);grid-template-rows:repeat(${rows},${key}px);gap:${key * g}px` });
   const bySlot = new Map();

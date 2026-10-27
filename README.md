@@ -102,7 +102,8 @@ Chaque widget existe en plusieurs **modèles à taille fixe** (ex. Horloge 1×1,
 
 ## Volume, retour visuel, notifications
 
-- **Mélangeur** : le bouton Volume ouvre une fenêtre avec une tranche verticale par appli, comme une table de mixage (volume général en premier). Glisse vers le haut / bas, touche 🔈 pour couper.
+- **Mélangeur** : le bouton Volume ouvre une fenêtre avec une tranche verticale par appli, comme une table de mixage (volume général en premier). Glisse vers le haut / bas, touche 🔈 pour couper. Pour fermer : croix ✕ ou touche à côté de la fenêtre.
+- **Changer de page** : glisse le doigt, ou touche les flèches ‹ › en bas du boîtier (elles apparaissent dès qu'il y a plusieurs pages). Les marges du boîtier sont proportionnelles à la taille de l'écran.
 - **Retour visuel** : chaque touche s'illumine à la couleur d'accent quand tu appuies (en plus de la vibration).
 - **Notifications** : un message envoyé au PC s'affiche en bandeau sur le téléphone pendant quelques secondes, puis une pastille 🔔 avec le nombre apparaît dans la barre du boîtier (touche-la pour lire la liste). Pour l'instant la source est l'API locale `POST http://localhost:8765/api/notify` (`app`, `title`, `text`) ; la lecture automatique des notifications Windows n'est pas encore branchée.
 

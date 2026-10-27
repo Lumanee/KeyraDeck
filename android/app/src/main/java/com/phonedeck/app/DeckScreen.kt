@@ -16,6 +16,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -70,8 +72,6 @@ import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 
-private val BodyMargin = 10.dp
-private val BodyPad = 14.dp
 private val KeyCap = Color(0xFF060608)
 private val Gloss = Brush.verticalGradient(listOf(Color(0x1FFFFFFF), Color(0x00FFFFFF)))
 private val BodyEdge = Brush.verticalGradient(listOf(Color(0x55FFFFFF), Color(0x08FFFFFF)))
@@ -103,11 +103,12 @@ fun DeckScreen(vm: DeckViewModel) {
         LaunchedEffect(maxWidth, maxHeight) { vm.reportScreen(maxWidth.value.toInt(), maxHeight.value.toInt()) }
         val roots = vm.layout?.rootPages.orEmpty()
         if (roots.isEmpty()) {
-            Device(vm, 5, 3, emptyList(), emptyList(), 0, 1) { editing = it }
+            Device(vm, 5, 3, emptyList(), emptyList(), 0, 1, {}) { editing = it }
             Waiting(vm)
         } else {
             val pager = rememberPagerState(pageCount = { roots.size })
             val focus = vm.focus
+            val pagerScope = rememberCoroutineScope()
             LaunchedEffect(focus) {
                 val index = roots.indexOfFirst { it.id == focus?.page }
                 if (index >= 0 && index != pager.currentPage) pager.animateScrollToPage(index)
@@ -122,6 +123,7 @@ fun DeckScreen(vm: DeckViewModel) {
                     widgets = page.widgets,
                     pageIndex = index,
                     pageCount = roots.size,
+                    onGo = { d -> pagerScope.launch { pager.animateScrollToPage((index + d).coerceIn(0, roots.size - 1)) } },
                     onLongPress = { editing = it },
                 )
             }
@@ -199,35 +201,73 @@ private fun Device(
     widgets: List<DeckWidget>,
     pageIndex: Int,
     pageCount: Int,
+    onGo: (Int) -> Unit,
     onLongPress: (DeckButton) -> Unit,
 ) {
     val cols = columns.coerceIn(1, 12)
     val rws = rows.coerceIn(1, 12)
     // Le boîtier remplit tout l'écran ; les touches sont carrées et centrées dedans.
     // Ces mesures sont les mêmes dans le configurateur du PC (config.html : deviceMetrics), pour que l'aperçu soit fidèle.
-    BoxWithConstraints(Modifier.fillMaxSize().padding(BodyMargin)) {
+    // Marges et épaisseur du boîtier proportionnelles à l'écran (mêmes formules que le configurateur PC).
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val small = min(maxWidth, maxHeight)
+        val margin = small * 0.025f
+        val pad = small * 0.034f
         val strip = 26.dp
+        val nav = if (pageCount > 1) 34.dp else 0.dp
         val gapRatio = 0.14f
-        val keyW = (maxWidth - BodyPad * 2) / (cols + (cols - 1) * gapRatio)
-        val keyH = (maxHeight - BodyPad * 2 - strip) / (rws + (rws - 1) * gapRatio)
+        val keyW = (maxWidth - margin * 2 - pad * 2) / (cols + (cols - 1) * gapRatio)
+        val keyH = (maxHeight - margin * 2 - pad * 2 - strip - nav) / (rws + (rws - 1) * gapRatio)
         val key = min(min(keyW, keyH), 140.dp)
         val gap = key * gapRatio
-        val shape = RoundedCornerShape(30.dp)
+        val shape = RoundedCornerShape(small * 0.075f)
 
         Column(
             Modifier
                 .fillMaxSize()
+                .padding(margin)
                 .shadow(24.dp, shape)
                 .clip(shape)
                 .background(bodyBrush())
                 .border(1.dp, BodyEdge, shape)
-                .padding(BodyPad),
+                .padding(pad),
         ) {
-            StatusStrip(vm, pageIndex, pageCount, Modifier.fillMaxWidth().height(strip))
+            StatusStrip(vm, pageIndex, 1, Modifier.fillMaxWidth().height(strip))
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 KeyGrid(vm, cols, rws, buttons, widgets, key, gap, vm.active, vm::press, onLongPress)
             }
+            if (pageCount > 1) PageNav(pageIndex, pageCount, onGo, Modifier.fillMaxWidth().height(nav))
         }
+    }
+}
+
+/** Flèches ‹ › pour changer de page (on peut aussi glisser), avec un point par page. */
+@Composable
+private fun PageNav(pageIndex: Int, pageCount: Int, onGo: (Int) -> Unit, modifier: Modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        NavArrow("‹", pageIndex > 0) { onGo(-1) }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            repeat(pageCount) { i ->
+                Box(Modifier.size(if (i == pageIndex) 8.dp else 6.dp).clip(CircleShape)
+                    .background(if (i == pageIndex) Color(0xFFDDDDE6) else Color(0xFF55555E)))
+            }
+        }
+        NavArrow("›", pageIndex < pageCount - 1) { onGo(1) }
+    }
+}
+
+@Composable
+private fun NavArrow(label: String, enabled: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .width(52.dp)
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(if (enabled) 0x26FFFFFF else 0x0DFFFFFF))
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, color = Color(if (enabled) 0xFFEEEEF4 else 0xFF55555E), fontSize = 26.sp, fontWeight = FontWeight.Bold)
     }
 }
 

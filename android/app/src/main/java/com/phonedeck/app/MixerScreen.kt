@@ -3,6 +3,10 @@ package com.phonedeck.app
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.remember
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,6 +41,11 @@ import kotlin.math.roundToInt
 fun MixerDialog(vm: DeckViewModel) {
     val theme = LocalTheme.current
     Dialog(onDismissRequest = { vm.closeMixer() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        // Toute la fenêtre est un fond cliquable : toucher à côté du mélangeur le ferme.
+        Box(
+            Modifier.fillMaxSize().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { vm.closeMixer() },
+            contentAlignment = Alignment.Center,
+        ) {
         Column(
             Modifier
                 .padding(horizontal = 12.dp)
@@ -44,11 +53,15 @@ fun MixerDialog(vm: DeckViewModel) {
                 .height(420.dp)
                 .clip(RoundedCornerShape(22.dp))
                 .background(lerp(theme.body, Color.Black, 0.25f))
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { }
                 .padding(14.dp),
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("Volume", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                Text("✕", color = Color(0xFFBBBBC4), fontSize = 22.sp, modifier = Modifier.clickable { vm.closeMixer() }.padding(8.dp))
+                Box(
+                    Modifier.size(44.dp).clip(CircleShape).background(Color(0x26FFFFFF)).clickable { vm.closeMixer() },
+                    contentAlignment = Alignment.Center,
+                ) { Text("✕", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
             }
             if (vm.mixer.isEmpty()) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -62,6 +75,7 @@ fun MixerDialog(vm: DeckViewModel) {
                     for (channel in vm.mixer) ChannelStrip(channel, vm)
                 }
             }
+        }
         }
     }
 }
