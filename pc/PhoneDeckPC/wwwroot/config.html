@@ -112,6 +112,16 @@
   dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 14px; padding: 20px; max-width: 420px; }
   dialog::backdrop { background: #000a; }
   .qr { background: #fff; padding: 8px; border-radius: 8px; width: 240px; height: 240px; display: block; margin: 8px auto; }
+  .usbbox { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .usbstate { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; margin: 6px 0; }
+  .usbstate .dot { flex: none; margin-top: 4px; }
+  .usbstate .dot.wait { background: var(--warn); }
+  .usbsteps { font-size: 12px; color: var(--text); padding-left: 18px; margin: 8px 0; }
+  .usbsteps li { margin: 6px 0; line-height: 1.4; }
+  .usbsteps li.done { color: var(--muted); text-decoration: line-through; }
+  .usbsteps li.now { color: var(--text); font-weight: 600; }
+  .usbsteps a { color: var(--accent); }
+  details summary { cursor: pointer; color: var(--accent); font-size: 12px; }
   .code { font: 700 20px ui-monospace, Consolas, monospace; letter-spacing: .15em; text-align: center; }
   #trash { border: 1px dashed var(--line); border-radius: 10px; padding: 10px; text-align: center; color: var(--muted); margin-top: 14px; }
   #trash.over { border-color: var(--bad); color: var(--bad); }
@@ -266,6 +276,22 @@
   <label>Code</label>
   <div class="code" id="codeVal"></div>
   <div class="hint" id="portVal" style="text-align:center"></div>
+  <div class="usbbox">
+    <label style="margin-top:0">Par câble USB (secours quand le Wi-Fi flanche, idéal en jeu)</label>
+    <div class="usbstate"><span class="dot" id="usbDot"></span><span id="usbText">…</span></div>
+    <button id="usbInstall" class="primary" style="display:none">Installer KeyraDeck sur le téléphone</button>
+    <details id="usbGuide">
+      <summary>Guide pas à pas (à faire une seule fois)</summary>
+      <ol class="usbsteps">
+        <li data-step="1">Sur le téléphone, ouvre <b>Paramètres › À propos du téléphone</b> et touche <b>7 fois « Numéro de build »</b> jusqu'au message « Vous êtes développeur ».<br><span class="hint">Samsung : À propos du téléphone › Informations sur le logiciel › Numéro de version. Xiaomi : Version de MIUI / HyperOS.</span></li>
+        <li data-step="2">Dans <b>Paramètres › Système › Options pour les développeurs</b>, active <b>« Débogage USB »</b>.</li>
+        <li data-step="3">Branche le téléphone au PC avec un <b>câble de données</b> (pas un câble « charge seule »).</li>
+        <li data-step="4">Sur le téléphone, touche <b>« Autoriser »</b> dans la fenêtre « Autoriser le débogage USB ? » en cochant <b>« Toujours autoriser depuis cet ordinateur »</b>.</li>
+        <li data-step="5">C'est tout : KeyraDeck s'ouvre sur le téléphone et passe par le câble. Si tu débranches, il repasse sur le Wi-Fi tout seul.</li>
+      </ol>
+      <div class="hint">Rien ne se passe ? Essaie un autre câble ou une autre prise USB, choisis « Transfert de fichiers » dans la notification USB du téléphone, ou installe le <a href="https://developer.android.com/studio/run/oem-usb?hl=fr" target="_blank" style="color:var(--accent)">pilote USB du fabricant</a>.</div>
+    </details>
+  </div>
   <div style="text-align:right;margin-top:14px"><button id="pairClose">Fermer</button></div>
 </dialog>
 
@@ -278,6 +304,8 @@
   <label style="display:flex;gap:8px;align-items:center;color:var(--text);cursor:pointer;margin-top:4px">
     <input type="checkbox" id="hideLbl" style="width:auto"> Masquer le nom des boutons (l'icône prend toute la place)
   </label>
+  <label>Retour au toucher (téléphone)</label>
+  <div id="fbBox"></div>
   <label>Windows</label>
   <label style="display:flex;gap:8px;align-items:center;color:var(--text);cursor:pointer;margin-top:4px">
     <input type="checkbox" id="startWin" style="width:auto"> Lancer KeyraDeck au démarrage de Windows (discrètement, près de l'horloge)
@@ -286,6 +314,13 @@
   <div class="hint">Toute ta configuration dans un seul fichier : pages, dossiers, boutons, widgets, thème et images. Pour changer de PC ou de téléphone, ou pour garder une copie de côté.</div>
   <div class="row" style="margin-top:8px;justify-content:flex-start"><button id="backupBtn">Sauvegarder dans un fichier…</button><button id="restoreBtn">Restaurer une sauvegarde…</button></div>
   <input type="file" id="restoreFile" accept=".json,application/json" style="display:none">
+  <label>Câble USB</label>
+  <label style="display:flex;gap:8px;align-items:center;color:var(--text);cursor:pointer;margin-top:4px">
+    <input type="checkbox" id="usbOn" style="width:auto"> Connexion de secours par câble USB (le téléphone bascule tout seul entre Wi-Fi et câble)
+  </label>
+  <label style="display:flex;gap:8px;align-items:center;color:var(--text);cursor:pointer;margin-top:4px">
+    <input type="checkbox" id="usbOpen" style="width:auto"> Ouvrir KeyraDeck sur le téléphone quand on le branche
+  </label>
   <label>Version</label>
   <div class="row"><span id="verText" class="hint"></span><button id="verBtn">Vérifier les mises à jour</button></div>
   <div style="text-align:right;margin-top:16px"><button id="setClose" class="primary">Fermer</button></div>
@@ -397,6 +432,7 @@ const currentPage = () => pageById(state.page) || state.cfg.pages[0];
 const findWidget = (id) => { for (const p of state.cfg.pages) { const w = (p.widgets || []).find(w => w.id === id); if (w) return { page: p, widget: w }; } return null; };
 const WIDGET_INFO = {
   media: { name: 'Pavé média', icon: '⏯', desc: 'Précédent, lecture/pause, suivant, volume.' },
+  nowplaying: { name: 'Morceau en cours', icon: '🎵', desc: 'Pochette, titre et artiste de ce qui joue sur le PC (Spotify, YouTube, lecteur Windows…), avec précédent / lecture / suivant.' },
   volume: { name: 'Volume général', icon: '🎚', desc: 'Curseur du volume Windows avec bouton muet.' },
   clock: { name: 'Horloge', icon: '🕒', desc: 'Heure et date.' },
   system: { name: 'CPU / RAM', icon: '📊', desc: 'Charge du processeur et de la mémoire du PC.' },
@@ -409,6 +445,12 @@ const WIDGET_MODELS = {
     { id: 'media-3x1', name: 'Barre ⏮ ⏯ ⏭', w: 3, h: 1 },
     { id: 'media-2x2', name: 'Carré 4 touches', w: 2, h: 2 },
     { id: 'media-3x2', name: 'Complet + volume', w: 3, h: 2 },
+  ],
+  nowplaying: [
+    { id: 'nowplaying-2x1', name: 'Pochette + titre', w: 2, h: 1 },
+    { id: 'nowplaying-4x1', name: 'Barre avec boutons', w: 4, h: 1 },
+    { id: 'nowplaying-2x2', name: 'Carré pochette', w: 2, h: 2 },
+    { id: 'nowplaying-4x2', name: 'Grand avec progression', w: 4, h: 2 },
   ],
   volume: [
     { id: 'volume-3x1', name: 'Barre', w: 3, h: 1 },
@@ -516,12 +558,60 @@ function renderSettings() {
     cs.append(el('label', {}, label, el('input', { type: 'color', value: t[k], oninput: (e) => { t[k] = e.target.value; t.name = 'Personnalisé'; applyTheme(); changed2(); }, onchange: () => renderSettings() })));
   }
 }
+// ---------- Vibration et son au toucher ----------
+
+const SOUNDS = [['click', 'Clic'], ['tick', 'Tic'], ['pop', 'Pop'], ['bip', 'Bip']];
+const STRENGTHS = [[1, 'Légère'], [2, 'Moyenne'], [3, 'Forte']];
+let audioCtx = null;
+/** Aperçu du son sur le PC : mêmes formules que sur le téléphone (Feedback.kt). */
+function previewSound(name, volume) {
+  if (!name || name === 'off') return;
+  audioCtx = audioCtx || new AudioContext();
+  const rate = audioCtx.sampleRate;
+  const len = { click: 0.035, tick: 0.025, pop: 0.06 }[name] || 0.07;
+  const buf = audioCtx.createBuffer(1, Math.floor(rate * len), rate), d = buf.getChannelData(0);
+  const P = 2 * Math.PI;
+  for (let i = 0; i < d.length; i++) {
+    const t = i / rate;
+    d[i] = name === 'click' ? (Math.random() * 2 - 1) * Math.exp(-t * 900) * 0.7 + Math.sin(P * 180 * t) * Math.exp(-t * 120) * 0.5
+      : name === 'tick' ? Math.sin(P * 3200 * t) * Math.exp(-t * 260) * 0.8
+      : name === 'pop' ? Math.sin(P * (900 * t - 5000 * t * t)) * Math.exp(-t * 70) * 0.9
+      : Math.sin(P * 1250 * t) * Math.min(1, t * 400) * Math.exp(-t * 45) * 0.6;
+  }
+  const src = audioCtx.createBufferSource(), g = audioCtx.createGain();
+  g.gain.value = (volume ?? 60) / 100;
+  src.buffer = buf; src.connect(g).connect(audioCtx.destination); src.start();
+}
+function feedback() {
+  return state.cfg.feedback || (state.cfg.feedback = { vibrate: true, strength: 2, sound: 'off', volume: 60 });
+}
+function renderFeedback() {
+  const f = feedback();
+  const set = (fn) => { pushUndo(); fn(); changed2(); renderFeedback(); };
+  const check = (label, on, onchange) => el('label', { style: 'display:flex;gap:8px;align-items:center;color:var(--text);cursor:pointer;margin-top:4px' },
+    el('input', { type: 'checkbox', checked: on, style: 'width:auto', onchange }), label);
+  $('#fbBox').replaceChildren(
+    check('Vibrer quand on touche une touche', !!f.vibrate, (e) => set(() => f.vibrate = e.target.checked)),
+    f.vibrate ? el('div', { class: 'row', style: 'margin:4px 0 0 24px' }, el('span', { class: 'hint', style: 'flex:none' }, 'Force'),
+      el('select', { onchange: (e) => set(() => f.strength = +e.target.value) }, STRENGTHS.map(([v, t]) => el('option', { value: v, selected: f.strength === v }, t)))) : null,
+    check('Jouer un son quand on touche une touche', f.sound !== 'off', (e) => { set(() => f.sound = e.target.checked ? 'click' : 'off'); previewSound(f.sound, f.volume); }),
+    f.sound !== 'off' ? el('div', { class: 'row', style: 'margin:4px 0 0 24px' }, el('span', { class: 'hint', style: 'flex:none' }, 'Son'),
+      el('select', { onchange: (e) => { set(() => f.sound = e.target.value); previewSound(f.sound, f.volume); } }, SOUNDS.map(([v, t]) => el('option', { value: v, selected: f.sound === v }, t))),
+      el('span', { class: 'hint', style: 'flex:none' }, 'Volume'),
+      el('input', { type: 'range', min: 0, max: 100, value: f.volume ?? 60, onchange: (e) => { set(() => f.volume = +e.target.value); previewSound(f.sound, f.volume); } }),
+      el('button', { onclick: () => previewSound(f.sound, f.volume), title: 'Écouter' }, '▶')) : null,
+    el('div', { class: 'hint', style: 'margin-top:6px' }, 'Envoyé au téléphone dès que tu changes ici. On peut aussi régler sur le téléphone (⋮ > Réglages), et chaque bouton peut avoir son propre réglage.'));
+}
+
 async function openSettings() {
   renderSettings();
+  renderFeedback();
   try {
     const st = await api('/api/settings');
     $('#startWin').checked = st.startWithWindows;
     $('#hideLbl').checked = !!state.cfg.hideLabels;
+    $('#usbOn').checked = state.cfg.usbEnabled !== false;
+    $('#usbOpen').checked = state.cfg.usbOpenApp !== false;
     $('#verText').textContent = 'KeyraDeck — version ' + st.build;
   } catch { }
   $('#setDlg').showModal();
@@ -789,6 +879,20 @@ function paintWidget(d, w) {
     const B = { play: '⏯', prev: '⏮', next: '⏭', vd: '🔉', mute: '🔇', vu: '🔊' };
     const rows = m === 'media-1x1' ? [['play']] : m === 'media-3x1' ? [['prev', 'play', 'next']] : m === 'media-2x2' ? [['prev', 'next'], ['play', 'mute']] : [['prev', 'play', 'next'], ['vd', 'mute', 'vu']];
     html = `<div style="display:flex;flex-direction:column;gap:6px;width:100%;height:100%">${rows.map(r => `<div style="flex:1;display:flex;gap:6px">${r.map(k => `<div style="flex:1;background:#ffffff14;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:${Math.min(22, H / rows.length * .5)}px">${B[k]}</div>`).join('')}</div>`).join('')}</div>`;
+  } else if (w.type === 'nowplaying') {
+    const np = live.nowPlaying;
+    const esc = (t) => String(t || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const title = np ? esc(np.title) : 'Rien en lecture', artist = np ? esc(np.artist) : 'Lance Spotify ou une vidéo';
+    const one = 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%';
+    const cover = (sz, extra) => `<div style="flex:none;width:${sz};height:${sz};border-radius:9px;overflow:hidden;background:color-mix(in srgb, black, ${acc} 30%);display:flex;align-items:center;justify-content:center;font-size:22px;${extra || ''}">${np && np.artKey ? `<img src="/api/art?k=${esc(np.artKey)}" style="width:100%;height:100%;object-fit:cover">` : '♪'}</div>`;
+    const texts = (sz) => `<div style="flex:1;min-width:0;text-align:left;line-height:1.25"><div style="${one};font-weight:600;font-size:${sz}px">${title}</div><div style="${one};opacity:.7;font-size:${sz * .82}px">${artist}</div></div>`;
+    const btns = (hh) => `<div style="display:flex;gap:6px;width:100%;height:${hh}">${['⏮', np && np.playing ? '⏸' : '▶', '⏭'].map((g, i) => `<div style="flex:1;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;background:${i === 1 ? acc : '#ffffff1c'}">${g}</div>`).join('')}</div>`;
+    const mmss = (x) => Math.floor(x / 60) + ':' + String(x % 60).padStart(2, '0');
+    const side = Math.max(10, H - 12) + 'px'; // hauteur utile (la face a 6 px de marge)
+    if (m === 'nowplaying-2x1') html = `<div style="display:flex;gap:8px;align-items:center;width:100%;height:100%">${cover(side)}${texts(12)}</div>`;
+    else if (m === 'nowplaying-4x1') html = `<div style="display:flex;gap:10px;align-items:center;width:100%;height:100%">${cover(side)}${texts(13)}<div style="flex:none;width:${H * 1.9}px;height:100%">${btns('100%')}</div></div>`;
+    else if (m === 'nowplaying-2x2') html = `<div style="position:relative;width:100%;height:100%;border-radius:9px;overflow:hidden">${cover('100%', 'position:absolute;inset:0;width:100%;height:100%')}<div style="position:absolute;inset:0;background:linear-gradient(#0003,#000d)"></div><div style="position:absolute;left:6px;right:6px;bottom:6px;display:flex;flex-direction:column;gap:6px">${texts(12)}${btns(H * .28 + 'px')}</div></div>`;
+    else html = `<div style="display:flex;gap:10px;width:100%;height:100%">${cover(side)}<div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between">${np && np.app ? `<span style="color:${acc};font-size:11px;text-align:left">${esc(np.app)}</span>` : '<span></span>'}${texts(15)}${np && np.dur > 0 ? `<div style="font-size:10px;opacity:.75"><div style="height:4px;background:#0a0a0d;border-radius:4px"><div style="height:100%;width:${Math.min(100, np.pos / np.dur * 100)}%;background:${acc};border-radius:4px"></div></div><div style="display:flex;justify-content:space-between"><span>${mmss(np.pos)}</span><span>${mmss(np.dur)}</span></div></div>` : ''}${btns(H * .3 + 'px')}</div></div>`;
   } else if (w.type === 'weather') {
     const x = live.weather;
     if (!x) html = `<span style="opacity:.7;font-size:11px;text-align:center">Météo…<br>(choisis une ville)</span>`;
@@ -1249,6 +1353,19 @@ function renderInspector() {
       el('option', { value: 'auto', selected: b.hideLabel == null }, 'Comme le réglage général (' + (state.cfg.hideLabels ? 'masqué' : 'affiché') + ')'),
       el('option', { value: 'show', selected: b.hideLabel === false }, 'Toujours afficher'),
       el('option', { value: 'hide', selected: b.hideLabel === true }, 'Toujours masquer (icône en plein)')));
+  const fb = feedback();
+  box.append(el('label', {}, 'Vibration au toucher'),
+    el('select', { onchange: (e) => upd(() => { const v = e.target.value; if (v === 'auto') delete b.vibrate; else b.vibrate = +v; }) },
+      el('option', { value: 'auto', selected: b.vibrate == null }, 'Comme le réglage général (' + (fb.vibrate ? STRENGTHS.find(x => x[0] === fb.strength)?.[1].toLowerCase() || 'oui' : 'aucune') + ')'),
+      el('option', { value: '0', selected: b.vibrate === 0 }, 'Aucune'),
+      STRENGTHS.map(([v, t]) => el('option', { value: v, selected: b.vibrate === v }, t))));
+  box.append(el('label', {}, 'Son au toucher'),
+    el('div', { class: 'row' },
+      el('select', { onchange: (e) => { const v = e.target.value; upd(() => { if (v === 'auto') delete b.sound; else b.sound = v; }); previewSound(v === 'auto' ? fb.sound : v, fb.volume); } },
+        el('option', { value: 'auto', selected: b.sound == null }, 'Comme le réglage général (' + (SOUNDS.find(x => x[0] === fb.sound)?.[1] || 'aucun') + ')'),
+        el('option', { value: 'off', selected: b.sound === 'off' }, 'Aucun'),
+        SOUNDS.map(([v, t]) => el('option', { value: v, selected: b.sound === v }, t))),
+      el('button', { onclick: () => previewSound(b.sound ?? fb.sound, fb.volume), title: 'Écouter' }, '▶')));
   box.append(el('label', {}, 'Couleur de fond (facultatif)'),
     el('div', { class: 'row' },
       el('input', { type: 'color', value: b.color || '#1b1b21', style: 'height:34px;padding:2px', oninput: (e) => { b.color = e.target.value; changed2(); }, onchange: () => pushUndo() }),
@@ -1517,6 +1634,7 @@ async function refreshInfo() {
     if (!state.dirty && info.version !== state.version) { await loadAll(); }
     else if (!!was !== !!n) renderStage();
     checkAdapt();
+    renderUsb();
     if (info.error) setSaved(info.error, true);
   } catch { /* le PC est peut-être en train de redémarrer */ }
 }
@@ -1537,12 +1655,51 @@ async function checkUpdate(manual) {
     }
   } catch { /* hors ligne : on réessaiera */ }
 }
+// État du câble USB : texte, voyant et étape du guide à faire maintenant.
+function renderUsb() {
+  const u = state.info && state.info.usb;
+  if (!u) return;
+  const phone = u.phone || 'Le téléphone';
+  const msg = {
+    off: ['', 'Connexion par câble désactivée (Réglages › Câble USB).', 0],
+    notool: ['', 'Outil USB indisponible sur ce PC.', 0],
+    downloading: ['wait', 'Préparation de la connexion USB (outil Android de Google)… ' + (u.progress ?? 0) + ' %', 0],
+    nophone: ['', 'Aucun téléphone détecté sur le câble. Suis le guide ci-dessous.', 1],
+    unauthorized: ['wait', phone + ' est branché : touche « Autoriser » sur le téléphone (coche « Toujours autoriser »).', 4],
+    offline: ['wait', 'Téléphone détecté mais pas encore prêt : débranche et rebranche le câble.', 4],
+    noapp: ['wait', 'KeyraDeck n\'est pas encore installé sur ' + phone + '.', 5],
+    ready: u.usbClient ? ['on', phone + ' est connecté par le câble USB ✓', 6] : ['on', phone + ' est prêt par câble : ouvre KeyraDeck sur le téléphone, il passera par le câble tout seul.', 5],
+    error: ['', 'Problème USB : ' + (u.error || 'inconnu'), 1],
+  }[u.state] || ['', u.state, 0];
+  $('#usbDot').className = 'dot' + (msg[0] ? ' ' + msg[0] : '');
+  $('#usbText').textContent = msg[1];
+  const b = $('#usbInstall');
+  b.style.display = u.state === 'noapp' || u.installing ? '' : 'none';
+  b.disabled = !!u.installing;
+  b.textContent = u.installing ? 'Installation en cours…' : 'Installer KeyraDeck sur le téléphone';
+  document.querySelectorAll('.usbsteps li').forEach(li => {
+    const n = +li.dataset.step;
+    li.classList.toggle('done', msg[2] > 1 && n < msg[2]);
+    li.classList.toggle('now', n === msg[2]);
+  });
+}
+async function installOnPhone() {
+  const b = $('#usbInstall'); b.disabled = true; b.textContent = 'Installation en cours…';
+  try {
+    const r = await api('/api/usb/install', { method: 'POST' });
+    if (r.error) throw new Error(r.error);
+    toast('KeyraDeck est installé sur le téléphone ✓');
+  } catch (e) { toast(e.message); }
+  refreshInfo();
+}
 function openPair() {
   const info = state.info;
   const sel = $('#ipSel'); sel.replaceChildren(...info.addresses.map(ip => el('option', { value: ip }, ip)));
   const upd = () => { $('#qrImg').src = '/api/qr.png?ip=' + encodeURIComponent(sel.value) + '&t=' + Date.now(); };
   sel.onchange = upd; upd();
   $('#codeVal').textContent = info.token; $('#portVal').textContent = 'Port ' + info.port;
+  renderUsb();
+  if (info.usb && ['nophone', 'unauthorized', 'offline', 'error'].includes(info.usb.state)) $('#usbGuide').open = true;
   $('#pairDlg').showModal();
 }
 
@@ -1906,6 +2063,9 @@ $('#hideLbl').onchange = (e) => { pushUndo(); if (e.target.checked) state.cfg.hi
 $('#setClose').onclick = () => $('#setDlg').close();
 $('#verBtn').onclick = () => checkUpdate(true);
 $('#startWin').onchange = (e) => api('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ startWithWindows: e.target.checked }) }).catch(err => toast(err.message));
+$('#usbInstall').onclick = installOnPhone;
+$('#usbOn').onchange = (e) => { state.cfg.usbEnabled = e.target.checked; changed(); };
+$('#usbOpen').onchange = (e) => { state.cfg.usbOpenApp = e.target.checked; changed(); };
 $('#pairClose').onclick = () => $('#pairDlg').close();
 $('#appClose').onclick = () => $('#appDlg').close();
 $('#pageClose').onclick = () => $('#pageDlg').close();

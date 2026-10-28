@@ -101,6 +101,7 @@ Dans le configurateur, les widgets s'affichent **en direct** comme sur le télé
 Chaque widget existe en plusieurs **modèles à taille fixe** (ex. Horloge 1×1, 2×1, 2×2 ; CPU/RAM Mini, Compact, Barre, Anneaux) : le contenu est dessiné pour cette taille et ne disparaît jamais. Clique sur un modèle pour l'ajouter ; pour en changer, sélectionne le widget et choisis un autre modèle dans le panneau de droite.
 
 - **Pavé média** : 1×1 (lecture/pause), 3×1 (précédent, lecture, suivant), 2×2, 3×2 (avec volume − / muet / +).
+- **Morceau en cours** : pochette, titre et artiste de ce qui joue sur le PC, avec précédent / lecture / suivant (2×1, 4×1, 2×2 pochette en fond, 4×2 avec barre de progression). Utilise les contrôles média de Windows (le panneau qui apparaît quand on change le volume) : marche avec Spotify, YouTube dans le navigateur, le lecteur Windows, Deezer… sans compte ni clé. Windows 10 (version 1809) ou plus récent.
 - **Volume général** : barres 3×1 ou 4×1, ou verticales 1×2 et 1×3.
 - **Horloge** : 1×1 (heure), 2×1 (heure et date), 2×2 (grande horloge).
 - **CPU / RAM** : charge du processeur et de la mémoire, en 1×1, 2×1, 3×1 ou 2×2 (anneaux).
@@ -141,15 +142,21 @@ Le bouton **Réglages** du configurateur propose 5 thèmes : **Noir OLED**, **Bl
 
 Tes boutons et réglages sont conservés.
 
-## Connexion par câble USB (facultatif)
+## Connexion par câble USB (secours, idéal en jeu)
 
-Avec les outils Android (`adb`) installés et le débogage USB activé sur le téléphone :
+Quand le Wi-Fi est capricieux, branche simplement le téléphone au PC : KeyraDeck passe tout seul par le câble, et revient sur le Wi-Fi quand tu le débranches. Le petit repère **USB** à côté de la LED du boîtier indique qu'il passe par le câble.
 
-```
-adb reverse tcp:8765 tcp:8765
-```
+À faire une seule fois :
 
-Puis dans l'appli, choisis **Connexion par câble USB**, saisis le code et connecte-toi.
+1. Sur le téléphone : **Paramètres › À propos du téléphone**, touche **7 fois « Numéro de build »** (Samsung : Informations sur le logiciel › Numéro de version ; Xiaomi : Version de MIUI / HyperOS).
+2. **Paramètres › Système › Options pour les développeurs** : active **« Débogage USB »**.
+3. Branche le téléphone au PC avec un câble de données, puis touche **« Autoriser »** (coche « Toujours autoriser depuis cet ordinateur »).
+
+Le PC s'occupe du reste : il télécharge une fois l'outil Android officiel de Google (« adb », ~7 Mo, rangé dans `%APPDATA%\KeyraDeck\platform-tools`), détecte le téléphone, ouvre le tunnel et ouvre KeyraDeck sur le téléphone. Le guide et l'état du câble sont dans **Connecter un téléphone** sur le PC (et dans **Réglages › Connexion par câble USB** sur le téléphone). Si KeyraDeck n'est pas installé sur le téléphone, un bouton permet de l'installer par le câble. Tout se désactive dans **Réglages › Câble USB** sur le PC.
+
+Rien ne se passe ? Essaie un autre câble ou une autre prise, choisis « Transfert de fichiers » dans la notification USB du téléphone, ou installe le [pilote USB du fabricant](https://developer.android.com/studio/run/oem-usb?hl=fr).
+
+Technique : `adb reverse tcp:8765 tcp:8766`. Le port 8766 du PC n'écoute que sur le PC lui-même et n'accepte que la connexion du deck (avec le code), jamais le configurateur.
 
 ## Pour les développeurs
 

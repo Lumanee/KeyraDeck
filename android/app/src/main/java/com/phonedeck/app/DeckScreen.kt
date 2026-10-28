@@ -66,9 +66,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -296,6 +294,19 @@ private fun StatusStrip(vm: DeckViewModel, pageIndex: Int, pageCount: Int, modif
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(7.dp).shadow(4.dp, CircleShape).clip(CircleShape).background(led))
         Spacer(Modifier.width(8.dp))
+        // Connecté par le câble : petit repère « USB » à côté de la LED (touche = aide sur le câble).
+        if (vm.status == Status.Connected && vm.link == Link.Usb) {
+            Text(
+                "USB",
+                color = led,
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp,
+                modifier = Modifier.clip(RoundedCornerShape(3.dp)).background(Color(0x224CD964))
+                    .clickable { vm.showUsbGuide = true }.padding(horizontal = 4.dp, vertical = 1.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+        }
         Image(painterResource(R.drawable.ic_logo), contentDescription = null, modifier = Modifier.height(14.dp))
         Spacer(Modifier.width(6.dp))
         Text(
@@ -305,7 +316,7 @@ private fun StatusStrip(vm: DeckViewModel, pageIndex: Int, pageCount: Int, modif
             fontWeight = FontWeight.Bold,
             letterSpacing = 3.sp,
         )
-        // Seulement la LED (verte = connecté, orange = connexion, rouge = déconnecté) : pas de nom de PC.
+        // Seulement la LED (verte = connecté, orange = connexion, rouge = déconnecté) et « USB » par câble : pas de nom de PC.
         Spacer(Modifier.weight(1f))
         NotificationBadge(vm)
         Spacer(Modifier.width(6.dp))
@@ -347,8 +358,7 @@ fun DeckKey(
     onPress: (DeckButton) -> Unit,
     onLongPress: (DeckButton) -> Unit,
 ) {
-    val haptic = LocalHapticFeedback.current
-    val hapticsOn = LocalSettings.current.haptics
+    val touch = LocalTouch.current
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.92f else 1f, label = "press")
@@ -370,12 +380,12 @@ fun DeckKey(
             interactionSource = interaction,
             indication = null,
             onClick = {
-                if (hapticsOn) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                touch.touch(button.vibrate, button.sound, false)
                 scope.launch { flash.snapTo(1f); flash.animateTo(0f, tween(500)) }
                 onPress(button)
             },
             onLongClick = {
-                if (hapticsOn) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                touch.touch(button.vibrate, "off", true)
                 onLongPress(button)
             },
         )
