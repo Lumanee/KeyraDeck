@@ -112,6 +112,9 @@ public class DeckServer
         finally
         {
             lock (_clients) _clients.Remove(client);
+            // Téléphone parti avec une touche enfoncée (Ctrl, Maj…) : on la relâche pour ne pas la laisser coincée.
+            foreach (var vk in client.HeldKeys)
+                try { KeySender.KeyEvent(vk, false); } catch { }
             ClientsChanged?.Invoke();
             Log?.Invoke($"{client.Name} déconnecté");
         }
@@ -224,6 +227,17 @@ public class DeckServer
                     var spec = kk.GetString() ?? "";
                     if (KeySender.IsSafeSpec(spec)) await Task.Run(() => KeySender.Send(spec));
                 }
+                break;
+            }
+
+            case "key":
+            {
+                // Clavier PC complet du téléphone : une touche enfoncée ou relâchée (traité dans l'ordre, sans Task.Run).
+                var vk = root.GetProperty("vk").GetInt32();
+                var down = root.GetProperty("down").GetBoolean();
+                if (!KeySender.IsPhysicalKey(vk)) break;
+                if (down) client.HeldKeys.Add(vk); else client.HeldKeys.Remove(vk);
+                KeySender.KeyEvent(vk, down);
                 break;
             }
 
@@ -612,6 +626,8 @@ public class DeckServer
     {
         public WebSocket Socket { get; }
         public string Name { get; }
+        /// <summary>Touches du clavier PC actuellement enfoncées par ce téléphone.</summary>
+        public HashSet<int> HeldKeys { get; } = new();
         private readonly SemaphoreSlim _sendLock = new(1, 1);
 
         public Client(WebSocket socket, string name)

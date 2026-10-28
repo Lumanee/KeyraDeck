@@ -395,6 +395,11 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         send(JSONObject().put("type", "type").put("text", text))
     }
 
+    /** Clavier PC complet : une touche (code de touche virtuelle Windows) enfoncée ou relâchée. */
+    fun pcKey(vk: Int, down: Boolean) {
+        send(JSONObject().put("type", "key").put("vk", vk).put("down", down))
+    }
+
     /** Touche ou raccourci simple, ex. "Enter" ou "Ctrl+C". */
     fun typeKey(spec: String) {
         send(JSONObject().put("type", "type").put("key", spec))

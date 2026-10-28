@@ -118,7 +118,9 @@ Les widgets s'affichent comme de petits **écrans tactiles encastrés** dans le 
 
 ## Souris et clavier
 
-Le bouton **🖱 Souris** de la barre du boîtier (visible sur toutes les pages) ouvre un **trackpad** : glisse un doigt pour déplacer le curseur du PC, touche pour cliquer, glisse à deux doigts pour défiler, touche à deux doigts pour le clic droit. Les boutons **Clic gauche / Clic droit** en bas restent enfoncés tant que tu appuies (glisser-déposer possible). Le bouton **Clavier** ouvre le clavier du téléphone : ce que tu tapes arrive dans la fenêtre active du PC, avec une rangée de touches spéciales (Échap, Tab, flèches, Suppr…) et des modificateurs Ctrl / Alt / Maj / Win à toucher avant une lettre (ex. Ctrl puis C).
+Le bouton **🖱 Souris** de la barre du boîtier (visible sur toutes les pages) ouvre un **trackpad** : glisse un doigt pour déplacer le curseur du PC, touche pour cliquer, glisse à deux doigts pour défiler, touche à deux doigts pour le clic droit. Les boutons **Clic gauche / Clic droit** en bas restent enfoncés tant que tu appuies (glisser-déposer possible). Le bouton **⌨ Clavier** ouvre un **vrai clavier d'ordinateur AZERTY** en plein écran (le téléphone passe en paysage) : Échap, F1 à F12, Impr, Suppr, chiffres, lettres, ponctuation, Verr. Maj, Maj, Ctrl, Win, Alt, Alt Gr, flèches, et Inser / Début / Fin / Pg ↑ / Pg ↓ en haut. Chaque touche est envoyée au PC comme une vraie touche (elle reste enfoncée tant que le doigt est dessus, et se répète si tu la gardes), donc ça marche aussi dans les jeux. Pour les raccourcis : garde Ctrl d'un doigt et touche C de l'autre, ou touche Ctrl une fois (il s'allume) puis C. Retouche une touche allumée pour l'éteindre. Le bouton **🖱 Souris** revient au trackpad.
+
+Le bouton **Texte** ouvre le clavier du téléphone (pratique pour la dictée vocale ou les emojis) : ce que tu tapes arrive dans la fenêtre active du PC, avec une rangée de touches spéciales et des modificateurs Ctrl / Alt / Maj / Win à toucher avant une lettre.
 
 ## Écran du téléphone
 

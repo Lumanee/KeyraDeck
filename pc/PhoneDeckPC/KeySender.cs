@@ -89,6 +89,68 @@ public static class KeySender
         return null;
     }
 
+    // ---- Clavier PC complet du téléphone : chaque touche est enfoncée puis relâchée, comme un vrai clavier ----
+
+    private static readonly HashSet<int> PhysicalKeys = BuildPhysicalKeys();
+
+    private static HashSet<int> BuildPhysicalKeys()
+    {
+        var set = new HashSet<int> { 0x08, 0x09, 0x0D, 0x14, 0x1B, 0x20, 0x2C, 0x2D, 0x2E, 0x5B, 0x5D, 0xE2 };
+        for (int vk = 0x21; vk <= 0x28; vk++) set.Add(vk);  // Pg préc/suiv, Fin, Début, flèches
+        for (int vk = 0x30; vk <= 0x39; vk++) set.Add(vk);  // chiffres
+        for (int vk = 0x41; vk <= 0x5A; vk++) set.Add(vk);  // lettres
+        for (int vk = 0x70; vk <= 0x7B; vk++) set.Add(vk);  // F1-F12
+        for (int vk = 0xA0; vk <= 0xA5; vk++) set.Add(vk);  // Maj, Ctrl, Alt gauche/droite
+        for (int vk = 0xBA; vk <= 0xC0; vk++) set.Add(vk);  // ponctuation (OEM)
+        for (int vk = 0xDB; vk <= 0xDF; vk++) set.Add(vk);
+        return set;
+    }
+
+    /// <summary>Touches acceptées depuis le clavier PC du téléphone (codes de touche virtuelle Windows).</summary>
+    public static bool IsPhysicalKey(int vk) => PhysicalKeys.Contains(vk);
+
+    /// <summary>
+    /// Enfonce ou relâche une touche. On envoie le code « matériel » (scan code) de la touche pour la disposition
+    /// active : les jeux le voient comme un vrai clavier et AZERTY/QWERTY sont respectés.
+    /// </summary>
+    public static void KeyEvent(int vk, bool down)
+    {
+        INPUT[] inputs = vk == 0xA5
+            // AltGr = Ctrl gauche + Alt droit, comme sur un vrai clavier AZERTY.
+            ? (down ? new[] { PhysicalKey(0xA2, false), PhysicalKey(0xA5, false) } : new[] { PhysicalKey(0xA5, true), PhysicalKey(0xA2, true) })
+            : new[] { PhysicalKey(vk, !down) };
+        SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+    }
+
+    private static INPUT PhysicalKey(int vk, bool up)
+    {
+        var layout = GetKeyboardLayout(GetWindowThreadProcessId(GetForegroundWindow(), out _));
+        var sc = vk == 0x2C ? 0u : MapVirtualKeyEx((uint)vk, MAPVK_VK_TO_VSC_EX, layout);
+        if (sc == 0) return Key((Keys)vk, up);
+        uint flags = KEYEVENTF_SCANCODE | (up ? KEYEVENTF_KEYUP : 0);
+        if ((sc & 0xFF00) != 0 || Extended.Contains((Keys)vk)) flags |= KEYEVENTF_EXTENDEDKEY;
+        return new INPUT
+        {
+            type = INPUT_KEYBOARD,
+            U = new InputUnion { ki = new KEYBDINPUT { wVk = (ushort)vk, wScan = (ushort)(sc & 0xFF), dwFlags = flags } },
+        };
+    }
+
+    private const uint MAPVK_VK_TO_VSC_EX = 4;
+    private const uint KEYEVENTF_SCANCODE = 0x0008;
+
+    [DllImport("user32.dll")]
+    private static extern uint MapVirtualKeyEx(uint uCode, uint uMapType, IntPtr dwhkl);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetKeyboardLayout(uint idThread);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+
     // ---- Souris (page « souris / clavier » du téléphone) ----
 
     // Les déplacements arrivent par paquets irréguliers (Wi-Fi) : on les met en file et un fil dédié les répartit
