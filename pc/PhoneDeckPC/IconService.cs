@@ -91,6 +91,31 @@ public class IconService
                     return Cached("builtin:volume", () => Builtin("volume"));
                 case "url":
                     return Cached("builtin:web", () => Builtin("web"));
+                case "obs":
+                {
+                    var code = (a.Command ?? "").ToLowerInvariant() switch
+                    {
+                        "stream" => '\uE714', "record" => '\uE7C8', "pause" => '\uE769', "replay" => '\uE72C',
+                        "virtualcam" => '\uE8B8', "mute" => '\uE720', _ => '\uE7F4',
+                    };
+                    return Cached("glyph:obs:" + (int)code, () => Glyph(code));
+                }
+                case "discord":
+                    return (a.Command ?? "").ToLowerInvariant() switch
+                    {
+                        "deafen" => Cached("builtin:headphones", () => Builtin("headphones")),
+                        "leave" => Cached("glyph:E711", () => Glyph('\uE711')),
+                        _ => Cached("builtin:mic", () => Builtin("mic")),
+                    };
+                case "ha":
+                {
+                    var code = (a.Target ?? "").Split('.')[0] switch
+                    {
+                        "light" => '\uE706', "scene" => '\uE790', "script" => '\uE756', "media_player" => '\uE768',
+                        "cover" or "lock" or "climate" => '\uE80F', _ => '\uE7E8',
+                    };
+                    return Cached("glyph:ha:" + (int)code, () => Glyph(code));
+                }
                 default:
                     if (a.Target == null) return null;
                     if (AppCatalog.IsUrl(a.Target)) return Cached("builtin:web", () => Builtin("web"));

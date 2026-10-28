@@ -18,14 +18,16 @@ public class ConfigApi
     private readonly AppCatalog _catalog;
     private readonly StaWorker _sta;
     private readonly DeckServer _server;
+    private readonly Integrations _int;
     private readonly Dictionary<string, byte[]?> _appIcons = new();
     private readonly Updater _updater = new();
 
     /// <summary>Demande à la fenêtre de se fermer (après le téléchargement d'une mise à jour).</summary>
     public Action? ExitRequested { get; set; }
 
-    public ConfigApi(ConfigStore store, AppCatalog catalog, StaWorker sta, DeckServer server)
+    public ConfigApi(ConfigStore store, AppCatalog catalog, StaWorker sta, DeckServer server, Integrations integrations)
     {
+        _int = integrations;
         _store = store;
         _catalog = catalog;
         _sta = sta;
@@ -179,6 +181,78 @@ public class ConfigApi
                     return;
                 }
 
+                case "/api/integrations" when method == "GET":
+                    await Json(ctx, IntegrationsInfo());
+                    return;
+
+                case "/api/integrations" when method == "POST":
+                {
+                    // Réglages des connexions : seuls les champs envoyés changent.
+                    using var doc = await JsonDocument.ParseAsync(ctx.Request.Body);
+                    var s = _int.Store.Settings;
+                    var r = doc.RootElement;
+                    if (r.TryGetProperty("obs", out var o))
+                    {
+                        if (o.TryGetProperty("enabled", out var v)) s.Obs.Enabled = v.GetBoolean();
+                        if (o.TryGetProperty("host", out v)) s.Obs.Host = v.GetString() ?? "localhost";
+                        if (o.TryGetProperty("port", out v) && v.TryGetInt32(out var port) && port is > 0 and < 65536) s.Obs.Port = port;
+                        if (o.TryGetProperty("password", out v)) s.Obs.Password = v.GetString() ?? "";
+                    }
+                    if (r.TryGetProperty("discord", out var d))
+                    {
+                        if (d.TryGetProperty("enabled", out var v)) s.Discord.Enabled = v.GetBoolean();
+                        var oldId = s.Discord.ClientId;
+                        if (d.TryGetProperty("clientId", out v)) s.Discord.ClientId = (v.GetString() ?? "").Trim();
+                        if (d.TryGetProperty("clientSecret", out v)) s.Discord.ClientSecret = (v.GetString() ?? "").Trim();
+                        // Autre application Discord : l'ancien jeton ne vaut plus rien.
+                        if (oldId != s.Discord.ClientId) { s.Discord.AccessToken = s.Discord.RefreshToken = null; s.Discord.ExpiresAt = null; }
+                    }
+                    if (r.TryGetProperty("homeAssistant", out var h))
+                    {
+                        if (h.TryGetProperty("enabled", out var v)) s.HomeAssistant.Enabled = v.GetBoolean();
+                        if (h.TryGetProperty("url", out v)) s.HomeAssistant.Url = (v.GetString() ?? "").Trim();
+                        if (h.TryGetProperty("token", out v) && !string.IsNullOrWhiteSpace(v.GetString())) s.HomeAssistant.Token = v.GetString()!.Trim();
+                    }
+                    _int.Store.Save();
+                    await Json(ctx, IntegrationsInfo());
+                    return;
+                }
+
+                case "/api/openurl" when method == "POST":
+                {
+                    // Liens d'aide du configurateur (portail Discord…) : ouverts dans le navigateur, https seulement.
+                    using var doc = await JsonDocument.ParseAsync(ctx.Request.Body);
+                    var url = doc.RootElement.GetProperty("url").GetString() ?? "";
+                    if (!url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Adresse refusée");
+                    var error = await _catalog.OpenUrlAsync(url);
+                    await Json(ctx, new { ok = error == null, error });
+                    return;
+                }
+
+                case "/api/discord/authorize" when method == "POST":
+                    _int.Discord.Authorize();
+                    await Json(ctx, new { ok = true });
+                    return;
+
+                case "/api/discord/forget" when method == "POST":
+                {
+                    var ds = _int.Store.Settings.Discord;
+                    ds.AccessToken = ds.RefreshToken = null;
+                    ds.ExpiresAt = null;
+                    ds.Enabled = false;
+                    _int.Store.Save();
+                    await Json(ctx, new { ok = true });
+                    return;
+                }
+
+                case "/api/obs/lists":
+                    await Json(ctx, new { connected = _int.Obs.Connected, status = _int.Obs.Status, scenes = _int.Obs.Scenes, inputs = _int.Obs.AudioInputs, current = _int.Obs.CurrentScene });
+                    return;
+
+                case "/api/ha/entities":
+                    await Json(ctx, (await _int.HomeAssistant.EntitiesAsync()).Select(e => new { id = e.Id, name = e.Name, state = e.State }));
+                    return;
+
                 case "/api/notify" when method == "POST":
                 {
                     using var doc = await JsonDocument.ParseAsync(ctx.Request.Body);
@@ -217,6 +291,22 @@ public class ConfigApi
             ctx.Response.StatusCode = 400;
             await Json(ctx, new { ok = false, error = e.Message });
         }
+    }
+
+    private object IntegrationsInfo()
+    {
+        var s = _int.Store.Settings;
+        return new
+        {
+            obs = new { enabled = s.Obs.Enabled, host = s.Obs.Host, port = s.Obs.Port, password = s.Obs.Password, connected = _int.Obs.Connected, status = _int.Obs.Status },
+            discord = new
+            {
+                enabled = s.Discord.Enabled, clientId = s.Discord.ClientId, clientSecret = s.Discord.ClientSecret,
+                authorized = s.Discord.RefreshToken != null || s.Discord.AccessToken != null, connected = _int.Discord.Connected, status = _int.Discord.Status,
+            },
+            // Le jeton de Home Assistant n'est jamais renvoyé : on dit seulement s'il est rempli.
+            homeAssistant = new { enabled = s.HomeAssistant.Enabled, url = s.HomeAssistant.Url, hasToken = s.HomeAssistant.Token.Length > 0, connected = _int.HomeAssistant.Connected, status = _int.HomeAssistant.Status },
+        };
     }
 
     /// <summary>Seulement le PC lui-même, et seulement sous le nom « localhost » (protection contre les sites malveillants).</summary>

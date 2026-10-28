@@ -81,6 +81,7 @@ fun DeckWidgetView(widget: DeckWidget, width: Dp, height: Dp, unit: Dp, vm: Deck
                 "clock" -> ClockWidget(widget)
                 "system" -> SystemWidget(widget, vm)
                 "weather" -> WeatherWidget(widget, vm)
+                "discord" -> DiscordWidget(widget, vm)
                 else -> Text(widget.type, color = Color.Gray)
             }
         }
@@ -367,5 +368,93 @@ private fun WeatherWidget(widget: DeckWidget, vm: DeckViewModel) {
                 Text("${wx.temp}°", color = Color.White, fontSize = (h * 0.28f).sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
             }
         }
+    }
+}
+
+// ---------- Salon vocal Discord ----------
+
+private val DiscordBlurple = Color(0xFF5865F2)
+private val DiscordGreen = Color(0xFF23A55A)
+
+/** Qui est dans le salon vocal et qui parle (contour vert), avec le micro et la sourdine en haut. */
+@Composable
+private fun DiscordWidget(widget: DeckWidget, vm: DeckViewModel) {
+    val d = vm.discord
+    val active = LocalTheme.current.active
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val w = maxWidth.value
+        val h = maxHeight.value
+        val small = min(w * 0.075f, 12f)
+        if (d == null || !d.connected) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(if (d == null) "Discord…" else "Discord\n" + d.status, color = Color(0xFFBBBBC4), fontSize = small.sp, textAlign = TextAlign.Center, maxLines = 4)
+            }
+            return@BoxWithConstraints
+        }
+        // Nombre de visages selon le modèle : 2×1 → une ligne, 2×2 → 4, 3×2 → 6.
+        val maxFaces = when (widget.model) { "discord-2x1" -> 3; "discord-3x2" -> 6; else -> 4 }
+        val perRow = when (widget.model) { "discord-2x1" -> 3; "discord-3x2" -> 3; else -> 2 }
+        Column(Modifier.fillMaxSize()) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (d.channel.isEmpty()) "Pas en vocal" else "🔊 " + d.channel,
+                    color = Color.White, fontSize = small.sp, maxLines = 1, softWrap = false, modifier = Modifier.weight(1f),
+                )
+                MiniToggle(if (d.muted || d.deafened) "🔇" else "🎙", d.muted || d.deafened, active, small) { vm.sendDiscord("mute") }
+                Spacer(Modifier.width(4.dp))
+                MiniToggle("🎧", d.deafened, active, small) { vm.sendDiscord("deafen") }
+            }
+            Spacer(Modifier.height(4.dp))
+            if (d.members.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(if (d.channel.isEmpty()) "Rejoins un salon vocal" else "Personne", color = Color(0xFFBBBBC4), fontSize = small.sp)
+                }
+            } else {
+                val shown = d.members.take(maxFaces)
+                val rows = shown.chunked(perRow)
+                val face = min(w / perRow * 0.55f, (h - small * 3f) / rows.size * 0.55f).coerceAtLeast(14f)
+                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
+                    rows.forEach { row ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                            row.forEach { m -> DiscordFace(m, face, small) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MiniToggle(symbol: String, on: Boolean, active: Color, size: Float, onTap: () -> Unit) {
+    Box(
+        Modifier
+            .size((size * 2.1f).dp)
+            .clip(RoundedCornerShape(50))
+            .background(if (on) active else Color(0x33FFFFFF))
+            .clickable { onTap() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(symbol, fontSize = (size * 1.05f).sp)
+    }
+}
+
+@Composable
+private fun DiscordFace(m: DiscordMember, size: Float, textSize: Float) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier
+                .size(size.dp)
+                .clip(RoundedCornerShape(50))
+                .background(DiscordBlurple)
+                .border(if (m.speaking) 3.dp else 0.dp, if (m.speaking) DiscordGreen else Color.Transparent, RoundedCornerShape(50)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(m.name.trim().take(1).uppercase(), color = Color.White, fontSize = (size * 0.45f).sp, fontWeight = FontWeight.Bold)
+            if (m.muted || m.deafened) {
+                Text(if (m.deafened) "🎧" else "🔇", fontSize = (size * 0.28f).sp, modifier = Modifier.align(Alignment.BottomEnd))
+            }
+        }
+        Text(m.name, color = if (m.speaking) DiscordGreen else Color(0xFFDDDDE4), fontSize = (textSize * 0.85f).sp, maxLines = 1, softWrap = false)
     }
 }

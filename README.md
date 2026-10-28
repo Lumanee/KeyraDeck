@@ -59,15 +59,17 @@ Fermer la fenêtre la range près de l'horloge (l'appli reste active). Pour quit
 Le téléphone et le PC doivent être sur le **même réseau Wi-Fi / box**.
 Si le scan ne marche pas, saisis l'adresse IP, le port (8765) et le code affichés sur le PC.
 
-### 4. Régler Discord (micro / sourdine)
+### 4. Relier OBS, Discord et la maison (facultatif)
 
-Discord ne réagit aux raccourcis que s'ils sont déclarés comme raccourcis **globaux** :
+Bouton **Connexions** en haut du configurateur. Chaque logiciel a ses étapes écrites dans la fenêtre ; une fois relié, les boutons montrent leur **vrai état**.
 
-1. Discord → Paramètres utilisateur → **Raccourcis clavier** → **Ajouter un raccourci**.
-2. Action **« Activer/désactiver le micro »** → raccourci **Ctrl + Maj + F9**.
-3. Action **« Activer/désactiver le son »** (sourdine) → raccourci **Ctrl + Maj + F10**.
+- **OBS Studio** (version 28 ou plus) : dans OBS, *Outils > Paramètres du serveur WebSocket*, coche « Activer », puis *Afficher les informations de connexion* et copie le mot de passe dans KeyraDeck. Boutons : Live, Enregistrer, Pause, Replay, Caméra virtuelle, Scène (au choix dans la liste de tes scènes), Couper une source (micro, son du bureau…). Le préréglage de page « Streaming (OBS) » reprend tes vraies scènes.
+- **Discord** : Discord n'accepte que les « applications » déclarées. Sur [discord.com/developers/applications](https://discord.com/developers/applications) : *New Application*, puis dans *OAuth2* copie le **Client ID** et le **Client Secret**, et ajoute la redirection `http://localhost`. Colle les deux dans KeyraDeck, clique sur **Connecter Discord** et accepte dans Discord (une seule fois). Boutons : Micro, Sourdine, Quitter le vocal. Widget **Salon vocal Discord** : qui est là, qui parle (contour vert), avec ton micro et ta sourdine touchables.
+- **Maison (Home Assistant)** : adresse de Home Assistant (ex. `http://homeassistant.local:8123`) et un **jeton d'accès longue durée** (profil > Sécurité). Bouton **Appareil Home Assistant** : choisis une lampe, une prise, une scène… Le bouton s'allume quand l'appareil est allumé.
 
-Le bouton bascule l'état mais n'affiche pas encore si tu es muet ou non (ça demandera l'API de Discord, prévu plus tard).
+Les mots de passe et jetons sont rangés à part dans `integrations.json` (dossier de config) : ils ne partent jamais avec une page exportée.
+
+Sans Discord relié, les raccourcis globaux restent possibles : Discord → Paramètres → **Raccourcis clavier**, « Activer/désactiver le micro » = **Ctrl + Maj + F9**, « Activer/désactiver le son » = **Ctrl + Maj + F10** (le bouton ne connaît alors pas l'état réel).
 
 ## Le configurateur (fenêtre du PC)
 
@@ -105,6 +107,7 @@ Chaque widget existe en plusieurs **modèles à taille fixe** (ex. Horloge 1×1,
 - **Horloge** : 1×1 (heure), 2×1 (heure et date), 2×2 (grande horloge).
 - **CPU / RAM** : charge du processeur et de la mémoire, en 1×1, 2×1, 3×1 ou 2×2 (anneaux).
 
+- **Salon vocal Discord** : 2×1, 2×2, 3×2 (3, 4 ou 6 personnes). Discord doit être relié dans « Connexions ».
 - **Météo** : température et conditions de la ville choisie (1×1, 2×1, 2×2). Sélectionne le widget, tape ta ville dans le panneau de droite. Le PC doit avoir internet (service gratuit Open-Meteo, sans compte).
 
 Les widgets s'affichent comme de petits **écrans tactiles encastrés** dans le boîtier (verre sombre, sans relief de touche), pour se distinguer clairement de la grille de boutons.

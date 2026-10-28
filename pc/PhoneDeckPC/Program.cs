@@ -19,8 +19,10 @@ internal static class Program
         var catalog = new AppCatalog(sta);
         var icons = new IconService(catalog, store);
         var audio = new AudioMixer();
-        var server = new DeckServer(store, catalog, icons, audio, sta);
-        server.Api = new ConfigApi(store, catalog, sta, server);
+        var integrations = new Integrations(store.DataDir);
+        var server = new DeckServer(store, catalog, icons, audio, sta, integrations);
+        server.Api = new ConfigApi(store, catalog, sta, server, integrations);
+        integrations.Start();
 
         catalog.RefreshAsync().GetAwaiter().GetResult();
 
