@@ -1,6 +1,9 @@
 package com.phonedeck.app
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -38,11 +41,11 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -77,6 +80,7 @@ fun DeckWidgetView(widget: DeckWidget, width: Dp, height: Dp, unit: Dp, vm: Deck
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             when (widget.type) {
                 "media" -> MediaWidget(widget, vm)
+                "nowplaying" -> NowPlayingWidget(widget, vm)
                 "volume" -> VolumeWidget(widget, vm)
                 "clock" -> ClockWidget(widget)
                 "system" -> SystemWidget(widget, vm)
@@ -118,8 +122,7 @@ private fun MediaWidget(widget: DeckWidget, vm: DeckViewModel) {
 
 @Composable
 private fun MediaRow(items: List<Pair<String, String>>, vm: DeckViewModel, modifier: Modifier) {
-    val haptic = LocalHapticFeedback.current
-    val hapticsOn = LocalSettings.current.haptics
+    val touch = LocalTouch.current
     val accent = LocalTheme.current.accent
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         for ((glyph, key) in items) {
@@ -130,13 +133,135 @@ private fun MediaRow(items: List<Pair<String, String>>, vm: DeckViewModel, modif
                     .clip(RoundedCornerShape(12.dp))
                     .background(lerp(Color.Black, accent, 0.18f))
                     .clickable {
-                        if (hapticsOn) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        touch.touch(null, null, false)
                         vm.sendMedia(key)
                     },
                 contentAlignment = Alignment.Center,
             ) {
                 BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     val size = (min(maxWidth.value, maxHeight.value) * 0.5f).coerceIn(14f, 40f)
+                    Text(glyph, fontSize = size.sp, color = Color.White)
+                }
+            }
+        }
+    }
+}
+
+// ---------- Morceau en cours ----------
+
+@Composable
+private fun NowPlayingWidget(widget: DeckWidget, vm: DeckViewModel) {
+    val np = vm.nowPlaying
+    val art = vm.nowPlayingArt
+    val accent = LocalTheme.current.accent
+    // La position avance toute seule entre deux messages du PC.
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(np?.playing) {
+        while (np?.playing == true) { now = System.currentTimeMillis(); delay(500) }
+    }
+    val pos = if (np == null) 0 else if (np.playing) (np.pos + ((now - np.at) / 1000).toInt()).coerceAtMost(np.dur) else np.pos
+    val title = np?.title?.ifBlank { null } ?: "Rien en lecture"
+    val artist = np?.artist ?: if (np == null) "Lance Spotify ou une vidéo" else ""
+    val playGlyph = if (np?.playing == true) "⏸" else "▶"
+
+    val cover: @Composable (Modifier) -> Unit = { m ->
+        Box(m.clip(RoundedCornerShape(10.dp)).background(lerp(Color.Black, accent, 0.30f)), contentAlignment = Alignment.Center) {
+            if (art != null) Image(art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            else Text("♪", color = Color.White.copy(alpha = 0.8f), fontSize = 26.sp)
+        }
+    }
+    val texts: @Composable (Modifier, Float) -> Unit = { m, size ->
+        Column(m, verticalArrangement = Arrangement.Center) {
+            MarqueeText(title, Color.White, size, FontWeight.SemiBold)
+            if (artist.isNotEmpty()) MarqueeText(artist, Color(0xFFBBBBC4), size * 0.82f, FontWeight.Normal)
+        }
+    }
+    val controls: @Composable (Modifier, Boolean) -> Unit = { m, withPrev ->
+        val items = buildList {
+            if (withPrev) add("⏮" to "prev")
+            add(playGlyph to "toggle")
+            add("⏭" to "next")
+        }
+        NowPlayingButtons(items, vm, m)
+    }
+
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val h = maxHeight
+        when (widget.model) {
+            "nowplaying-2x1" -> Row(Modifier.fillMaxSize().clickable { vm.nowPlayingCommand("toggle") }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                cover(Modifier.size(h))
+                texts(Modifier.weight(1f), 13f)
+            }
+            "nowplaying-4x1" -> Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                cover(Modifier.size(h))
+                texts(Modifier.weight(1f), 14f)
+                controls(Modifier.fillMaxHeight().width(h * 1.9f), true)
+            }
+            "nowplaying-2x2" -> Box(Modifier.fillMaxSize().clip(RoundedCornerShape(10.dp))) {
+                // Pochette en fond, assombrie pour garder le texte lisible.
+                cover(Modifier.fillMaxSize())
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x33000000), Color(0xDD000000)))))
+                Column(Modifier.fillMaxSize().padding(6.dp), verticalArrangement = Arrangement.Bottom) {
+                    texts(Modifier.fillMaxWidth(), 13f)
+                    Spacer(Modifier.height(6.dp))
+                    controls(Modifier.fillMaxWidth().height(h * 0.28f), true)
+                }
+            }
+            else -> Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(10.dp)) { // nowplaying-4x2
+                cover(Modifier.size(h))
+                Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.SpaceBetween) {
+                    if (np?.app?.isNotEmpty() == true) Text(np.app, color = accent, fontSize = 11.sp, maxLines = 1)
+                    texts(Modifier.fillMaxWidth(), 16f)
+                    if (np != null && np.dur > 0) Progress(pos, np.dur, accent)
+                    controls(Modifier.fillMaxWidth().height(h * 0.30f), true)
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun MarqueeText(text: String, color: Color, size: Float, weight: FontWeight) {
+    // Les titres trop longs défilent doucement.
+    Text(text, color = color, fontSize = size.sp, fontWeight = weight, maxLines = 1, overflow = TextOverflow.Clip, modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE))
+}
+
+private fun mmss(s: Int) = "%d:%02d".format(s / 60, s % 60)
+
+@Composable
+private fun Progress(pos: Int, dur: Int, color: Color) {
+    Column(Modifier.fillMaxWidth()) {
+        Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(50)).background(Color(0xFF0A0A0D))) {
+            Box(Modifier.fillMaxHeight().fillMaxWidth((pos.toFloat() / dur).coerceIn(0f, 1f)).background(color))
+        }
+        Row(Modifier.fillMaxWidth()) {
+            Text(mmss(pos), color = Color(0xFFBBBBC4), fontSize = 10.sp, modifier = Modifier.weight(1f))
+            Text(mmss(dur), color = Color(0xFFBBBBC4), fontSize = 10.sp)
+        }
+    }
+}
+
+@Composable
+private fun NowPlayingButtons(items: List<Pair<String, String>>, vm: DeckViewModel, modifier: Modifier) {
+    val touch = LocalTouch.current
+    val accent = LocalTheme.current.accent
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        for ((glyph, action) in items) {
+            Box(
+                Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (action == "toggle") accent.copy(alpha = 0.85f) else lerp(Color.Black, accent, 0.22f).copy(alpha = 0.9f))
+                    .clickable {
+                        touch.touch(null, null, false)
+                        vm.nowPlayingCommand(action)
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    val size = (min(maxWidth.value, maxHeight.value) * 0.5f).coerceIn(12f, 30f)
                     Text(glyph, fontSize = size.sp, color = Color.White)
                 }
             }

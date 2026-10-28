@@ -14,10 +14,16 @@ public class DeckConfig
     public int Columns { get; set; } = 5;
     public int Rows { get; set; } = 3;
     public DeckTheme Theme { get; set; } = new();
+    /// <summary>Vibration et son quand on touche une touche du téléphone.</summary>
+    public DeckFeedback Feedback { get; set; } = new();
     /// <summary>Cache le nom des boutons : l'icône prend toute la place.</summary>
     public bool HideLabels { get; set; }
     /// <summary>Ville du widget météo (Open-Meteo).</summary>
     public string WeatherCity { get; set; } = "";
+    /// <summary>Connexion de secours par câble USB (adb reverse), surveillée en permanence.</summary>
+    public bool UsbEnabled { get; set; } = true;
+    /// <summary>Ouvre KeyraDeck sur le téléphone quand on le branche au PC.</summary>
+    public bool UsbOpenApp { get; set; } = true;
     /// <summary>Dernier téléphone connecté : taille de l'écran en dp (le configurateur copie ses proportions).</summary>
     public DeckDevice? Device { get; set; }
     /// <summary>Taille d'écran (arrondie) pour laquelle la grille a déjà été adaptée ; permet de ne proposer l'adaptation qu'une fois.</summary>
@@ -55,10 +61,22 @@ public class DeckTheme
 }
 
 /// <summary>Un widget posé sur une page, sur plusieurs cases (comme sur Nova Launcher).</summary>
+/// <summary>Retour au toucher du téléphone. Appliqué au téléphone quand il change ici (le téléphone peut aussi le régler).</summary>
+public class DeckFeedback
+{
+    public bool Vibrate { get; set; } = true;
+    /// <summary>1 = léger, 2 = moyen, 3 = fort.</summary>
+    public int Strength { get; set; } = 2;
+    /// <summary>"off", "click", "tick", "pop" ou "bip".</summary>
+    public string Sound { get; set; } = "off";
+    /// <summary>Volume du son, de 0 à 100.</summary>
+    public int Volume { get; set; } = 60;
+}
+
 public class DeckWidget
 {
     public string Id { get; set; } = "";
-    /// <summary>media | volume | clock | system</summary>
+    /// <summary>media | nowplaying | volume | clock | system | weather</summary>
     public string Type { get; set; } = "clock";
     /// <summary>Modèle choisi (ex. "system-2x2") : chaque modèle a une taille et une présentation fixes.</summary>
     public string Model { get; set; } = "";
@@ -100,6 +118,10 @@ public class DeckButton
     public int? Slot { get; set; }
     /// <summary>Cache le nom de ce bouton (l'icône prend toute la place).</summary>
     public bool? HideLabel { get; set; }
+    /// <summary>Vibration propre à ce bouton : vide = réglage général, 0 = aucune, 1 à 3 = force.</summary>
+    public int? Vibrate { get; set; }
+    /// <summary>Son propre à ce bouton : vide = réglage général, "off" = aucun.</summary>
+    public string? Sound { get; set; }
     public DeckAction Action { get; set; } = new();
 }
 
@@ -255,6 +277,32 @@ public class ConfigStore
         Config = config;
         LastError = null;
         Save();
+        Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// Restaure une sauvegarde complète (autre PC, autre téléphone…). Le code d'appairage, le port et le téléphone
+    /// restent ceux de ce PC. L'ancienne config.json est d'abord copiée dans le dossier « sauvegardes ».
+    /// </summary>
+    public void Restore(DeckConfig config, Dictionary<string, string> iconOverrides)
+    {
+        try
+        {
+            var dir = Path.Combine(DataDir, "sauvegardes");
+            Directory.CreateDirectory(dir);
+            if (File.Exists(ConfigPath)) File.Copy(ConfigPath, Path.Combine(dir, $"avant-restauration-{DateTime.Now:yyyyMMdd-HHmmss}.json"), true);
+        }
+        catch { /* la restauration passe avant la copie de sécurité */ }
+        config.Token = Config.Token;
+        config.Port = Config.Port;
+        config.PcName = Config.PcName;
+        config.Device = Config.Device;
+        config.AdaptedTo = Config.AdaptedTo;
+        config.IconOverrides = iconOverrides;
+        Config = config;
+        LastError = null;
+        Save();
+        Reloaded?.Invoke();
         Changed?.Invoke();
     }
 

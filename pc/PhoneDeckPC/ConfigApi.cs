@@ -25,6 +25,9 @@ public class ConfigApi
     /// <summary>Demande à la fenêtre de se fermer (après le téléchargement d'une mise à jour).</summary>
     public Action? ExitRequested { get; set; }
 
+    /// <summary>Connexion par câble USB.</summary>
+    public UsbBridge? Usb { get; set; }
+
     public ConfigApi(ConfigStore store, AppCatalog catalog, StaWorker sta, DeckServer server, Integrations integrations)
     {
         _int = integrations;
@@ -70,8 +73,19 @@ public class ConfigApi
                         version = _server.LayoutVersion,
                         configPath = _store.ConfigPath,
                         error = _store.LastError,
+                        usb = Usb?.Status,
                     });
                     return;
+
+                case "/api/art":
+                {
+                    // Pochette du morceau en cours (l'adresse change avec le morceau : ?k=…).
+                    var art = _server.NowPlayingArt;
+                    if (art == null) { ctx.Response.StatusCode = 404; return; }
+                    ctx.Response.ContentType = "image/jpeg";
+                    await ctx.Response.Body.WriteAsync(art);
+                    return;
+                }
 
                 case "/api/qr.png":
                 {
@@ -150,6 +164,34 @@ public class ConfigApi
                     await _server.ResetIconAsync(ctx.Request.Query["buttonId"].ToString());
                     await Json(ctx, new { ok = true });
                     return;
+
+                case "/api/icon/copy" when method == "POST":
+                {
+                    using var doc = await JsonDocument.ParseAsync(ctx.Request.Body);
+                    var pairs = doc.RootElement.EnumerateArray()
+                        .Select(e => (e.GetProperty("from").GetString() ?? "", e.GetProperty("to").GetString() ?? ""))
+                        .ToList();
+                    await _server.CopyCustomIconsAsync(pairs);
+                    await Json(ctx, new { ok = true });
+                    return;
+                }
+
+                case "/api/backup":
+                {
+                    var name = $"KeyraDeck-sauvegarde-{DateTime.Now:yyyy-MM-dd}.keyradeck-backup.json";
+                    ctx.Response.ContentType = "application/json; charset=utf-8";
+                    ctx.Response.Headers.ContentDisposition = $"attachment; filename=\"{name}\"";
+                    await ctx.Response.WriteAsync(JsonSerializer.Serialize(BuildBackup(), ConfigStore.Json));
+                    return;
+                }
+
+                case "/api/restore" when method == "POST":
+                {
+                    using var doc = await JsonDocument.ParseAsync(ctx.Request.Body);
+                    var count = Restore(doc.RootElement);
+                    await Json(ctx, new { ok = true, pages = count });
+                    return;
+                }
 
                 case "/api/press" when method == "POST":
                 {
@@ -274,6 +316,13 @@ public class ConfigApi
                     return;
                 }
 
+                case "/api/usb/install" when method == "POST":
+                {
+                    var error = Usb == null ? "USB indisponible" : await Usb.InstallAppAsync();
+                    await Json(ctx, new { ok = error == null, error });
+                    return;
+                }
+
                 case "/api/reload" when method == "POST":
                     _store.ReloadNow();
                     await Json(ctx, new { ok = true, error = _store.LastError });
@@ -307,6 +356,69 @@ public class ConfigApi
             // Le jeton de Home Assistant n'est jamais renvoyé : on dit seulement s'il est rempli.
             homeAssistant = new { enabled = s.HomeAssistant.Enabled, url = s.HomeAssistant.Url, hasToken = s.HomeAssistant.Token.Length > 0, connected = _int.HomeAssistant.Connected, status = _int.HomeAssistant.Status },
         };
+    }
+
+    private static readonly string[] IconExtensions = { ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico" };
+
+    /// <summary>
+    /// Sauvegarde complète : pages, dossiers, boutons, widgets, thème et images personnalisées (incluses dans le fichier).
+    /// Sans le code d'appairage ni le téléphone : ils appartiennent à ce PC.
+    /// </summary>
+    private object BuildBackup()
+    {
+        var cfg = JsonSerializer.Deserialize<DeckConfig>(JsonSerializer.Serialize(_store.Config, ConfigStore.Json), ConfigStore.Json)!;
+        cfg.Token = "";
+        cfg.PcName = null;
+        cfg.Device = null;
+        cfg.AdaptedTo = null;
+        cfg.IconOverrides = new();
+        var icons = new Dictionary<string, object>();
+        foreach (var (id, rel) in _store.Config.IconOverrides)
+        {
+            try
+            {
+                var path = Path.IsPathRooted(rel) ? rel : Path.Combine(_store.DataDir, rel);
+                if (!File.Exists(path)) continue;
+                icons[id] = new { ext = Path.GetExtension(path).ToLowerInvariant(), data = Convert.ToBase64String(File.ReadAllBytes(path)) };
+            }
+            catch { /* image illisible : le bouton reprendra son icône auto */ }
+        }
+        return new { keyradeck = "backup", version = 1, build = Updater.CurrentBuild, date = DateTime.Now, config = cfg, icons };
+    }
+
+    /// <summary>Restaure une sauvegarde faite par <see cref="BuildBackup"/>. Renvoie le nombre de pages et dossiers.</summary>
+    private int Restore(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("keyradeck", out var kind) || kind.GetString() != "backup"
+            || !root.TryGetProperty("config", out var cfgEl))
+            throw new InvalidOperationException("Ce fichier n'est pas une sauvegarde KeyraDeck");
+        var cfg = cfgEl.Deserialize<DeckConfig>(ConfigStore.Json);
+        if (cfg == null || cfg.Pages.Count == 0) throw new InvalidOperationException("La sauvegarde ne contient aucune page");
+        cfg.Columns = Math.Clamp(cfg.Columns, 1, 12);
+        cfg.Rows = Math.Clamp(cfg.Rows, 1, 12);
+
+        var overrides = new Dictionary<string, string>();
+        var ids = cfg.Pages.SelectMany(p => p.Buttons).Select(b => b.Id).ToHashSet();
+        if (root.TryGetProperty("icons", out var icons) && icons.ValueKind == JsonValueKind.Object)
+        {
+            var stamp = DateTime.Now.ToString("yyyyMMddHHmmss");
+            foreach (var icon in icons.EnumerateObject())
+            {
+                if (!ids.Contains(icon.Name)) continue;
+                var ext = icon.Value.TryGetProperty("ext", out var e) ? (e.GetString() ?? "").ToLowerInvariant() : "";
+                if (!IconExtensions.Contains(ext)) ext = ".png";
+                if (!icon.Value.TryGetProperty("data", out var d) || d.GetString() is not { Length: > 0 } b64) continue;
+                byte[] bytes;
+                try { bytes = Convert.FromBase64String(b64); } catch { continue; }
+                if (bytes.Length > 10_000_000) continue;
+                var safe = string.Concat(icon.Name.Select(c => char.IsLetterOrDigit(c) || c == '-' ? c : '_'));
+                var file = $"restaure-{safe}-{stamp}{ext}";
+                File.WriteAllBytes(Path.Combine(_store.IconsDir, file), bytes);
+                overrides[icon.Name] = Path.Combine("icons", file);
+            }
+        }
+        _store.Restore(cfg, overrides);
+        return cfg.Pages.Count;
     }
 
     /// <summary>Seulement le PC lui-même, et seulement sous le nom « localhost » (protection contre les sites malveillants).</summary>

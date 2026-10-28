@@ -21,7 +21,8 @@ internal static class Program
         var audio = new AudioMixer();
         var integrations = new Integrations(store.DataDir);
         var server = new DeckServer(store, catalog, icons, audio, sta, integrations);
-        server.Api = new ConfigApi(store, catalog, sta, server, integrations);
+        var usb = new UsbBridge(store, server);
+        server.Api = new ConfigApi(store, catalog, sta, server, integrations) { Usb = usb };
         integrations.Start();
 
         catalog.RefreshAsync().GetAwaiter().GetResult();
@@ -31,22 +32,24 @@ internal static class Program
             // Mode sans fenêtre (dépannage) : affiche les infos de connexion dans le terminal.
             server.Log += m => Console.WriteLine(m);
             server.StartAsync().GetAwaiter().GetResult();
+            usb.Start();
             foreach (var ip in LocalNetwork.Addresses())
                 Console.WriteLine(LocalNetwork.ConnectUrl(ip, store));
             Console.WriteLine($"Config : {store.ConfigPath}");
             var done = new ManualResetEventSlim();
             Console.CancelKeyPress += (_, e) => { e.Cancel = true; done.Set(); };
             done.Wait();
+            usb.Stop();
             server.StopAsync().GetAwaiter().GetResult();
             return;
         }
 
-        RunWindow(store, server, catalog, args.Contains("--minimized"));
+        RunWindow(store, server, usb, args.Contains("--minimized"));
     }
 
     // Méthode séparée : le mode console ne charge jamais WinForms (utile pour tester hors Windows).
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    private static void RunWindow(ConfigStore store, DeckServer server, AppCatalog catalog, bool minimized)
+    private static void RunWindow(ConfigStore store, DeckServer server, UsbBridge usb, bool minimized)
     {
         ApplicationConfiguration.Initialize();
         try
@@ -61,7 +64,9 @@ internal static class Program
                 "KeyraDeck", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
+        usb.Start();
         Application.Run(new MainForm(store, server, minimized));
+        usb.Stop();
         server.StopAsync().GetAwaiter().GetResult();
     }
 }

@@ -13,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -31,9 +32,18 @@ import kotlin.math.min
 
 enum class Status { Disconnected, Connecting, Connected }
 
+/** Chemin de la connexion : le Wi-Fi, ou le câble USB (adb reverse, le PC est alors joignable sur 127.0.0.1). */
+enum class Link { Wifi, Usb }
+
 /** Réglages propres au téléphone (le thème de couleurs, lui, vient du PC). */
 data class AppSettings(
     val haptics: Boolean = true,
+    /** Force de la vibration : 1 = léger, 2 = moyen, 3 = fort. */
+    val hapticStrength: Int = 2,
+    /** Son au toucher : "off" ou un nom de [TouchSounds]. */
+    val sound: String = "off",
+    /** Volume du son au toucher, de 0 à 100. */
+    val soundVolume: Int = 60,
     val keepScreenOn: Boolean = true,
     /** 0 = automatique, 1 = portrait, 2 = paysage. */
     val orientation: Int = 0,
@@ -41,6 +51,8 @@ data class AppSettings(
 
 /** Demande du PC : afficher cette page (appli au premier plan). Le compteur permet de répéter la même demande. */
 data class FocusRequest(val page: String, val count: Int)
+
+private const val USB_BACKOFF_MS = 20_000L
 
 class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listener {
 
@@ -55,6 +67,12 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         private set
     var statusText by mutableStateOf("")
         private set
+    /** Par où passe la connexion actuelle (affiché à côté de la LED du boîtier). */
+    var link by mutableStateOf(Link.Wifi)
+        private set
+    /** Un PC branché en USB propose de remplacer le PC actuel : on demande avant. */
+    var pendingUsbPair by mutableStateOf<String?>(null)
+    var showUsbGuide by mutableStateOf(false)
     var layout by mutableStateOf<DeckLayout?>(null)
         private set
 
@@ -72,6 +90,10 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         private set
     var discord by mutableStateOf<DiscordVoice?>(null)
         private set
+    var nowPlaying by mutableStateOf<NowPlayingInfo?>(null)
+        private set
+    var nowPlayingArt by mutableStateOf<ImageBitmap?>(null)
+        private set
 
     /** Notifications reçues du PC : bandeau qui s'affiche quelques secondes, puis compteur dans la barre du boîtier. */
     val notifications = mutableStateListOf<Notif>()
@@ -82,12 +104,41 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
     var settings by mutableStateOf(
         AppSettings(
             haptics = prefs.getBoolean("haptics", true),
+            hapticStrength = prefs.getInt("hapticStrength", 2),
+            sound = prefs.getString("sound", "off") ?: "off",
+            soundVolume = prefs.getInt("soundVolume", 60),
             keepScreenOn = prefs.getBoolean("keepOn", true),
             orientation = prefs.getInt("orientation", 0),
         )
     )
         private set
     var showSettings by mutableStateOf(false)
+
+    /** Vibration et son au toucher. */
+    val feedback = TouchFeedback(app)
+
+    /**
+     * Réglages de vibration et de son choisis dans le configurateur du PC. On ne les applique que s'ils ont changé
+     * depuis la dernière fois : un réglage fait ensuite sur le téléphone reste en place.
+     */
+    private fun applyPcFeedback(json: JSONObject?) {
+        if (json == null) return
+        val key = json.toString()
+        val last = prefs.getString("pcFeedback", null)
+        if (key == last) return
+        prefs.edit().putString("pcFeedback", key).apply()
+        // Première fois (mise à jour de l'appli) : on garde les réglages actuels du téléphone.
+        if (last == null) return
+        val s = settings
+        updateSettings(
+            s.copy(
+                haptics = json.optBoolean("vibrate", s.haptics),
+                hapticStrength = json.optInt("strength", s.hapticStrength).coerceIn(1, 3),
+                sound = json.optString("sound", s.sound).ifEmpty { "off" },
+                soundVolume = json.optInt("volume", s.soundVolume).coerceIn(0, 100),
+            )
+        )
+    }
 
     var focus by mutableStateOf<FocusRequest?>(null)
         private set
@@ -96,6 +147,9 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         settings = new
         prefs.edit()
             .putBoolean("haptics", new.haptics)
+            .putInt("hapticStrength", new.hapticStrength)
+            .putString("sound", new.sound)
+            .putInt("soundVolume", new.soundVolume)
             .putBoolean("keepOn", new.keepScreenOn)
             .putInt("orientation", new.orientation)
             .apply()
@@ -127,9 +181,17 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
     private var mixerJob: Job? = null
     private val reconnect = Runnable { serverUrl?.let { if (status == Status.Disconnected) open(it) } }
 
+    /** Chemin de la tentative en cours, et si elle a abouti. */
+    private var tryingLink = Link.Wifi
+    private var opened = false
+    /** Dernier échec par le câble : on laisse le Wi-Fi tranquille un moment avant de retenter l'USB. */
+    private var usbFailedAt = 0L
+    private var openSeq = 0
+
     init {
         serverUrl?.let { open(it) }
         checkForUpdate()
+        watchUsb()
     }
 
     // ---------- Mise à jour de l'appli ----------
@@ -182,6 +244,19 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         open(clean)
     }
 
+    /** Le PC a ouvert l'appli par le câble USB et donne son adresse (même contenu que le QR code). */
+    fun pairFromUsb(url: String) {
+        val clean = url.trim()
+        val current = serverUrl
+        when {
+            current == null -> { pair(clean); toast("Connexion au PC par le câble USB") }
+            current == clean -> if (status != Status.Connected) open(clean)
+            // Même code : c'est le même PC dont l'adresse Wi-Fi a changé.
+            tokenOf(current) != null && tokenOf(current) == tokenOf(clean) -> pair(clean)
+            else -> pendingUsbPair = clean
+        }
+    }
+
     fun pairManually(host: String, port: String, code: String) {
         val p = port.trim().ifEmpty { "8765" }
         pair("ws://${host.trim()}:$p/ws?token=${code.trim().uppercase()}")
@@ -203,12 +278,49 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         serverUrl?.let { open(it) }
     }
 
+    /**
+     * Se connecte au PC : par le câble USB s'il est branché et prêt (plus fiable en jeu), sinon par le Wi-Fi.
+     * Le câble se teste en une fraction de seconde (127.0.0.1 répond tout de suite, ou refuse).
+     */
     private fun open(url: String) {
         main.removeCallbacks(reconnect)
         status = Status.Connecting
         statusText = "Connexion au PC…"
+        val seq = ++openSeq
+        val port = portOf(url)
+        viewModelScope.launch(Dispatchers.IO) {
+            val usb = isLoopback(url) || (System.currentTimeMillis() - usbFailedAt > USB_BACKOFF_MS && usbReachable(port))
+            post { if (seq == openSeq && serverUrl == url) connectVia(url, if (usb) Link.Usb else Link.Wifi) }
+        }
+    }
+
+    private fun connectVia(url: String, via: Link) {
+        tryingLink = via
+        opened = false
+        val target = if (via == Link.Usb) usbUrl(url) else url
         val device = URLEncoder.encode(Build.MODEL ?: "Android", "UTF-8")
-        client.connect(if (url.contains("device=")) url else "$url&device=$device")
+        client.connect(if (target.contains("device=")) target else "$target&device=$device")
+    }
+
+    /**
+     * Pendant qu'on est en Wi-Fi, on regarde toutes les 3 s si le câble USB est prêt : si oui, on passe dessus.
+     * (Le retour au Wi-Fi, lui, se fait tout seul quand le câble est débranché : la connexion USB se coupe.)
+     */
+    private fun watchUsb() {
+        viewModelScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                delay(3000)
+                val url = serverUrl ?: continue
+                if (status != Status.Connected || link != Link.Wifi || isLoopback(url)) continue
+                if (System.currentTimeMillis() - usbFailedAt < USB_BACKOFF_MS) continue
+                if (usbReachable(portOf(url))) post {
+                    if (status == Status.Connected && link == Link.Wifi && serverUrl == url) {
+                        main.removeCallbacks(reconnect)
+                        connectVia(url, Link.Usb)
+                    }
+                }
+            }
+        }
     }
 
     /** Taille de l'écran en dp, envoyée au PC pour que le configurateur affiche les mêmes proportions. */
@@ -232,6 +344,8 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
     }
 
     override fun onOpen() = post {
+        opened = true
+        link = tryingLink
         status = Status.Connected
         sendScreen()
         statusText = ""
@@ -244,7 +358,9 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         when (json.optString("type")) {
             "layout" -> {
                 val parsed = Parser.layout(json)
+                val fb = json.optJSONObject("feedback")
                 post {
+                    applyPcFeedback(fb)
                     layout = parsed
                     // Si un dossier ouvert a disparu de la config, on le referme.
                     folderStack.removeAll { it !in parsed.pages }
@@ -275,6 +391,20 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
                     ram = ramNow
                 }
             }
+            "nowPlaying" -> {
+                val title = if (json.isNull("title")) null else json.optString("title")
+                val info = title?.let {
+                    NowPlayingInfo(it, json.optString("artist"), json.optString("app"), json.optBoolean("playing"), json.optInt("pos"), json.optInt("dur"), System.currentTimeMillis())
+                }
+                val artKey = json.optString("artKey")
+                // La pochette n'est envoyée que quand elle change : sinon on garde celle qu'on a.
+                val art = if (json.isNull("art")) null else Parser.image(json.optString("art"))
+                post {
+                    nowPlaying = info
+                    if (artKey.isEmpty()) nowPlayingArt = null
+                    else if (art != null) nowPlayingArt = art
+                }
+            }
             "focus" -> post { focus = FocusRequest(json.optString("page"), (focus?.count ?: 0) + 1) }
             "toast" -> toast(json.optString("message"))
             "notify" -> {
@@ -289,9 +419,17 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
     }
 
     override fun onClosed(reason: String, canRetry: Boolean) = post {
+        val url = serverUrl
+        // Câble débranché ou USB pas prêt : on repasse tout de suite par le Wi-Fi.
+        if (canRetry && url != null && tryingLink == Link.Usb && !isLoopback(url)) {
+            if (!opened) usbFailedAt = System.currentTimeMillis()
+            if (opened) toast("Câble USB débranché : passage au Wi-Fi")
+            open(url)
+            return@post
+        }
         status = Status.Disconnected
         statusText = reason
-        if (canRetry && serverUrl != null) main.postDelayed(reconnect, 3000)
+        if (canRetry && url != null) main.postDelayed(reconnect, 3000)
     }
 
     // ---------- Boutons ----------
@@ -414,6 +552,12 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         send(JSONObject().put("type", "discord").put("command", command))
     }
 
+    /** Précédent / lecture-pause / suivant pour le widget « Morceau en cours ». */
+    fun nowPlayingCommand(action: String) {
+        if (action == "toggle") nowPlaying = nowPlaying?.let { it.copy(playing = !it.playing, at = System.currentTimeMillis()) }
+        send(JSONObject().put("type", "nowPlaying").put("action", action))
+    }
+
     /** Touches média (lecture, suivant…) pour le widget « Pavé média ». */
     fun sendMedia(key: String) {
         send(JSONObject().put("type", "media").put("key", key))
@@ -496,8 +640,28 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         main.post(block)
     }
 
+    private fun portOf(url: String): Int = Uri.parse(url).port.takeIf { it > 0 } ?: 8765
+
+    private fun tokenOf(url: String): String? = Uri.parse(url).getQueryParameter("token")?.uppercase()
+
+    private fun isLoopback(url: String): Boolean = Uri.parse(url).host.let { it == "127.0.0.1" || it == "localhost" }
+
+    /** Même adresse, mais par le câble : le PC est joignable sur 127.0.0.1 grâce à adb reverse. */
+    private fun usbUrl(url: String): String {
+        val uri = Uri.parse(url)
+        return uri.buildUpon().encodedAuthority("127.0.0.1:${portOf(url)}").build().toString()
+    }
+
+    /** Le câble est prêt si quelque chose répond sur 127.0.0.1 au port du PC (le tunnel d'adb). */
+    private fun usbReachable(port: Int): Boolean = try {
+        java.net.Socket().use { it.connect(java.net.InetSocketAddress("127.0.0.1", port), 300); true }
+    } catch (_: Exception) {
+        false
+    }
+
     override fun onCleared() {
         main.removeCallbacks(reconnect)
         client.close()
+        feedback.release()
     }
 }

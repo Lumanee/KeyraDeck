@@ -28,8 +28,12 @@ public class DeckServer
     private string _lastStates = "";
     private string? _autoPage;
     private readonly SystemStats _systemStats = new();
-    private bool _needVolume, _needSystem, _needWeather, _needDiscord;
+    private bool _needVolume, _needSystem, _needWeather, _needDiscord, _needNowPlaying;
     private int _statesQueued;
+    private readonly NowPlaying _nowPlaying = new();
+    private string _lastNowPlaying = "";
+    private string _lastArtKey = "";
+    private readonly SemaphoreSlim _nowPlayingLock = new(1, 1);
     private readonly WeatherService _weather = new();
     private CancellationTokenSource? _stop;
     private WebApplication? _app;
@@ -61,16 +65,32 @@ public class DeckServer
 
     public int Port => _store.Config.Port;
 
+    /// <summary>
+    /// Port réservé au câble USB : adb relie le port du téléphone à celui-ci. Il n'écoute que sur le PC lui-même
+    /// et n'ouvre que la connexion du deck (/ws, avec le code) : jamais le configurateur.
+    /// </summary>
+    public int UsbPort => _store.Config.Port + 1;
+
     public IReadOnlyList<string> ClientNames
     {
-        get { lock (_clients) return _clients.Select(c => c.Name).ToList(); }
+        get { lock (_clients) return _clients.Select(c => c.Usb ? c.Name + " (câble USB)" : c.Name).ToList(); }
+    }
+
+    /// <summary>Un téléphone est connecté par le câble USB.</summary>
+    public bool UsbConnected
+    {
+        get { lock (_clients) return _clients.Any(c => c.Usb); }
     }
 
     public async Task StartAsync()
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { ContentRootPath = AppContext.BaseDirectory });
         builder.Logging.ClearProviders();
-        builder.WebHost.ConfigureKestrel(o => o.ListenAnyIP(Port));
+        builder.WebHost.ConfigureKestrel(o =>
+        {
+            o.ListenAnyIP(Port);
+            o.Listen(System.Net.IPAddress.Loopback, UsbPort);
+        });
         _app = builder.Build();
         _app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(20) });
         _app.Run(HandleHttpAsync);
@@ -88,6 +108,12 @@ public class DeckServer
 
     private async Task HandleHttpAsync(HttpContext ctx)
     {
+        var viaUsb = ctx.Connection.LocalPort == UsbPort;
+        if (viaUsb && ctx.Request.Path != "/ws")
+        {
+            ctx.Response.StatusCode = 404;
+            return;
+        }
         if (ctx.Request.Path != "/ws")
         {
             if (Api != null) await Api.HandleAsync(ctx);
@@ -109,10 +135,10 @@ public class DeckServer
 
         var name = ctx.Request.Query["device"].ToString();
         using var ws = await ctx.WebSockets.AcceptWebSocketAsync();
-        var client = new Client(ws, string.IsNullOrWhiteSpace(name) ? "Téléphone" : name);
+        var client = new Client(ws, string.IsNullOrWhiteSpace(name) ? "Téléphone" : name) { Usb = viaUsb };
         lock (_clients) _clients.Add(client);
         ClientsChanged?.Invoke();
-        Log?.Invoke($"{client.Name} connecté");
+        Log?.Invoke($"{client.Name} connecté{(client.Usb ? " par câble USB" : "")}");
         try
         {
             await ReceiveLoopAsync(client, ctx.RequestAborted);
@@ -173,6 +199,7 @@ public class DeckServer
                 await client.SendRawAsync(await GetLayoutJsonAsync());
                 await client.SendRawAsync(StatesJson(ComputeStates()));
                 if (_autoPage != null) await client.SendAsync(new { type = "focus", page = _autoPage });
+                if (_needNowPlaying) await client.SendRawAsync(NowPlayingJson(_nowPlaying.Current, withArt: true));
                 break;
 
             case "press":
@@ -201,6 +228,19 @@ public class DeckServer
                 var key = root.GetProperty("key").GetString() ?? "";
                 if (key is "PlayPause" or "Next" or "Prev" or "Stop" or "Mute" or "VolumeUp" or "VolumeDown")
                     await Task.Run(() => KeySender.Send(key));
+                break;
+            }
+
+            case "nowPlaying":
+            {
+                // Boutons du widget « Morceau en cours » : agit sur le lecteur affiché (Spotify, navigateur…).
+                var action = root.GetProperty("action").GetString() ?? "";
+                if (action is "prev" or "next" or "toggle")
+                {
+                    await _nowPlaying.CommandAsync(action);
+                    await Task.Delay(250); // laisse le lecteur changer de morceau avant de relire
+                    await BroadcastNowPlayingAsync();
+                }
                 break;
             }
 
@@ -308,6 +348,21 @@ public class DeckServer
         _store.Config.IconOverrides[buttonId] = Path.Combine("icons", file);
         _store.Save();
         Log?.Invoke($"Nouvelle image pour « {buttonId} »");
+        await OnConfigChangedAsync();
+    }
+
+    /// <summary>Donne aux copies de boutons (copier/coller, dupliquer) l'image personnalisée de l'original.</summary>
+    public async Task CopyCustomIconsAsync(IEnumerable<(string From, string To)> pairs)
+    {
+        var any = false;
+        foreach (var (from, to) in pairs)
+        {
+            if (string.IsNullOrEmpty(to) || !_store.Config.IconOverrides.TryGetValue(from, out var file)) continue;
+            _store.Config.IconOverrides[to] = file;
+            any = true;
+        }
+        if (!any) return;
+        _store.Save();
         await OnConfigChangedAsync();
     }
 
@@ -443,6 +498,8 @@ public class DeckServer
             volume = volume == null ? (int?)null : (int)Math.Round(volume.Value * 100),
             muted,
             weather = weather == null ? null : new { temp = weather.Temp, code = weather.Code, wind = weather.Wind, humidity = weather.Humidity, city = weather.City },
+            nowPlaying = !_needNowPlaying || _nowPlaying.Current is not { } np ? null
+                : new { title = np.Title, artist = np.Artist, app = np.App, playing = np.Playing, pos = np.Pos, dur = np.Dur, artKey = np.ArtKey },
         };
         return JsonSerializer.Serialize(new
         {
@@ -455,6 +512,37 @@ public class DeckServer
             weather = weather == null ? null : new { temp = weather.Temp, code = weather.Code, wind = weather.Wind, humidity = weather.Humidity, city = weather.City },
             discord,
         }, Wire);
+    }
+
+    // ---------- Morceau en cours ----------
+
+    /// <summary>La pochette n'est jointe que si elle a changé (ou pour un téléphone qui vient d'arriver).</summary>
+    private static string NowPlayingJson(NowPlayingData? np, bool withArt) => JsonSerializer.Serialize(np == null
+        ? new { type = "nowPlaying", title = (string?)null, artist = (string?)null, album = (string?)null, app = (string?)null, playing = false, pos = 0, dur = 0, artKey = "", art = (string?)null }
+        : new { type = "nowPlaying", title = (string?)np.Title, artist = (string?)np.Artist, album = (string?)np.Album, app = (string?)np.App, playing = np.Playing, pos = np.Pos, dur = np.Dur, artKey = np.ArtKey, art = withArt && np.Art != null ? Convert.ToBase64String(np.Art) : null }, Wire);
+
+    /// <summary>Pochette du morceau en cours, pour le configurateur.</summary>
+    public byte[]? NowPlayingArt => _nowPlaying.Current?.Art;
+
+    private async Task BroadcastNowPlayingAsync()
+    {
+        if (!_needNowPlaying) return;
+        await _nowPlayingLock.WaitAsync();
+        try
+        {
+            var np = await _nowPlaying.RefreshAsync();
+            var json = NowPlayingJson(np, withArt: false);
+            if (json == _lastNowPlaying) return;
+            _lastNowPlaying = json;
+            var artChanged = (np?.ArtKey ?? "") != _lastArtKey;
+            _lastArtKey = np?.ArtKey ?? "";
+            if (artChanged) json = NowPlayingJson(np, withArt: true);
+            List<Client> clients;
+            lock (_clients) clients = _clients.ToList();
+            foreach (var c in clients) { try { await c.SendRawAsync(json); } catch { } }
+        }
+        catch { }
+        finally { _nowPlayingLock.Release(); }
     }
 
     private async Task BroadcastStatesAsync(bool force)
@@ -481,6 +569,7 @@ public class DeckServer
         {
             try { await Task.Delay(1000, ct); } catch { return; }
             await BroadcastStatesAsync(force: false);
+            await BroadcastNowPlayingAsync();
             await CheckForegroundAsync();
         }
     }
@@ -616,6 +705,8 @@ public class DeckServer
                         // mais on reste ouvert pour les raccourcis (micro, sourdine…).
                         closeFolder = b.Action.Type.Equals("open", StringComparison.OrdinalIgnoreCase)
                                    || b.Action.Type.Equals("url", StringComparison.OrdinalIgnoreCase),
+                        vibrate = b.Vibrate,
+                        sound = b.Sound,
                     };
                 }).ToList(),
             };
@@ -626,11 +717,15 @@ public class DeckServer
         _needWeather = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "weather"));
         _needDiscord = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "discord"));
         _int.HomeAssistant.Watch(lookup.Values.Where(b => b.Action.Type.Equals("ha", StringComparison.OrdinalIgnoreCase)).Select(b => b.Action.Target ?? ""));
+        _needNowPlaying = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "nowplaying"));
+        _lastNowPlaying = ""; // un nouveau widget reçoit tout de suite le morceau en cours
+        _lastArtKey = "";
         var json = JsonSerializer.Serialize(new
         {
             type = "layout",
             pcName = _store.PcName,
             theme = cfg.Theme,
+            feedback = cfg.Feedback,
             home = cfg.Pages.FirstOrDefault()?.Id ?? "",
             pages,
         }, Wire);
@@ -692,6 +787,8 @@ public class DeckServer
         public string Name { get; }
         /// <summary>Touches du clavier PC actuellement enfoncées par ce téléphone.</summary>
         public HashSet<int> HeldKeys { get; } = new();
+        /// <summary>Connecté par le câble USB plutôt que par le Wi-Fi.</summary>
+        public bool Usb { get; init; }
         private readonly SemaphoreSlim _sendLock = new(1, 1);
 
         public Client(WebSocket socket, string name)

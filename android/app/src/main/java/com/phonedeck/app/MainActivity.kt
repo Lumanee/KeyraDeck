@@ -1,5 +1,6 @@
 package com.phonedeck.app
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.WindowManager
 import android.widget.Toast
@@ -19,7 +20,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Slider
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Switch
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.unit.sp
@@ -60,6 +65,24 @@ class MainActivity : ComponentActivity() {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
         setContent { App(vm) }
+        handleUsbIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleUsbIntent(intent)
+    }
+
+    /** Le PC ouvre l'appli par le câble USB (adb) et donne son adresse, comme le QR code. */
+    private fun handleUsbIntent(intent: Intent?) {
+        if (intent == null) return
+        val url = intent.getStringExtra(EXTRA_USB_PAIR) ?: return
+        intent.removeExtra(EXTRA_USB_PAIR)
+        vm.pairFromUsb(url)
+    }
+
+    companion object {
+        const val EXTRA_USB_PAIR = "keyradeck_pair"
     }
 }
 
@@ -68,6 +91,10 @@ val Tile = Color(0xFF26262C)
 
 val LocalTheme = compositionLocalOf { DeckTheme.Default }
 val LocalSettings = compositionLocalOf { AppSettings() }
+
+/** Vibration + son au toucher : touch(vibrationDuBouton, sonDuBouton, appuiLong). */
+fun interface Touch { fun touch(vibrate: Int?, sound: String?, long: Boolean) }
+val LocalTouch = compositionLocalOf { Touch { _, _, _ -> } }
 
 /** Orientation choisie dans les réglages du téléphone. */
 fun orientationFor(settings: AppSettings) = when (settings.orientation) {
@@ -93,7 +120,8 @@ fun App(vm: DeckViewModel) {
     }
 
     val theme = vm.layout?.theme ?: DeckTheme.Default
-    CompositionLocalProvider(LocalTheme provides theme, LocalSettings provides settings) {
+    val touch = remember(settings) { Touch { v, s, long -> vm.feedback.touch(settings, v, s, long) } }
+    CompositionLocalProvider(LocalTheme provides theme, LocalSettings provides settings, LocalTouch provides touch) {
         MaterialTheme(colorScheme = darkColorScheme(primary = theme.accent, background = Background, surface = Background)) {
             Box(Modifier.fillMaxSize()) {
                 Surface(Modifier.fillMaxSize(), color = Background) {
@@ -107,6 +135,16 @@ fun App(vm: DeckViewModel) {
                 UpdateBanner(vm)
                 NotificationOverlay(vm)
                 if (vm.showSettings) SettingsDialog(vm)
+                if (vm.showUsbGuide) UsbGuideDialog(vm)
+                vm.pendingUsbPair?.let { url ->
+                    AlertDialog(
+                        onDismissRequest = { vm.pendingUsbPair = null },
+                        title = { Text("Changer de PC ?") },
+                        text = { Text("Un autre PC branché par câble USB propose de se connecter. Utiliser ce PC à la place de l'actuel ?") },
+                        confirmButton = { TextButton(onClick = { vm.pendingUsbPair = null; vm.pair(url) }) { Text("Utiliser ce PC") } },
+                        dismissButton = { TextButton(onClick = { vm.pendingUsbPair = null }) { Text("Garder l'actuel") } },
+                    )
+                }
             }
         }
     }
@@ -119,8 +157,48 @@ private fun SettingsDialog(vm: DeckViewModel) {
         onDismissRequest = { vm.showSettings = false },
         title = { Text("Réglages") },
         text = {
-            Column {
-                SettingSwitch("Vibration au toucher", s.haptics) { vm.updateSettings(s.copy(haptics = it)) }
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                SettingSwitch("Vibration au toucher", s.haptics) {
+                    vm.updateSettings(s.copy(haptics = it))
+                    if (it) vm.feedback.vibrate(s.hapticStrength)
+                }
+                if (s.haptics) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        VibrationLevels.forEach { (level, label) ->
+                            FilterChip(
+                                selected = s.hapticStrength == level,
+                                onClick = { vm.updateSettings(s.copy(hapticStrength = level)); vm.feedback.vibrate(level) },
+                                label = { Text(label) },
+                            )
+                        }
+                    }
+                }
+                SettingSwitch("Son au toucher", s.sound != "off") { on ->
+                    val name = if (on) TouchSounds.first().first else "off"
+                    vm.updateSettings(s.copy(sound = name))
+                    if (on) vm.feedback.play(name, s.soundVolume)
+                }
+                if (s.sound != "off") {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        TouchSounds.forEach { (name, label) ->
+                            FilterChip(
+                                selected = s.sound == name,
+                                onClick = { vm.updateSettings(s.copy(sound = name)); vm.feedback.play(name, s.soundVolume) },
+                                label = { Text(label) },
+                            )
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Volume", color = Color(0xFFBBBBC4), modifier = Modifier.width(64.dp))
+                        Slider(
+                            value = s.soundVolume.toFloat(),
+                            onValueChange = { vm.updateSettings(s.copy(soundVolume = it.toInt())) },
+                            onValueChangeFinished = { vm.feedback.play(s.sound, vm.settings.soundVolume) },
+                            valueRange = 0f..100f,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
                 SettingSwitch("Garder l'écran allumé", s.keepScreenOn) { vm.updateSettings(s.copy(keepScreenOn = it)) }
                 Spacer(Modifier.height(12.dp))
                 Text("Orientation", color = Color(0xFFBBBBC4))
@@ -139,6 +217,7 @@ private fun SettingsDialog(vm: DeckViewModel) {
                     Text("Version ${Updater.currentBuild(LocalContext.current)}", color = Color(0xFF8D8D99), fontSize = 12.sp, modifier = Modifier.weight(1f))
                     TextButton(onClick = { vm.checkForUpdate(manual = true) }) { Text("Vérifier les mises à jour") }
                 }
+                TextButton(onClick = { vm.showSettings = false; vm.showUsbGuide = true }) { Text("Connexion par câble USB") }
                 TextButton(onClick = { vm.showSettings = false; vm.forget() }) { Text("Changer de PC") }
             }
         },

@@ -20,9 +20,13 @@ data class DeckButton(
     val kind: String,
     val page: String?,
     val closeFolder: Boolean,
+    /** Vibration propre à ce bouton : null = réglage général, 0 = aucune, 1 à 3 = force. */
+    val vibrate: Int? = null,
+    /** Son propre à ce bouton : null = réglage général, "off" = aucun. */
+    val sound: String? = null,
 )
 
-/** Un widget posé sur plusieurs cases : media, volume, clock ou system. */
+/** Un widget posé sur plusieurs cases : media, nowplaying, volume, clock, system ou weather. */
 data class DeckWidget(val id: String, val type: String, val model: String, val slot: Int, val w: Int, val h: Int)
 
 /** columns / rows : taille de la grille, ou null pour un dossier mis en page automatiquement. */
@@ -77,6 +81,9 @@ data class DiscordVoice(
     val deafened: Boolean,
     val members: List<DiscordMember>,
 )
+
+/** Morceau en cours sur le PC. [at] = moment de réception, pour faire avancer la barre entre deux messages. */
+data class NowPlayingInfo(val title: String, val artist: String, val app: String, val playing: Boolean, val pos: Int, val dur: Int, val at: Long)
 
 data class Notif(val id: String, val app: String, val title: String, val text: String)
 
@@ -141,6 +148,8 @@ object Parser {
         kind = b.optString("kind", "action"),
         page = b.optStringOrNull("page"),
         closeFolder = b.optBoolean("closeFolder", false),
+        vibrate = b.optIntOrNull("vibrate"),
+        sound = b.optStringOrNull("sound"),
     )
 
     /** Liste des canaux du mélangeur. Si le PC n'envoie pas les icônes, on garde les anciennes. */

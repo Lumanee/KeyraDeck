@@ -55,7 +55,7 @@ fun ConnectScreen(vm: DeckViewModel) {
         Spacer(Modifier.height(12.dp))
         Text(
             "Ouvre KeyraDeck sur ton ordinateur, puis scanne le QR code affiché. " +
-                "Le téléphone et le PC doivent être sur le même Wi-Fi.",
+                "Le téléphone et le PC doivent être sur le même Wi-Fi, ou reliés par un câble USB.",
             textAlign = TextAlign.Center,
             color = Color(0xFFBBBBC4),
         )
@@ -111,8 +111,8 @@ fun ConnectScreen(vm: DeckViewModel) {
         ) {
             Text("Se connecter")
         }
-        TextButton(onClick = { host = "127.0.0.1" }) {
-            Text("Connexion par câble USB (adb reverse)")
+        TextButton(onClick = { vm.showUsbGuide = true }) {
+            Text("Connexion par câble USB")
         }
     }
 }
