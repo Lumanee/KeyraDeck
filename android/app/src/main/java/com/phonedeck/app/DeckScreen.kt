@@ -435,12 +435,13 @@ fun DeckKey(
                 // Reflet du verre par-dessus l'icône : la touche a l'air vitrée.
                 .drawWithContent {
                     drawContent()
-                    val h = size.height * 0.46f
+                    val area = this.size // (« size » seul désigne la taille de la touche en dp)
+                    val h = area.height * 0.46f
                     drawRoundRect(
                         Brush.verticalGradient(GlassGlare, startY = 0f, endY = h),
-                        topLeft = Offset(size.width * 0.05f, size.height * 0.03f),
-                        size = Size(size.width * 0.9f, h),
-                        cornerRadius = CornerRadius(size.width * 0.12f),
+                        topLeft = Offset(area.width * 0.05f, area.height * 0.03f),
+                        size = Size(area.width * 0.9f, h),
+                        cornerRadius = CornerRadius(area.width * 0.12f),
                     )
                 }
                 .border(1.dp, GlassEdge, screenShape)

@@ -139,7 +139,7 @@ private fun MediaRow(items: List<Pair<String, String>>, vm: DeckViewModel, modif
             ) {
                 BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     val size = (min(maxWidth.value, maxHeight.value) * 0.5f).coerceIn(14f, 40f)
-                    Text(glyph, fontSize = size.sp, color = if (action == "toggle") LocalTheme.current.onAccent else Color.White)
+                    Text(glyph, fontSize = size.sp, color = Color.White)
                 }
             }
         }
@@ -261,7 +261,7 @@ private fun NowPlayingButtons(items: List<Pair<String, String>>, vm: DeckViewMod
             ) {
                 BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     val size = (min(maxWidth.value, maxHeight.value) * 0.5f).coerceIn(12f, 30f)
-                    Text(glyph, fontSize = size.sp, color = Color.White)
+                    Text(glyph, fontSize = size.sp, color = if (action == "toggle") LocalTheme.current.onAccent else Color.White)
                 }
             }
         }
