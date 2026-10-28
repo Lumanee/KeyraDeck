@@ -294,6 +294,19 @@ private fun StatusStrip(vm: DeckViewModel, pageIndex: Int, pageCount: Int, modif
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(7.dp).shadow(4.dp, CircleShape).clip(CircleShape).background(led))
         Spacer(Modifier.width(8.dp))
+        // Connecté par le câble : petit repère « USB » à côté de la LED (touche = aide sur le câble).
+        if (vm.status == Status.Connected && vm.link == Link.Usb) {
+            Text(
+                "USB",
+                color = led,
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp,
+                modifier = Modifier.clip(RoundedCornerShape(3.dp)).background(Color(0x224CD964))
+                    .clickable { vm.showUsbGuide = true }.padding(horizontal = 4.dp, vertical = 1.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+        }
         Image(painterResource(R.drawable.ic_logo), contentDescription = null, modifier = Modifier.height(14.dp))
         Spacer(Modifier.width(6.dp))
         Text(
@@ -303,7 +316,7 @@ private fun StatusStrip(vm: DeckViewModel, pageIndex: Int, pageCount: Int, modif
             fontWeight = FontWeight.Bold,
             letterSpacing = 3.sp,
         )
-        // Seulement la LED (verte = connecté, orange = connexion, rouge = déconnecté) : pas de nom de PC.
+        // Seulement la LED (verte = connecté, orange = connexion, rouge = déconnecté) et « USB » par câble : pas de nom de PC.
         Spacer(Modifier.weight(1f))
         NotificationBadge(vm)
         Spacer(Modifier.width(6.dp))

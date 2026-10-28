@@ -32,6 +32,9 @@ import kotlin.math.min
 
 enum class Status { Disconnected, Connecting, Connected }
 
+/** Chemin de la connexion : le Wi-Fi, ou le câble USB (adb reverse, le PC est alors joignable sur 127.0.0.1). */
+enum class Link { Wifi, Usb }
+
 /** Réglages propres au téléphone (le thème de couleurs, lui, vient du PC). */
 data class AppSettings(
     val haptics: Boolean = true,
@@ -49,6 +52,8 @@ data class AppSettings(
 /** Demande du PC : afficher cette page (appli au premier plan). Le compteur permet de répéter la même demande. */
 data class FocusRequest(val page: String, val count: Int)
 
+private const val USB_BACKOFF_MS = 20_000L
+
 class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listener {
 
     private val prefs = app.getSharedPreferences("deck", Context.MODE_PRIVATE)
@@ -62,6 +67,12 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         private set
     var statusText by mutableStateOf("")
         private set
+    /** Par où passe la connexion actuelle (affiché à côté de la LED du boîtier). */
+    var link by mutableStateOf(Link.Wifi)
+        private set
+    /** Un PC branché en USB propose de remplacer le PC actuel : on demande avant. */
+    var pendingUsbPair by mutableStateOf<String?>(null)
+    var showUsbGuide by mutableStateOf(false)
     var layout by mutableStateOf<DeckLayout?>(null)
         private set
 
@@ -168,9 +179,17 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
     private var mixerJob: Job? = null
     private val reconnect = Runnable { serverUrl?.let { if (status == Status.Disconnected) open(it) } }
 
+    /** Chemin de la tentative en cours, et si elle a abouti. */
+    private var tryingLink = Link.Wifi
+    private var opened = false
+    /** Dernier échec par le câble : on laisse le Wi-Fi tranquille un moment avant de retenter l'USB. */
+    private var usbFailedAt = 0L
+    private var openSeq = 0
+
     init {
         serverUrl?.let { open(it) }
         checkForUpdate()
+        watchUsb()
     }
 
     // ---------- Mise à jour de l'appli ----------
@@ -223,6 +242,19 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         open(clean)
     }
 
+    /** Le PC a ouvert l'appli par le câble USB et donne son adresse (même contenu que le QR code). */
+    fun pairFromUsb(url: String) {
+        val clean = url.trim()
+        val current = serverUrl
+        when {
+            current == null -> { pair(clean); toast("Connexion au PC par le câble USB") }
+            current == clean -> if (status != Status.Connected) open(clean)
+            // Même code : c'est le même PC dont l'adresse Wi-Fi a changé.
+            tokenOf(current) != null && tokenOf(current) == tokenOf(clean) -> pair(clean)
+            else -> pendingUsbPair = clean
+        }
+    }
+
     fun pairManually(host: String, port: String, code: String) {
         val p = port.trim().ifEmpty { "8765" }
         pair("ws://${host.trim()}:$p/ws?token=${code.trim().uppercase()}")
@@ -244,12 +276,49 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         serverUrl?.let { open(it) }
     }
 
+    /**
+     * Se connecte au PC : par le câble USB s'il est branché et prêt (plus fiable en jeu), sinon par le Wi-Fi.
+     * Le câble se teste en une fraction de seconde (127.0.0.1 répond tout de suite, ou refuse).
+     */
     private fun open(url: String) {
         main.removeCallbacks(reconnect)
         status = Status.Connecting
         statusText = "Connexion au PC…"
+        val seq = ++openSeq
+        val port = portOf(url)
+        viewModelScope.launch(Dispatchers.IO) {
+            val usb = isLoopback(url) || (System.currentTimeMillis() - usbFailedAt > USB_BACKOFF_MS && usbReachable(port))
+            post { if (seq == openSeq && serverUrl == url) connectVia(url, if (usb) Link.Usb else Link.Wifi) }
+        }
+    }
+
+    private fun connectVia(url: String, via: Link) {
+        tryingLink = via
+        opened = false
+        val target = if (via == Link.Usb) usbUrl(url) else url
         val device = URLEncoder.encode(Build.MODEL ?: "Android", "UTF-8")
-        client.connect(if (url.contains("device=")) url else "$url&device=$device")
+        client.connect(if (target.contains("device=")) target else "$target&device=$device")
+    }
+
+    /**
+     * Pendant qu'on est en Wi-Fi, on regarde toutes les 3 s si le câble USB est prêt : si oui, on passe dessus.
+     * (Le retour au Wi-Fi, lui, se fait tout seul quand le câble est débranché : la connexion USB se coupe.)
+     */
+    private fun watchUsb() {
+        viewModelScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                delay(3000)
+                val url = serverUrl ?: continue
+                if (status != Status.Connected || link != Link.Wifi || isLoopback(url)) continue
+                if (System.currentTimeMillis() - usbFailedAt < USB_BACKOFF_MS) continue
+                if (usbReachable(portOf(url))) post {
+                    if (status == Status.Connected && link == Link.Wifi && serverUrl == url) {
+                        main.removeCallbacks(reconnect)
+                        connectVia(url, Link.Usb)
+                    }
+                }
+            }
+        }
     }
 
     /** Taille de l'écran en dp, envoyée au PC pour que le configurateur affiche les mêmes proportions. */
@@ -273,6 +342,8 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
     }
 
     override fun onOpen() = post {
+        opened = true
+        link = tryingLink
         status = Status.Connected
         sendScreen()
         statusText = ""
@@ -344,9 +415,17 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
     }
 
     override fun onClosed(reason: String, canRetry: Boolean) = post {
+        val url = serverUrl
+        // Câble débranché ou USB pas prêt : on repasse tout de suite par le Wi-Fi.
+        if (canRetry && url != null && tryingLink == Link.Usb && !isLoopback(url)) {
+            if (!opened) usbFailedAt = System.currentTimeMillis()
+            if (opened) toast("Câble USB débranché : passage au Wi-Fi")
+            open(url)
+            return@post
+        }
         status = Status.Disconnected
         statusText = reason
-        if (canRetry && serverUrl != null) main.postDelayed(reconnect, 3000)
+        if (canRetry && url != null) main.postDelayed(reconnect, 3000)
     }
 
     // ---------- Boutons ----------
@@ -550,6 +629,25 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
 
     private fun post(block: () -> Unit) {
         main.post(block)
+    }
+
+    private fun portOf(url: String): Int = Uri.parse(url).port.takeIf { it > 0 } ?: 8765
+
+    private fun tokenOf(url: String): String? = Uri.parse(url).getQueryParameter("token")?.uppercase()
+
+    private fun isLoopback(url: String): Boolean = Uri.parse(url).host.let { it == "127.0.0.1" || it == "localhost" }
+
+    /** Même adresse, mais par le câble : le PC est joignable sur 127.0.0.1 grâce à adb reverse. */
+    private fun usbUrl(url: String): String {
+        val uri = Uri.parse(url)
+        return uri.buildUpon().encodedAuthority("127.0.0.1:${portOf(url)}").build().toString()
+    }
+
+    /** Le câble est prêt si quelque chose répond sur 127.0.0.1 au port du PC (le tunnel d'adb). */
+    private fun usbReachable(port: Int): Boolean = try {
+        java.net.Socket().use { it.connect(java.net.InetSocketAddress("127.0.0.1", port), 300); true }
+    } catch (_: Exception) {
+        false
     }
 
     override fun onCleared() {

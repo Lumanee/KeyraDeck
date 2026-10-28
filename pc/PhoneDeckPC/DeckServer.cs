@@ -56,16 +56,32 @@ public class DeckServer
 
     public int Port => _store.Config.Port;
 
+    /// <summary>
+    /// Port réservé au câble USB : adb relie le port du téléphone à celui-ci. Il n'écoute que sur le PC lui-même
+    /// et n'ouvre que la connexion du deck (/ws, avec le code) : jamais le configurateur.
+    /// </summary>
+    public int UsbPort => _store.Config.Port + 1;
+
     public IReadOnlyList<string> ClientNames
     {
-        get { lock (_clients) return _clients.Select(c => c.Name).ToList(); }
+        get { lock (_clients) return _clients.Select(c => c.Usb ? c.Name + " (câble USB)" : c.Name).ToList(); }
+    }
+
+    /// <summary>Un téléphone est connecté par le câble USB.</summary>
+    public bool UsbConnected
+    {
+        get { lock (_clients) return _clients.Any(c => c.Usb); }
     }
 
     public async Task StartAsync()
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { ContentRootPath = AppContext.BaseDirectory });
         builder.Logging.ClearProviders();
-        builder.WebHost.ConfigureKestrel(o => o.ListenAnyIP(Port));
+        builder.WebHost.ConfigureKestrel(o =>
+        {
+            o.ListenAnyIP(Port);
+            o.Listen(System.Net.IPAddress.Loopback, UsbPort);
+        });
         _app = builder.Build();
         _app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(20) });
         _app.Run(HandleHttpAsync);
@@ -83,6 +99,12 @@ public class DeckServer
 
     private async Task HandleHttpAsync(HttpContext ctx)
     {
+        var viaUsb = ctx.Connection.LocalPort == UsbPort;
+        if (viaUsb && ctx.Request.Path != "/ws")
+        {
+            ctx.Response.StatusCode = 404;
+            return;
+        }
         if (ctx.Request.Path != "/ws")
         {
             if (Api != null) await Api.HandleAsync(ctx);
@@ -104,10 +126,10 @@ public class DeckServer
 
         var name = ctx.Request.Query["device"].ToString();
         using var ws = await ctx.WebSockets.AcceptWebSocketAsync();
-        var client = new Client(ws, string.IsNullOrWhiteSpace(name) ? "Téléphone" : name);
+        var client = new Client(ws, string.IsNullOrWhiteSpace(name) ? "Téléphone" : name) { Usb = viaUsb };
         lock (_clients) _clients.Add(client);
         ClientsChanged?.Invoke();
-        Log?.Invoke($"{client.Name} connecté");
+        Log?.Invoke($"{client.Name} connecté{(client.Usb ? " par câble USB" : "")}");
         try
         {
             await ReceiveLoopAsync(client, ctx.RequestAborted);
@@ -686,6 +708,8 @@ public class DeckServer
         public string Name { get; }
         /// <summary>Touches du clavier PC actuellement enfoncées par ce téléphone.</summary>
         public HashSet<int> HeldKeys { get; } = new();
+        /// <summary>Connecté par le câble USB plutôt que par le Wi-Fi.</summary>
+        public bool Usb { get; init; }
         private readonly SemaphoreSlim _sendLock = new(1, 1);
 
         public Client(WebSocket socket, string name)
