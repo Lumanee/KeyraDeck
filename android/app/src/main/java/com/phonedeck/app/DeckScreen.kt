@@ -66,9 +66,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -347,8 +345,7 @@ fun DeckKey(
     onPress: (DeckButton) -> Unit,
     onLongPress: (DeckButton) -> Unit,
 ) {
-    val haptic = LocalHapticFeedback.current
-    val hapticsOn = LocalSettings.current.haptics
+    val touch = LocalTouch.current
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.92f else 1f, label = "press")
@@ -370,12 +367,12 @@ fun DeckKey(
             interactionSource = interaction,
             indication = null,
             onClick = {
-                if (hapticsOn) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                touch.touch(button.vibrate, button.sound, false)
                 scope.launch { flash.snapTo(1f); flash.animateTo(0f, tween(500)) }
                 onPress(button)
             },
             onLongClick = {
-                if (hapticsOn) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                touch.touch(button.vibrate, "off", true)
                 onLongPress(button)
             },
         )

@@ -20,6 +20,10 @@ data class DeckButton(
     val kind: String,
     val page: String?,
     val closeFolder: Boolean,
+    /** Vibration propre à ce bouton : null = réglage général, 0 = aucune, 1 à 3 = force. */
+    val vibrate: Int? = null,
+    /** Son propre à ce bouton : null = réglage général, "off" = aucun. */
+    val sound: String? = null,
 )
 
 /** Un widget posé sur plusieurs cases : media, nowplaying, volume, clock, system ou weather. */
@@ -133,6 +137,8 @@ object Parser {
         kind = b.optString("kind", "action"),
         page = b.optStringOrNull("page"),
         closeFolder = b.optBoolean("closeFolder", false),
+        vibrate = b.optIntOrNull("vibrate"),
+        sound = b.optStringOrNull("sound"),
     )
 
     /** Liste des canaux du mélangeur. Si le PC n'envoie pas les icônes, on garde les anciennes. */

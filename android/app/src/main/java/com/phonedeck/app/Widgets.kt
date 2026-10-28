@@ -45,7 +45,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
@@ -123,8 +122,7 @@ private fun MediaWidget(widget: DeckWidget, vm: DeckViewModel) {
 
 @Composable
 private fun MediaRow(items: List<Pair<String, String>>, vm: DeckViewModel, modifier: Modifier) {
-    val haptic = LocalHapticFeedback.current
-    val hapticsOn = LocalSettings.current.haptics
+    val touch = LocalTouch.current
     val accent = LocalTheme.current.accent
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         for ((glyph, key) in items) {
@@ -135,7 +133,7 @@ private fun MediaRow(items: List<Pair<String, String>>, vm: DeckViewModel, modif
                     .clip(RoundedCornerShape(12.dp))
                     .background(lerp(Color.Black, accent, 0.18f))
                     .clickable {
-                        if (hapticsOn) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        touch.touch(null, null, false)
                         vm.sendMedia(key)
                     },
                 contentAlignment = Alignment.Center,
