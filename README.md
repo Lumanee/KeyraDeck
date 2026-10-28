@@ -27,13 +27,13 @@ Page d'accueil :
 - Le dossier **Launchers** reprend automatiquement le contenu du dossier « Launcher » de ton menu Démarrer s'il existe. Ajoute un raccourci dans ce dossier, il apparaît sur le téléphone.
 - Les dossiers s'ouvrent par-dessus la page, comme sur Android. Ils se referment après avoir lancé une appli, mais restent ouverts pour Micro / Sourdine.
 
-> Anciennement « PhoneDeck » : certains noms techniques (fichiers `PhoneDeckPC.exe`, `PhoneDeck.apk`, dossier `%APPDATA%\PhoneDeckPC`, dépôt GitHub) gardent l'ancien nom pour que les mises à jour automatiques et les réglages existants continuent de fonctionner.
+> Anciennement « PhoneDeck » : certains noms techniques (fichiers `PhoneDeckPC.exe`, `PhoneDeck.apk`, dossier `%APPDATA%\PhoneDeckPC`) gardent l'ancien nom pour que les mises à jour automatiques et les réglages existants continuent de fonctionner.
 
 ## Installer et essayer
 
 ### 1. Télécharger
 
-Va dans **Releases → « Dernière version (prototype) »** sur la page GitHub du projet, et télécharge :
+Va dans **Releases → « KeyraDeck : dernière version »** sur la page GitHub du projet (`github.com/Lumanee/KeyraDeck`), et télécharge :
 
 - `PhoneDeckPC-Windows.zip` pour le PC
 - `PhoneDeck.apk` pour le téléphone
