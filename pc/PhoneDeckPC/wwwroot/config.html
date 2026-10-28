@@ -231,6 +231,76 @@
   .key.dim, .wdg.dim { opacity: .22; }
   .key.flash { animation: flash 1.2s ease-out; }
   @keyframes flash { 0%, 40% { transform: scale(1.12); outline-color: #fff; } 100% { transform: none; } }
+
+  /* ===== Panneau des propriétés repliable ===== */
+  main { transition: grid-template-columns .22s ease; }
+  main.insp-off { grid-template-columns: 320px 1fr 40px; }
+  aside.right { position: relative; overflow-x: hidden; }
+  #inspector { min-width: 284px; }
+  #inspector > h2:first-child { padding-right: 34px; }
+  #inspToggle { position: absolute; top: 14px; right: 12px; z-index: 3; width: 30px; height: 30px; padding: 0; border-radius: 50%; background: transparent; color: var(--muted);
+                font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets"; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 14px; }
+  #inspToggle:hover { color: #fff; background: #ffffff12; }
+  #inspToggle .vt { display: none; font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; writing-mode: vertical-rl; font-size: 11px; letter-spacing: .22em; text-transform: uppercase; }
+  main.insp-off aside.right { padding: 0; }
+  main.insp-off #inspector { display: none; }
+  main.insp-off #inspToggle { inset: 0; width: 100%; height: 100%; border-radius: 12px; flex-direction: column; justify-content: flex-start; padding-top: 18px; }
+  main.insp-off #inspToggle .vt { display: block; }
+
+  /* ===== Affectations incrustées dans le fond, défilement invisible + flèches ===== */
+  aside.left { background: transparent; padding: 14px 8px 0 6px; display: flex; flex-direction: column; overflow: hidden; }
+  .panes { position: relative; flex: 1; min-height: 0; }
+  .pane { position: absolute; inset: 0; max-height: none; overflow-y: auto; scrollbar-width: none; padding-bottom: 8px; }
+  .pane::-webkit-scrollbar { display: none; }
+  .pane .applist { max-height: none; overflow: visible; margin-top: 0; }
+  .sarrow { position: absolute; left: 0; right: 0; z-index: 2; height: 34px; padding: 0; border: 0 !important; border-radius: 0; display: flex; justify-content: center; color: #c9c9d2;
+            font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets"; font-size: 12px; transition: opacity .15s; }
+  .sarrow.up { top: 0; align-items: flex-start; padding-top: 2px; background: linear-gradient(var(--bg) 35%, transparent) !important; }
+  .sarrow.down { bottom: 0; align-items: flex-end; padding-bottom: 4px; background: linear-gradient(transparent, var(--bg) 65%) !important; }
+  .sarrow:hover { color: #fff; }
+  .sarrow svg { width: 20px; height: 20px; }
+  .sarrow[hidden] { display: flex; opacity: 0; pointer-events: none; }
+  .fold { display: flex; align-items: center; gap: 10px; padding: 9px 6px; border-bottom: 1px solid #202025; cursor: pointer; }
+  .fold:hover { background: #ffffff0a; }
+  .fold.on { background: #ffffff10; box-shadow: inset 2px 0 0 var(--accent); }
+  .fold .fic { font-size: 18px; }
+  .fold .fn { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fold small { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .addfold { width: 100%; margin: 4px 0 6px; text-align: left; padding: 9px 10px; }
+
+  /* ===== Boîtier en métal brossé ===== */
+  .device {
+    background:
+      linear-gradient(180deg, #ffffff30, #ffffff00 18%, #00000000 70%, #00000059),
+      repeating-linear-gradient(0deg, #ffffff07 0 1px, #00000009 1px 2px),
+      linear-gradient(115deg, color-mix(in srgb, var(--body), white 24%) 0%, color-mix(in srgb, var(--body), black 22%) 30%, color-mix(in srgb, var(--body), white 14%) 52%, color-mix(in srgb, var(--body), black 32%) 75%, color-mix(in srgb, var(--body), white 18%) 100%);
+    border: 1px solid #000;
+    box-shadow: inset 0 1px 0 #ffffff70, inset 0 -1px 0 #ffffff26, inset 0 0 0 1px #ffffff14, 0 24px 60px #000c;
+  }
+  .phone { border-color: #3c3d43; box-shadow: 0 0 0 1px #000, 0 0 0 4px #1d1e22, 0 0 0 5px #5a5c63, 0 0 0 6px #111, 0 40px 90px #000c; }
+
+  /* ===== Touches vitrées ===== */
+  .key { background: linear-gradient(#000, #0a0a0c 55%, #1c1d21); box-shadow: inset 0 2px 3px #000, 0 1px 0 #ffffff1c; }
+  .key .face { border: 1px solid #ffffff26; border-top-color: #ffffff59; background-color: var(--keyface);
+               background-image: linear-gradient(180deg, #ffffff26, #ffffff08 50%, #00000047); box-shadow: inset 0 -6px 14px #0007, 0 2px 4px #000a; }
+  .key .face::after { content: ""; position: absolute; left: 5%; right: 5%; top: 3%; height: 46%; border-radius: 12% 12% 40% 40% / 20% 20% 30% 30%;
+                      background: linear-gradient(#ffffff2b, #ffffff05); pointer-events: none; }
+  .key.empty { background: #050506; box-shadow: inset 0 2px 3px #000; }
+  .key.empty .face { background: transparent; border: 1px dashed #2e2e36; box-shadow: none; }
+  .key.empty .face::after { display: none; }
+  .wdg { background: linear-gradient(color-mix(in srgb, var(--keyface), white 10%), var(--keyface) 45%, color-mix(in srgb, var(--keyface), black 60%));
+         border: 1px solid #ffffff26; border-top-color: #ffffff59; box-shadow: inset 0 0 14px #000, 0 0 0 1px #000, 0 2px 4px #000a; }
+
+  /* ===== Thème Noir OLED : noir pur partout ===== */
+  :root[data-oled] { --panel: #000; --panel2: #0b0b0d; --line: #1a1a1e; }
+  :root[data-oled] aside.right { border: 1px solid #1a1a1e; }
+  :root[data-oled] .stage, :root[data-oled] .phone { background: #000; }
+  :root[data-oled] button { background: #0e0e10; }
+  :root[data-oled] button:hover { background: #1a1a1d; }
+  :root[data-oled] .utabs button { background: transparent; }
+  :root[data-oled] button.primary { background: var(--accent2); }
+  :root[data-oled] input[type=text], :root[data-oled] input[type=number], :root[data-oled] select, :root[data-oled] textarea { background: #050506; }
+  :root[data-oled] dialog, :root[data-oled] .ctx, :root[data-oled] .findres { background: #000; }
 </style>
 </head>
 <body>
@@ -248,15 +318,20 @@
   <span id="saved"></span>
 </header>
 
-<main>
+<main class="insp-off">
   <aside class="left">
     <div class="ptitle">Affectations</div>
-    <div class="utabs"><button data-lt="cmd">COMMANDES</button><button data-lt="wdg">WIDGETS</button><button data-lt="app">APPLIS</button></div>
-    <div class="hint">Fais glisser une commande sur une case du boîtier pour l'ajouter (ou clique dessus).</div>
+    <div class="utabs"><button data-lt="cmd">COMMANDES</button><button data-lt="wdg">WIDGETS</button><button data-lt="app">APPLIS</button><button data-lt="fold">DOSSIERS</button></div>
+    <div class="hint" id="leftHint">Fais glisser une commande sur une case du boîtier pour l'ajouter (ou clique dessus).</div>
     <input type="text" id="appSearch" placeholder="Rechercher une commande">
-    <div class="pane" id="paneCmd"></div>
-    <div class="pane" id="paneWdg" hidden></div>
-    <div class="pane" id="paneApp" hidden><div class="applist" id="appList"></div></div>
+    <div class="panes">
+      <button class="sarrow up" id="arrUp" title="Remonter" hidden></button>
+      <div class="pane" id="paneCmd"></div>
+      <div class="pane" id="paneWdg" hidden></div>
+      <div class="pane" id="paneApp" hidden><div class="applist" id="appList"></div></div>
+      <div class="pane" id="paneFold" hidden></div>
+      <button class="sarrow down" id="arrDown" title="Plus d'options plus bas" hidden></button>
+    </div>
   </aside>
 
   <section class="center">
@@ -273,7 +348,7 @@
     </div>
   </section>
 
-  <aside class="right" id="inspector"></aside>
+  <aside class="right"><button id="inspToggle" title="Propriétés du bouton"><span class="ch"></span><span class="vt">Propriétés</span></button><div id="inspector"></div></aside>
 </main>
 
 <dialog id="pairDlg">
@@ -520,8 +595,11 @@ function renderLeft() {
   const tab = state.leftTab || 'cmd';
   const q = $('#appSearch').value.trim().toLowerCase();
   document.querySelectorAll('.utabs button').forEach(b => b.classList.toggle('on', b.dataset.lt === tab));
-  $('#paneCmd').hidden = tab !== 'cmd'; $('#paneWdg').hidden = tab !== 'wdg'; $('#paneApp').hidden = tab !== 'app';
-  $('#appSearch').placeholder = tab === 'app' ? 'Rechercher une appli' : 'Rechercher une commande';
+  $('#paneCmd').hidden = tab !== 'cmd'; $('#paneWdg').hidden = tab !== 'wdg'; $('#paneApp').hidden = tab !== 'app'; $('#paneFold').hidden = tab !== 'fold';
+  $('#appSearch').placeholder = tab === 'app' ? 'Rechercher une appli' : tab === 'fold' ? 'Rechercher un dossier' : 'Rechercher une commande';
+  $('#leftHint').textContent = tab === 'fold' ? 'Clique sur un dossier pour l\'ouvrir et le remplir, ou glisse-le sur une case pour créer le bouton qui l\'ouvre.'
+    : 'Fais glisser une commande sur une case du boîtier pour l\'ajouter (ou clique dessus).';
+  renderFolders(q);
   const pc = $('#paneCmd'); pc.replaceChildren();
   for (const g of COMMANDS) {
     const items = g.items.filter(([k, n, d]) => !q || (n + ' ' + d).toLowerCase().includes(q));
@@ -536,8 +614,34 @@ function renderLeft() {
     pw.append(el('div', { class: 'grp' }, info.name), ...items.map(m => cmdRow(`${m.w}×${m.h}`, m.name, 'application/x-pd-newwidget', type + '|' + m.id, () => addWidget(type, m), 'sz')));
   }
   if (tab === 'app') renderApps();
+  requestAnimationFrame(updArrows);
 }
 const renderGallery = renderLeft;
+// Onglet « Dossiers » des affectations : ouvrir un dossier, le glisser sur une case, en créer un.
+function renderFolders(q) {
+  const pf = $('#paneFold'); if (!pf) return;
+  pf.replaceChildren(el('button', { class: 'addfold', onclick: addFolder }, '＋ Nouveau dossier'));
+  if (!state.cfg) return;
+  const list = folderPages().filter(p => !q || (p.name || '').toLowerCase().includes(q));
+  if (!list.length) pf.append(el('div', { class: 'hint', style: 'padding:8px 4px' }, q ? 'Aucun dossier ne correspond.' : 'Pas encore de dossier. Un dossier regroupe des boutons et s\'ouvre depuis un bouton du téléphone.'));
+  for (const p of list) {
+    const n = p.generated ? p.generated.length : p.buttons.length;
+    const r = el('div', { class: 'fold' + (p.id === state.page ? ' on' : ''), draggable: 'true', title: 'Clic : ouvrir · Glisser sur une case : créer le bouton qui ouvre ce dossier · Clic droit : renommer, supprimer…' },
+      el('span', { class: 'fic' }, '📁'), el('span', { class: 'fn' }, p.name || p.id), el('small', {}, n + (n > 1 ? ' boutons' : ' bouton')));
+    r.addEventListener('click', () => goPage(p.id));
+    r.addEventListener('dragstart', (e) => { e.dataTransfer.setData('application/x-pd-folder', p.id); e.dataTransfer.effectAllowed = 'copy'; });
+    r.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); pageMenu(p, e.clientX, e.clientY); });
+    pf.append(r);
+  }
+}
+// Flèches haut / bas : la barre de défilement est cachée, elles montrent qu'il y a d'autres options.
+function visiblePane() { return [...document.querySelectorAll('.panes .pane')].find(p => !p.hidden); }
+function updArrows() {
+  const p = visiblePane(); if (!p) return;
+  $('#arrUp').hidden = p.scrollTop <= 2;
+  $('#arrDown').hidden = p.scrollTop + p.clientHeight >= p.scrollHeight - 2;
+}
+function scrollPane(dir) { const p = visiblePane(); if (p) p.scrollBy({ top: dir * Math.max(80, p.clientHeight * 0.6), behavior: 'smooth' }); }
 // Anciens widgets sans modèle : on leur donne le modèle de même taille, ou le premier.
 function normalizeWidgets() {
   let touched = false;
@@ -556,7 +660,7 @@ const findButton = (id) => { for (const p of state.cfg.pages) { const b = p.butt
 // ---------- Thème et réglages ----------
 
 const PRESETS = [
-  { name: 'Noir OLED', body: '#0B0B0D', desk: '#000000', key: '#141417', accent: '#A594FF', active: '#E5484D' },
+  { name: 'Noir OLED', body: '#17181B', desk: '#000000', key: '#000000', accent: '#ECECF0', active: '#E5484D' },
   { name: 'Blanc', body: '#F1F2F5', desk: '#D3D7DF', key: '#2B2C33', accent: '#3B82F6', active: '#E5484D' },
   { name: 'Rouge', body: '#5A1414', desk: '#140505', key: '#2B0C0C', accent: '#FF4D4D', active: '#FFB020' },
   { name: 'Bleu', body: '#12304F', desk: '#050D18', key: '#0C1D31', accent: '#3AA0FF', active: '#FF5A5F' },
@@ -573,6 +677,13 @@ function applyTheme() {
   let chrome = t.desk;
   if (m) { const [r0, g0, b0] = [1, 2, 3].map(i => parseInt(m[i], 16)); if ((0.299 * r0 + 0.587 * g0 + 0.114 * b0) / 255 > 0.5) chrome = `rgb(${Math.round(r0 * .12)},${Math.round(g0 * .12)},${Math.round(b0 * .12)})`; }
   r.setProperty('--chrome', chrome);
+  document.documentElement.toggleAttribute('data-oled', /^#?000000$/i.test(t.desk || ''));
+}
+// Ancien « Noir OLED » (touches grises, accent violet) : on passe aux nouvelles couleurs, noir pur.
+function migrateTheme() {
+  const t = state.cfg.theme, p = PRESETS[0];
+  if (!t || t.name !== p.name || ['body', 'desk', 'key', 'accent', 'active'].every(k => (t[k] || '').toLowerCase() === p[k].toLowerCase())) return false;
+  Object.assign(t, p); return true;
 }
 function renderSettings() {
   const t = state.cfg.theme;
@@ -650,7 +761,7 @@ async function openSettings() {
 async function loadAll() {
   const [cfg, layout, info] = await Promise.all([api('/api/config'), api('/api/layout'), api('/api/info')]);
   state.cfg = cfg; state.layout = layout; state.info = info; state.version = info.version;
-  const norm = normalizeWidgets() | normalizePages();
+  const norm = normalizeWidgets() | normalizePages() | migrateTheme();
   applyTheme();
   // On fige la position de chaque bouton (cases calculées par le PC) pour pouvoir les déplacer.
   for (const lp of layout.pages) {
@@ -725,9 +836,11 @@ function renderTabs() {
   tabs.append(el('span', { class: 'tabgrp', title: 'Les pages se parcourent en glissant sur le téléphone' }, 'Pages'));
   for (const p of rootPages()) tabs.append(tab(p));
   tabs.append(el('button', { class: 'tab', title: 'Ajouter une page (on passe de l\'une à l\'autre en glissant sur le téléphone)', onclick: addRootPage }, '＋ Page'));
-  tabs.append(el('span', { class: 'tabsep' }), el('span', { class: 'tabgrp', title: 'Un dossier s\'ouvre depuis un bouton' }, 'Dossiers'));
-  for (const p of folderPages()) tabs.append(tab(p));
-  tabs.append(el('button', { class: 'tab', title: 'Ajouter un dossier (à ouvrir depuis un bouton « Dossier »)', onclick: addFolder }, '＋ Dossier'));
+  // Les dossiers sont dans l'onglet « Dossiers » des affectations ; celui qui est ouvert s'affiche ici.
+  const cur = currentPage();
+  if (!isRoot(cur)) tabs.append(el('span', { class: 'tabsep' }), el('button', { class: 'tab active', title: 'Dossier ouvert (clic droit : renommer, supprimer…)',
+    oncontextmenu: (e) => { e.preventDefault(); e.stopPropagation(); pageMenu(cur, e.clientX, e.clientY); } }, '📁 ' + (cur.name || cur.id)));
+  if (state.leftTab === 'fold') renderFolders($('#appSearch').value.trim().toLowerCase());
 }
 
 function pageGrid(page) {
@@ -853,7 +966,7 @@ function renderStage() {
     }
     k.addEventListener('dragover', (e) => {
       const t = e.dataTransfer.types;
-      if (t.includes('application/x-pd-button') || t.includes('application/x-pd-app') || t.includes('application/x-pd-widget') || t.includes('application/x-pd-cmd') || t.includes('application/x-pd-newwidget')) { e.preventDefault(); k.classList.add('over'); }
+      if (t.includes('application/x-pd-button') || t.includes('application/x-pd-app') || t.includes('application/x-pd-widget') || t.includes('application/x-pd-cmd') || t.includes('application/x-pd-newwidget') || t.includes('application/x-pd-folder')) { e.preventDefault(); k.classList.add('over'); }
       else if (t.includes('Files') && b) { e.preventDefault(); k.classList.add('fileover'); }
     });
     k.addEventListener('dragleave', () => k.classList.remove('over', 'fileover'));
@@ -1028,6 +1141,15 @@ async function onDropOnSlot(e, slot, existing) {
     state.dropSlot = slot; try { addFromPalette(cmd); } finally { state.dropSlot = undefined; }
     return;
   }
+  const folderId = dt.getData('application/x-pd-folder');
+  if (folderId) {
+    const fp = pageById(folderId); if (!fp) return;
+    if (fp === page) { toast('Un dossier ne peut pas s\'ouvrir depuis lui-même'); return; }
+    pushUndo();
+    if (existing) existing.slot = firstFreeSlot(page, slot);
+    addButton({ id: uid('btn'), label: fp.name, icon: 'auto', action: { type: 'folder', page: fp.id } }, slot);
+    return;
+  }
   const nw = dt.getData('application/x-pd-newwidget');
   if (nw) {
     const [type, id] = nw.split('|'); const m = (WIDGET_MODELS[type] || []).find(x => x.id === id);
@@ -1109,6 +1231,7 @@ function newAppButton(a) {
 
 function select(id, silent) {
   state.selected = id;
+  if (silent) state.inspSel = id; // glisser un bouton n'ouvre pas le panneau
   if (!silent) { renderStage(); renderInspector(); }
 }
 
@@ -1373,7 +1496,18 @@ async function importPageFile(file) {
 
 // ---------- Panneau de droite ----------
 
+// Panneau des propriétés : replié au lancement, s'ouvre quand on choisit un bouton, se replie au clic hors du téléphone.
+function setInspector(open) {
+  $('main').classList.toggle('insp-off', !open);
+  $('#inspToggle .ch').innerHTML = chevron(open ? 0 : 180);
+  $('#inspToggle').title = open ? 'Replier les propriétés' : 'Afficher les propriétés';
+}
+// Petit chevron dessiné (pointe vers la droite, tourné de deg degrés).
+const chevron = (deg) => `<svg width="14" height="14" viewBox="0 0 14 14" style="transform:rotate(${deg}deg);display:block"><path d="M5 2.5 9.5 7 5 11.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const inspectorOpen = () => !$('main').classList.contains('insp-off');
 function renderInspector() {
+  if (state.selected && state.selected !== state.inspSel) setInspector(true);
+  state.inspSel = state.selected;
   const box = $('#inspector'); box.replaceChildren();
   const fw = state.selected && findWidget(state.selected);
   if (fw) { renderWidgetInspector(box, fw); return; }
@@ -1697,6 +1831,7 @@ function renderApps() {
     item.addEventListener('click', () => { pushUndo(); addButton(newAppButton(a)); });
     list.append(item);
   }
+  requestAnimationFrame(updArrows);
 }
 
 // ---------- Connexion du téléphone ----------
@@ -2296,7 +2431,21 @@ $('#rowMinus').onclick = () => setGrid(0, -1); $('#rowPlus').onclick = () => set
 $('#appSearch').oninput = renderLeft;
 renderGallery();
 document.querySelectorAll('.utabs button').forEach(b => b.onclick = () => setLeftTab(b.dataset.lt));
-window.addEventListener('resize', () => state.cfg && renderStage());
+// La scène change de taille quand le panneau se replie ou que la fenêtre bouge : on redessine le téléphone.
+let stageRaf = 0;
+new ResizeObserver(() => { cancelAnimationFrame(stageRaf); stageRaf = requestAnimationFrame(() => state.cfg && renderStage()); }).observe($('#stage'));
+window.addEventListener('resize', updArrows);
+$('#inspToggle').onclick = () => setInspector(!inspectorOpen());
+// Clic dans le vide autour du téléphone : on désélectionne et on replie le panneau.
+$('#stage').addEventListener('click', (e) => {
+  // (une touche cliquée est redessinée tout de suite : sa cible n'est alors plus dans la page)
+  if (!e.target.isConnected || e.target.closest('#phone') || !state.cfg) return;
+  state.selected = null; setInspector(false); renderStage(); renderInspector();
+});
+$('#arrUp').innerHTML = chevron(-90); $('#arrDown').innerHTML = chevron(90);
+$('#arrUp').onclick = () => scrollPane(-1); $('#arrDown').onclick = () => scrollPane(1);
+document.querySelectorAll('.panes .pane').forEach(p => p.addEventListener('scroll', updArrows));
+setInspector(false);
 window.addEventListener('dragover', (e) => e.preventDefault());
 window.addEventListener('drop', (e) => e.preventDefault());
 

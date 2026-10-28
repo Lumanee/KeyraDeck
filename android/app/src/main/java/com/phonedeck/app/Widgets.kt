@@ -57,7 +57,6 @@ import java.util.Locale
 import kotlin.math.min
 
 private val WidgetCap = Color(0xFF060608)
-private val WidgetGloss = Brush.verticalGradient(listOf(Color(0x1FFFFFFF), Color(0x00FFFFFF)))
 
 /** Un widget : même cadre que les touches, mais sur plusieurs cases. [unit] est la taille d'une touche. */
 @Composable
@@ -65,9 +64,9 @@ fun DeckWidgetView(widget: DeckWidget, width: Dp, height: Dp, unit: Dp, vm: Deck
     val theme = LocalTheme.current
     // Un widget est un petit écran tactile encastré dans le boîtier : verre sombre, sans capuchon de touche ni relief.
     val shape = RoundedCornerShape(unit * 0.12f)
-    // Le verre prend les couleurs du thème : touches teintées par l'accent en haut, très sombres en bas.
-    val glass = Brush.verticalGradient(listOf(lerp(theme.key, theme.accent, 0.28f), lerp(theme.key, Color.Black, 0.60f)))
-    val edge = Brush.verticalGradient(listOf(theme.accent.copy(alpha = 0.55f), theme.accent.copy(alpha = 0.12f)))
+    // Verre fumé neutre (sans teinte d'accent) : reflet clair en haut, très sombre en bas, liseré comme une tranche de verre.
+    val glass = Brush.verticalGradient(listOf(lerp(theme.key, Color.White, 0.10f), theme.key, lerp(theme.key, Color.Black, 0.60f)))
+    val edge = Brush.verticalGradient(listOf(Color(0x66FFFFFF), Color(0x12FFFFFF), Color(0x29FFFFFF)))
     Box(
         Modifier
             .size(width, height)
@@ -262,7 +261,7 @@ private fun NowPlayingButtons(items: List<Pair<String, String>>, vm: DeckViewMod
             ) {
                 BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     val size = (min(maxWidth.value, maxHeight.value) * 0.5f).coerceIn(12f, 30f)
-                    Text(glyph, fontSize = size.sp, color = Color.White)
+                    Text(glyph, fontSize = size.sp, color = if (action == "toggle") LocalTheme.current.onAccent else Color.White)
                 }
             }
         }

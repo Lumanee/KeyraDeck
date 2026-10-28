@@ -61,6 +61,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -76,20 +81,47 @@ import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 
-private val KeyCap = Color(0xFF060608)
-private val Gloss = Brush.verticalGradient(listOf(Color(0x1FFFFFFF), Color(0x00FFFFFF)))
-private val BodyEdge = Brush.verticalGradient(listOf(Color(0x55FFFFFF), Color(0x08FFFFFF)))
+// Logement de la touche, creusé dans le métal : plus sombre en haut, la lumière accroche le bord du bas.
+private val KeyWell = Brush.verticalGradient(listOf(Color(0xFF000000), Color(0xFF0A0A0C), Color(0xFF1C1D21)))
+// Verre de la touche : reflet en haut, plus sombre en bas, liseré clair comme une tranche de verre.
+private val GlassShade = Brush.verticalGradient(0f to Color(0x26FFFFFF), 0.5f to Color(0x08FFFFFF), 1f to Color(0x47000000))
+private val GlassEdge = Brush.verticalGradient(listOf(Color(0x73FFFFFF), Color(0x14FFFFFF), Color(0x2EFFFFFF)))
+private val GlassGlare = listOf(Color(0x33FFFFFF), Color(0x08FFFFFF))
+private val BodyEdge = Brush.verticalGradient(listOf(Color(0x80FFFFFF), Color(0x10FFFFFF), Color(0x40FFFFFF)))
+// Reflet général du métal : lumière en haut, ombre en bas.
+private val MetalShade = Brush.verticalGradient(0f to Color(0x2EFFFFFF), 0.18f to Color(0x00FFFFFF), 0.7f to Color(0x00000000), 1f to Color(0x59000000))
 
 @Composable
 private fun deskBrush(): Brush {
     val t = LocalTheme.current
+    // Thème OLED : noir pur, sans halo.
+    if (t.pureBlack) return Brush.verticalGradient(listOf(Color.Black, Color.Black))
     return Brush.radialGradient(listOf(lerp(t.desk, Color.White, 0.12f), t.desk))
 }
 
+/** Boîtier en métal brossé : reflets en biais (aluminium anodisé) + fines stries horizontales. */
 @Composable
-private fun bodyBrush(): Brush {
-    val t = LocalTheme.current
-    return Brush.verticalGradient(listOf(lerp(t.body, Color.White, 0.08f), lerp(t.body, Color.Black, 0.45f)))
+private fun Modifier.metalBody(): Modifier {
+    val b = LocalTheme.current.body
+    val sheen = Brush.linearGradient(
+        0f to lerp(b, Color.White, 0.24f),
+        0.3f to lerp(b, Color.Black, 0.22f),
+        0.52f to lerp(b, Color.White, 0.14f),
+        0.75f to lerp(b, Color.Black, 0.32f),
+        1f to lerp(b, Color.White, 0.18f),
+        start = Offset.Zero, end = Offset.Infinite,
+    )
+    return this
+        .background(sheen)
+        .background(MetalShade)
+        .drawBehind {
+            var y = 0f
+            var i = 0
+            while (y < size.height) {
+                drawLine(if (i % 2 == 0) Color(0x0AFFFFFF) else Color(0x0D000000), Offset(0f, y), Offset(size.width, y), 1f)
+                y += 2f; i++
+            }
+        }
 }
 
 /** Écran principal : la page d'accueil dessinée comme un boîtier Stream Deck, et les dossiers par-dessus. */
@@ -239,7 +271,7 @@ private fun Device(
                 .padding(margin)
                 .shadow(24.dp, shape)
                 .clip(shape)
-                .background(bodyBrush())
+                .metalBody()
                 .border(1.dp, BodyEdge, shape)
                 .padding(pad),
         ) {
@@ -374,7 +406,7 @@ fun DeckKey(
         .scale(scale)
         .shadow(if (pressed) 1.dp else 5.dp, capShape)
         .clip(capShape)
-        .background(KeyCap)
+        .background(KeyWell)
     if (button != null) {
         mod = mod.combinedClickable(
             interactionSource = interaction,
@@ -397,9 +429,22 @@ fun DeckKey(
                 .fillMaxSize()
                 .clip(screenShape)
                 .background(if (active) LocalTheme.current.active else (button?.color ?: LocalTheme.current.key))
-                .background(Gloss)
+                .background(GlassShade)
                 .background(if (pressed) Color(0x22FFFFFF) else Color.Transparent)
                 .background(flashColor.copy(alpha = 0.6f * flash.value))
+                // Reflet du verre par-dessus l'icône : la touche a l'air vitrée.
+                .drawWithContent {
+                    drawContent()
+                    val area = this.size // (« size » seul désigne la taille de la touche en dp)
+                    val h = area.height * 0.46f
+                    drawRoundRect(
+                        Brush.verticalGradient(GlassGlare, startY = 0f, endY = h),
+                        topLeft = Offset(area.width * 0.05f, area.height * 0.03f),
+                        size = Size(area.width * 0.9f, h),
+                        cornerRadius = CornerRadius(area.width * 0.12f),
+                    )
+                }
+                .border(1.dp, GlassEdge, screenShape)
                 .padding(size * 0.07f),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
@@ -447,7 +492,7 @@ private fun FolderDialog(
             Modifier
                 .shadow(24.dp, shape)
                 .clip(shape)
-                .background(bodyBrush())
+                .metalBody()
                 .border(1.dp, BodyEdge, shape)
                 .padding(18.dp),
         ) {

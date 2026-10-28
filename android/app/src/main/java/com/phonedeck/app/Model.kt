@@ -5,6 +5,7 @@ import android.util.Base64
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.luminance
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -55,6 +56,12 @@ data class DeckTheme(
             "Anthracite", Color(0xFF2C2C34), Color(0xFF0B0B0E), Color(0xFF1B1B21), Color(0xFF7C6CF2), Color(0xFFC62828),
         )
     }
+
+    /** Texte posé sur la couleur d'accent : noir si l'accent est clair (thème Noir OLED, accent platine), sinon blanc. */
+    val onAccent: Color get() = if (accent.luminance() > 0.5f) Color.Black else Color.White
+
+    /** Fond noir pur (thème OLED) : pas de halo gris derrière le boîtier. */
+    val pureBlack: Boolean get() = desk.luminance() < 0.004f
 }
 
 data class DeckLayout(

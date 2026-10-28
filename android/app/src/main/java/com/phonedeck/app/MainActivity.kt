@@ -122,9 +122,11 @@ fun App(vm: DeckViewModel) {
     val theme = vm.layout?.theme ?: DeckTheme.Default
     val touch = remember(settings) { Touch { v, s, long -> vm.feedback.touch(settings, v, s, long) } }
     CompositionLocalProvider(LocalTheme provides theme, LocalSettings provides settings, LocalTouch provides touch) {
-        MaterialTheme(colorScheme = darkColorScheme(primary = theme.accent, background = Background, surface = Background)) {
+        // Thème OLED : fond noir pur partout (les pixels restent éteints).
+        val bg = if (theme.pureBlack) Color.Black else Background
+        MaterialTheme(colorScheme = darkColorScheme(primary = theme.accent, onPrimary = theme.onAccent, background = bg, surface = bg)) {
             Box(Modifier.fillMaxSize()) {
-                Surface(Modifier.fillMaxSize(), color = Background) {
+                Surface(Modifier.fillMaxSize(), color = bg) {
                     when {
                         vm.serverUrl == null -> ConnectScreen(vm)
                         vm.showPad -> PadScreen(vm)
@@ -250,11 +252,11 @@ private fun BoxScope.UpdateBanner(vm: DeckViewModel) {
     ) {
         Text(
             if (progress != null) "Téléchargement… $progress %" else "Mise à jour disponible (version ${info.build})",
-            color = Color.White,
+            color = LocalTheme.current.onAccent,
         )
         if (progress == null) {
-            TextButton(onClick = { vm.installUpdate() }) { Text("Installer", color = Color.White, fontWeight = FontWeight.Bold) }
-            TextButton(onClick = { vm.dismissUpdate() }) { Text("Plus tard", color = Color(0xCCFFFFFF)) }
+            TextButton(onClick = { vm.installUpdate() }) { Text("Installer", color = LocalTheme.current.onAccent, fontWeight = FontWeight.Bold) }
+            TextButton(onClick = { vm.dismissUpdate() }) { Text("Plus tard", color = LocalTheme.current.onAccent.copy(alpha = 0.8f)) }
         } else {
             Spacer(Modifier.width(12.dp))
         }

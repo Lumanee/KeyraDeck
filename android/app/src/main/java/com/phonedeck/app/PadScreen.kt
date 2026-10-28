@@ -165,7 +165,7 @@ private fun PadChip(label: String, on: Boolean, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center,
-    ) { Text(label, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+    ) { Text(label, color = if (on) LocalTheme.current.onAccent else Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
 }
 
 /** Bouton de souris maintenu : appuyer = enfoncé, relâcher = relâché (permet de glisser-déposer). */
@@ -188,7 +188,7 @@ private fun PadButton(label: String, button: String, vm: DeckViewModel, modifier
                 }
             },
         contentAlignment = Alignment.Center,
-    ) { Text(label, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+    ) { Text(label, color = if (pressed) LocalTheme.current.onAccent else Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
 }
 
 /** Champ invisible qui ouvre le clavier du téléphone et envoie ce qu'on tape au PC (bouton « Texte »). */
