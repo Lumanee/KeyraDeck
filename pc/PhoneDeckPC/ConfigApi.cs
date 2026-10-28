@@ -75,6 +75,16 @@ public class ConfigApi
                     });
                     return;
 
+                case "/api/art":
+                {
+                    // Pochette du morceau en cours (l'adresse change avec le morceau : ?k=…).
+                    var art = _server.NowPlayingArt;
+                    if (art == null) { ctx.Response.StatusCode = 404; return; }
+                    ctx.Response.ContentType = "image/jpeg";
+                    await ctx.Response.Body.WriteAsync(art);
+                    return;
+                }
+
                 case "/api/qr.png":
                 {
                     var ip = ctx.Request.Query["ip"].ToString();

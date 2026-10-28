@@ -13,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -37,6 +38,12 @@ enum class Link { Wifi, Usb }
 /** Réglages propres au téléphone (le thème de couleurs, lui, vient du PC). */
 data class AppSettings(
     val haptics: Boolean = true,
+    /** Force de la vibration : 1 = léger, 2 = moyen, 3 = fort. */
+    val hapticStrength: Int = 2,
+    /** Son au toucher : "off" ou un nom de [TouchSounds]. */
+    val sound: String = "off",
+    /** Volume du son au toucher, de 0 à 100. */
+    val soundVolume: Int = 60,
     val keepScreenOn: Boolean = true,
     /** 0 = automatique, 1 = portrait, 2 = paysage. */
     val orientation: Int = 0,
@@ -81,6 +88,10 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
     private var volumeDragging = false
     var weather by mutableStateOf<Weather?>(null)
         private set
+    var nowPlaying by mutableStateOf<NowPlayingInfo?>(null)
+        private set
+    var nowPlayingArt by mutableStateOf<ImageBitmap?>(null)
+        private set
 
     /** Notifications reçues du PC : bandeau qui s'affiche quelques secondes, puis compteur dans la barre du boîtier. */
     val notifications = mutableStateListOf<Notif>()
@@ -91,12 +102,41 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
     var settings by mutableStateOf(
         AppSettings(
             haptics = prefs.getBoolean("haptics", true),
+            hapticStrength = prefs.getInt("hapticStrength", 2),
+            sound = prefs.getString("sound", "off") ?: "off",
+            soundVolume = prefs.getInt("soundVolume", 60),
             keepScreenOn = prefs.getBoolean("keepOn", true),
             orientation = prefs.getInt("orientation", 0),
         )
     )
         private set
     var showSettings by mutableStateOf(false)
+
+    /** Vibration et son au toucher. */
+    val feedback = TouchFeedback(app)
+
+    /**
+     * Réglages de vibration et de son choisis dans le configurateur du PC. On ne les applique que s'ils ont changé
+     * depuis la dernière fois : un réglage fait ensuite sur le téléphone reste en place.
+     */
+    private fun applyPcFeedback(json: JSONObject?) {
+        if (json == null) return
+        val key = json.toString()
+        val last = prefs.getString("pcFeedback", null)
+        if (key == last) return
+        prefs.edit().putString("pcFeedback", key).apply()
+        // Première fois (mise à jour de l'appli) : on garde les réglages actuels du téléphone.
+        if (last == null) return
+        val s = settings
+        updateSettings(
+            s.copy(
+                haptics = json.optBoolean("vibrate", s.haptics),
+                hapticStrength = json.optInt("strength", s.hapticStrength).coerceIn(1, 3),
+                sound = json.optString("sound", s.sound).ifEmpty { "off" },
+                soundVolume = json.optInt("volume", s.soundVolume).coerceIn(0, 100),
+            )
+        )
+    }
 
     var focus by mutableStateOf<FocusRequest?>(null)
         private set
@@ -105,6 +145,9 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         settings = new
         prefs.edit()
             .putBoolean("haptics", new.haptics)
+            .putInt("hapticStrength", new.hapticStrength)
+            .putString("sound", new.sound)
+            .putInt("soundVolume", new.soundVolume)
             .putBoolean("keepOn", new.keepScreenOn)
             .putInt("orientation", new.orientation)
             .apply()
@@ -313,7 +356,9 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         when (json.optString("type")) {
             "layout" -> {
                 val parsed = Parser.layout(json)
+                val fb = json.optJSONObject("feedback")
                 post {
+                    applyPcFeedback(fb)
                     layout = parsed
                     // Si un dossier ouvert a disparu de la config, on le referme.
                     folderStack.removeAll { it !in parsed.pages }
@@ -340,6 +385,20 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
                     if (!volumeDragging) { masterVolume = volume; masterMuted = muted }
                     cpu = cpuNow
                     ram = ramNow
+                }
+            }
+            "nowPlaying" -> {
+                val title = if (json.isNull("title")) null else json.optString("title")
+                val info = title?.let {
+                    NowPlayingInfo(it, json.optString("artist"), json.optString("app"), json.optBoolean("playing"), json.optInt("pos"), json.optInt("dur"), System.currentTimeMillis())
+                }
+                val artKey = json.optString("artKey")
+                // La pochette n'est envoyée que quand elle change : sinon on garde celle qu'on a.
+                val art = if (json.isNull("art")) null else Parser.image(json.optString("art"))
+                post {
+                    nowPlaying = info
+                    if (artKey.isEmpty()) nowPlayingArt = null
+                    else if (art != null) nowPlayingArt = art
                 }
             }
             "focus" -> post { focus = FocusRequest(json.optString("page"), (focus?.count ?: 0) + 1) }
@@ -484,6 +543,12 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         send(JSONObject().put("type", "type").put("key", spec))
     }
 
+    /** Précédent / lecture-pause / suivant pour le widget « Morceau en cours ». */
+    fun nowPlayingCommand(action: String) {
+        if (action == "toggle") nowPlaying = nowPlaying?.let { it.copy(playing = !it.playing, at = System.currentTimeMillis()) }
+        send(JSONObject().put("type", "nowPlaying").put("action", action))
+    }
+
     /** Touches média (lecture, suivant…) pour le widget « Pavé média ». */
     fun sendMedia(key: String) {
         send(JSONObject().put("type", "media").put("key", key))
@@ -588,5 +653,6 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
     override fun onCleared() {
         main.removeCallbacks(reconnect)
         client.close()
+        feedback.release()
     }
 }
