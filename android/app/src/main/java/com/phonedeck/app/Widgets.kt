@@ -41,7 +41,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -244,8 +243,7 @@ private fun Progress(pos: Int, dur: Int, color: Color) {
 
 @Composable
 private fun NowPlayingButtons(items: List<Pair<String, String>>, vm: DeckViewModel, modifier: Modifier) {
-    val haptic = LocalHapticFeedback.current
-    val hapticsOn = LocalSettings.current.haptics
+    val touch = LocalTouch.current
     val accent = LocalTheme.current.accent
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         for ((glyph, action) in items) {
@@ -256,7 +254,7 @@ private fun NowPlayingButtons(items: List<Pair<String, String>>, vm: DeckViewMod
                     .clip(RoundedCornerShape(10.dp))
                     .background(if (action == "toggle") accent.copy(alpha = 0.85f) else lerp(Color.Black, accent, 0.22f).copy(alpha = 0.9f))
                     .clickable {
-                        if (hapticsOn) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        touch.touch(null, null, false)
                         vm.nowPlayingCommand(action)
                     },
                 contentAlignment = Alignment.Center,
