@@ -13,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -75,6 +76,10 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         private set
     private var volumeDragging = false
     var weather by mutableStateOf<Weather?>(null)
+        private set
+    var nowPlaying by mutableStateOf<NowPlayingInfo?>(null)
+        private set
+    var nowPlayingArt by mutableStateOf<ImageBitmap?>(null)
         private set
 
     /** Notifications reçues du PC : bandeau qui s'affiche quelques secondes, puis compteur dans la barre du boîtier. */
@@ -311,6 +316,20 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
                     ram = ramNow
                 }
             }
+            "nowPlaying" -> {
+                val title = if (json.isNull("title")) null else json.optString("title")
+                val info = title?.let {
+                    NowPlayingInfo(it, json.optString("artist"), json.optString("app"), json.optBoolean("playing"), json.optInt("pos"), json.optInt("dur"), System.currentTimeMillis())
+                }
+                val artKey = json.optString("artKey")
+                // La pochette n'est envoyée que quand elle change : sinon on garde celle qu'on a.
+                val art = if (json.isNull("art")) null else Parser.image(json.optString("art"))
+                post {
+                    nowPlaying = info
+                    if (artKey.isEmpty()) nowPlayingArt = null
+                    else if (art != null) nowPlayingArt = art
+                }
+            }
             "focus" -> post { focus = FocusRequest(json.optString("page"), (focus?.count ?: 0) + 1) }
             "toast" -> toast(json.optString("message"))
             "notify" -> {
@@ -443,6 +462,12 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
     /** Touche ou raccourci simple, ex. "Enter" ou "Ctrl+C". */
     fun typeKey(spec: String) {
         send(JSONObject().put("type", "type").put("key", spec))
+    }
+
+    /** Précédent / lecture-pause / suivant pour le widget « Morceau en cours ». */
+    fun nowPlayingCommand(action: String) {
+        if (action == "toggle") nowPlaying = nowPlaying?.let { it.copy(playing = !it.playing, at = System.currentTimeMillis()) }
+        send(JSONObject().put("type", "nowPlaying").put("action", action))
     }
 
     /** Touches média (lecture, suivant…) pour le widget « Pavé média ». */

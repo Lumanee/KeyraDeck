@@ -27,7 +27,11 @@ public class DeckServer
     private string _lastStates = "";
     private string? _autoPage;
     private readonly SystemStats _systemStats = new();
-    private bool _needVolume, _needSystem, _needWeather;
+    private bool _needVolume, _needSystem, _needWeather, _needNowPlaying;
+    private readonly NowPlaying _nowPlaying = new();
+    private string _lastNowPlaying = "";
+    private string _lastArtKey = "";
+    private readonly SemaphoreSlim _nowPlayingLock = new(1, 1);
     private readonly WeatherService _weather = new();
     private CancellationTokenSource? _stop;
     private WebApplication? _app;
@@ -164,6 +168,7 @@ public class DeckServer
                 await client.SendRawAsync(await GetLayoutJsonAsync());
                 await client.SendRawAsync(StatesJson(ComputeStates()));
                 if (_autoPage != null) await client.SendAsync(new { type = "focus", page = _autoPage });
+                if (_needNowPlaying) await client.SendRawAsync(NowPlayingJson(_nowPlaying.Current, withArt: true));
                 break;
 
             case "press":
@@ -192,6 +197,19 @@ public class DeckServer
                 var key = root.GetProperty("key").GetString() ?? "";
                 if (key is "PlayPause" or "Next" or "Prev" or "Stop" or "Mute" or "VolumeUp" or "VolumeDown")
                     await Task.Run(() => KeySender.Send(key));
+                break;
+            }
+
+            case "nowPlaying":
+            {
+                // Boutons du widget « Morceau en cours » : agit sur le lecteur affiché (Spotify, navigateur…).
+                var action = root.GetProperty("action").GetString() ?? "";
+                if (action is "prev" or "next" or "toggle")
+                {
+                    await _nowPlaying.CommandAsync(action);
+                    await Task.Delay(250); // laisse le lecteur changer de morceau avant de relire
+                    await BroadcastNowPlayingAsync();
+                }
                 break;
             }
 
@@ -382,6 +400,8 @@ public class DeckServer
             volume = volume == null ? (int?)null : (int)Math.Round(volume.Value * 100),
             muted,
             weather = weather == null ? null : new { temp = weather.Temp, code = weather.Code, wind = weather.Wind, humidity = weather.Humidity, city = weather.City },
+            nowPlaying = !_needNowPlaying || _nowPlaying.Current is not { } np ? null
+                : new { title = np.Title, artist = np.Artist, app = np.App, playing = np.Playing, pos = np.Pos, dur = np.Dur, artKey = np.ArtKey },
         };
         return JsonSerializer.Serialize(new
         {
@@ -393,6 +413,37 @@ public class DeckServer
             ram,
             weather = weather == null ? null : new { temp = weather.Temp, code = weather.Code, wind = weather.Wind, humidity = weather.Humidity, city = weather.City },
         }, Wire);
+    }
+
+    // ---------- Morceau en cours ----------
+
+    /// <summary>La pochette n'est jointe que si elle a changé (ou pour un téléphone qui vient d'arriver).</summary>
+    private static string NowPlayingJson(NowPlayingData? np, bool withArt) => JsonSerializer.Serialize(np == null
+        ? new { type = "nowPlaying", title = (string?)null, artist = (string?)null, album = (string?)null, app = (string?)null, playing = false, pos = 0, dur = 0, artKey = "", art = (string?)null }
+        : new { type = "nowPlaying", title = (string?)np.Title, artist = (string?)np.Artist, album = (string?)np.Album, app = (string?)np.App, playing = np.Playing, pos = np.Pos, dur = np.Dur, artKey = np.ArtKey, art = withArt && np.Art != null ? Convert.ToBase64String(np.Art) : null }, Wire);
+
+    /// <summary>Pochette du morceau en cours, pour le configurateur.</summary>
+    public byte[]? NowPlayingArt => _nowPlaying.Current?.Art;
+
+    private async Task BroadcastNowPlayingAsync()
+    {
+        if (!_needNowPlaying) return;
+        await _nowPlayingLock.WaitAsync();
+        try
+        {
+            var np = await _nowPlaying.RefreshAsync();
+            var json = NowPlayingJson(np, withArt: false);
+            if (json == _lastNowPlaying) return;
+            _lastNowPlaying = json;
+            var artChanged = (np?.ArtKey ?? "") != _lastArtKey;
+            _lastArtKey = np?.ArtKey ?? "";
+            if (artChanged) json = NowPlayingJson(np, withArt: true);
+            List<Client> clients;
+            lock (_clients) clients = _clients.ToList();
+            foreach (var c in clients) { try { await c.SendRawAsync(json); } catch { } }
+        }
+        catch { }
+        finally { _nowPlayingLock.Release(); }
     }
 
     private async Task BroadcastStatesAsync(bool force)
@@ -419,6 +470,7 @@ public class DeckServer
         {
             try { await Task.Delay(1000, ct); } catch { return; }
             await BroadcastStatesAsync(force: false);
+            await BroadcastNowPlayingAsync();
             await CheckForegroundAsync();
         }
     }
@@ -564,6 +616,9 @@ public class DeckServer
         _needVolume = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "volume"));
         _needSystem = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "system"));
         _needWeather = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "weather"));
+        _needNowPlaying = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "nowplaying"));
+        _lastNowPlaying = ""; // un nouveau widget reçoit tout de suite le morceau en cours
+        _lastArtKey = "";
         var json = JsonSerializer.Serialize(new
         {
             type = "layout",
