@@ -101,6 +101,7 @@ Dans le configurateur, les widgets s'affichent **en direct** comme sur le télé
 Chaque widget existe en plusieurs **modèles à taille fixe** (ex. Horloge 1×1, 2×1, 2×2 ; CPU/RAM Mini, Compact, Barre, Anneaux) : le contenu est dessiné pour cette taille et ne disparaît jamais. Clique sur un modèle pour l'ajouter ; pour en changer, sélectionne le widget et choisis un autre modèle dans le panneau de droite.
 
 - **Pavé média** : 1×1 (lecture/pause), 3×1 (précédent, lecture, suivant), 2×2, 3×2 (avec volume − / muet / +).
+- **Morceau en cours** : pochette, titre et artiste de ce qui joue sur le PC, avec précédent / lecture / suivant (2×1, 4×1, 2×2 pochette en fond, 4×2 avec barre de progression). Utilise les contrôles média de Windows (le panneau qui apparaît quand on change le volume) : marche avec Spotify, YouTube dans le navigateur, le lecteur Windows, Deezer… sans compte ni clé. Windows 10 (version 1809) ou plus récent.
 - **Volume général** : barres 3×1 ou 4×1, ou verticales 1×2 et 1×3.
 - **Horloge** : 1×1 (heure), 2×1 (heure et date), 2×2 (grande horloge).
 - **CPU / RAM** : charge du processeur et de la mémoire, en 1×1, 2×1, 3×1 ou 2×2 (anneaux).

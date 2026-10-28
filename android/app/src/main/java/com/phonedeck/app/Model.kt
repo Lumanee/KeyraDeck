@@ -22,7 +22,7 @@ data class DeckButton(
     val closeFolder: Boolean,
 )
 
-/** Un widget posé sur plusieurs cases : media, volume, clock ou system. */
+/** Un widget posé sur plusieurs cases : media, nowplaying, volume, clock, system ou weather. */
 data class DeckWidget(val id: String, val type: String, val model: String, val slot: Int, val w: Int, val h: Int)
 
 /** columns / rows : taille de la grille, ou null pour un dossier mis en page automatiquement. */
@@ -66,6 +66,9 @@ data class DeckLayout(
 }
 
 data class Weather(val temp: Int, val code: Int, val wind: Int, val humidity: Int, val city: String)
+
+/** Morceau en cours sur le PC. [at] = moment de réception, pour faire avancer la barre entre deux messages. */
+data class NowPlayingInfo(val title: String, val artist: String, val app: String, val playing: Boolean, val pos: Int, val dur: Int, val at: Long)
 
 data class Notif(val id: String, val app: String, val title: String, val text: String)
 
