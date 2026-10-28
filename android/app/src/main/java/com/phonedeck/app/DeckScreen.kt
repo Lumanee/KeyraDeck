@@ -120,12 +120,11 @@ fun DeckScreen(vm: DeckViewModel) {
         }
         val roots = vm.layout?.rootPages.orEmpty()
         if (roots.isEmpty()) {
-            Device(vm, 5, 3, emptyList(), emptyList(), 0, 1, {}) { editing = it }
+            Device(vm, 5, 3, emptyList(), emptyList(), 0, 1) { editing = it }
             Waiting(vm)
         } else {
             val pager = rememberPagerState(pageCount = { roots.size })
             val focus = vm.focus
-            val pagerScope = rememberCoroutineScope()
             LaunchedEffect(focus) {
                 val index = roots.indexOfFirst { it.id == focus?.page }
                 if (index >= 0 && index != pager.currentPage) pager.animateScrollToPage(index)
@@ -140,7 +139,6 @@ fun DeckScreen(vm: DeckViewModel) {
                     widgets = page.widgets,
                     pageIndex = index,
                     pageCount = roots.size,
-                    onGo = { d -> pagerScope.launch { pager.animateScrollToPage((index + d).coerceIn(0, roots.size - 1)) } },
                     onLongPress = { editing = it },
                 )
             }
@@ -218,7 +216,6 @@ private fun Device(
     widgets: List<DeckWidget>,
     pageIndex: Int,
     pageCount: Int,
-    onGo: (Int) -> Unit,
     onLongPress: (DeckButton) -> Unit,
 ) {
     val cols = columns.coerceIn(1, 12)
@@ -231,10 +228,9 @@ private fun Device(
         val margin = small * 0.025f
         val pad = small * 0.034f
         val strip = 26.dp
-        val nav = if (pageCount > 1) 34.dp else 0.dp
         val gapRatio = 0.14f
         val keyW = (maxWidth - margin * 2 - pad * 2) / (cols + (cols - 1) * gapRatio)
-        val keyH = (maxHeight - margin * 2 - pad * 2 - strip - nav) / (rws + (rws - 1) * gapRatio)
+        val keyH = (maxHeight - margin * 2 - pad * 2 - strip) / (rws + (rws - 1) * gapRatio)
         val key = min(min(keyW, keyH), 140.dp)
         val gap = key * gapRatio
         val shape = RoundedCornerShape(small * 0.075f)
@@ -253,38 +249,7 @@ private fun Device(
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 KeyGrid(vm, cols, rws, buttons, widgets, key, gap, vm.active, vm::press, onLongPress)
             }
-            if (pageCount > 1) PageNav(pageIndex, pageCount, onGo, Modifier.fillMaxWidth().height(nav))
         }
-    }
-}
-
-/** Flèches ‹ › pour changer de page (on peut aussi glisser), avec un point par page. */
-@Composable
-private fun PageNav(pageIndex: Int, pageCount: Int, onGo: (Int) -> Unit, modifier: Modifier) {
-    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-        NavArrow("‹", pageIndex > 0) { onGo(-1) }
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            repeat(pageCount) { i ->
-                Box(Modifier.size(if (i == pageIndex) 8.dp else 6.dp).clip(CircleShape)
-                    .background(if (i == pageIndex) Color(0xFFDDDDE6) else Color(0xFF55555E)))
-            }
-        }
-        NavArrow("›", pageIndex < pageCount - 1) { onGo(1) }
-    }
-}
-
-@Composable
-private fun NavArrow(label: String, enabled: Boolean, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .width(52.dp)
-            .fillMaxHeight()
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color(if (enabled) 0x26FFFFFF else 0x0DFFFFFF))
-            .clickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(label, color = Color(if (enabled) 0xFFEEEEF4 else 0xFF55555E), fontSize = 26.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -340,15 +305,8 @@ private fun StatusStrip(vm: DeckViewModel, pageIndex: Int, pageCount: Int, modif
             fontWeight = FontWeight.Bold,
             letterSpacing = 3.sp,
         )
-        Spacer(Modifier.width(10.dp))
-        Text(
-            if (vm.status == Status.Connected) vm.layout?.pcName.orEmpty() else vm.statusText,
-            color = Color(0xFF55555E),
-            fontSize = 10.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
+        // Seulement la LED (verte = connecté, orange = connexion, rouge = déconnecté) : pas de nom de PC.
+        Spacer(Modifier.weight(1f))
         NotificationBadge(vm)
         Spacer(Modifier.width(6.dp))
         // Accès à la page souris / clavier, depuis n'importe quelle page.

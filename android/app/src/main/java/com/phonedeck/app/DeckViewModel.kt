@@ -296,6 +296,10 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         when (button.kind) {
             "folder" -> button.page?.let { folderStack.add(it) }
             "mixer" -> openMixer()
+            "page" -> button.page?.let { target ->
+                folderStack.clear()
+                focus = FocusRequest(target, (focus?.count ?: 0) + 1)
+            }
             else -> {
                 if (!send(JSONObject().put("type", "press").put("buttonId", button.id))) {
                     toast("Pas connecté au PC")

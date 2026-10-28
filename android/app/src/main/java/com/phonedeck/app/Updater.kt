@@ -22,7 +22,8 @@ object Updater {
         "https://api.github.com/repos/Lumanee/KeyraDeck/releases/tags/derniere-version",
         "https://api.github.com/repos/Lumanee/PhoneDeck/releases/tags/derniere-version",
     )
-    private const val APK_NAME = "PhoneDeck.apk"
+    private val APK_NAMES = listOf("KeyraDeck.apk", "PhoneDeck.apk")
+    private const val APK_FILE = "KeyraDeck.apk"
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -52,11 +53,12 @@ object Updater {
                 val build = Regex("build:(\\d+)").find(json.optString("body"))?.groupValues?.get(1)?.toIntOrNull()
                     ?: return null
                 val assets = json.optJSONArray("assets") ?: return null
-                var url: String? = null
+                val urls = HashMap<String, String>()
                 for (i in 0 until assets.length()) {
                     val a = assets.getJSONObject(i)
-                    if (a.optString("name") == APK_NAME) url = a.optString("browser_download_url")
+                    urls[a.optString("name")] = a.optString("browser_download_url")
                 }
+                val url = APK_NAMES.firstNotNullOfOrNull { urls[it] }
                 if (url != null && build > currentBuild(context)) UpdateInfo(build, url) else null
             }
         } catch (e: Exception) {
@@ -67,7 +69,7 @@ object Updater {
     /** Télécharge l'APK dans le cache de l'appli. onProgress reçoit un pourcentage de 0 à 100. */
     fun download(context: Context, info: UpdateInfo, onProgress: (Int) -> Unit): File {
         val dir = File(context.cacheDir, "updates").apply { mkdirs() }
-        val file = File(dir, APK_NAME)
+        val file = File(dir, APK_FILE)
         http.newCall(Request.Builder().url(info.apkUrl).build()).execute().use { response ->
             if (!response.isSuccessful) throw IllegalStateException("Téléchargement refusé (${response.code})")
             val body = response.body ?: throw IllegalStateException("Fichier vide")

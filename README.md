@@ -27,7 +27,7 @@ Page d'accueil :
 - Le dossier **Launchers** reprend automatiquement le contenu du dossier « Launcher » de ton menu Démarrer s'il existe. Ajoute un raccourci dans ce dossier, il apparaît sur le téléphone.
 - Les dossiers s'ouvrent par-dessus la page, comme sur Android. Ils se referment après avoir lancé une appli, mais restent ouverts pour Micro / Sourdine.
 
-> Anciennement « PhoneDeck » : certains noms techniques (fichiers `PhoneDeckPC.exe`, `PhoneDeck.apk`, dossier `%APPDATA%\PhoneDeckPC`) gardent l'ancien nom pour que les mises à jour automatiques et les réglages existants continuent de fonctionner.
+> Anciennement « PhoneDeck » : les fichiers s'appellent maintenant `KeyraDeck.exe` / `KeyraDeck.apk` et les réglages sont dans `%APPDATA%\KeyraDeck` (recopiés automatiquement depuis l'ancien dossier). Les anciens noms (`PhoneDeckPC-Windows.zip`, `PhoneDeck.apk`) restent publiés quelque temps pour que les anciennes installations se mettent à jour toutes seules.
 
 ## Installer et essayer
 
@@ -35,15 +35,15 @@ Page d'accueil :
 
 Va dans **Releases → « KeyraDeck : dernière version »** sur la page GitHub du projet (`github.com/Lumanee/KeyraDeck`), et télécharge :
 
-- `PhoneDeckPC-Windows.zip` pour le PC
-- `PhoneDeck.apk` pour le téléphone
+- `KeyraDeck-Windows.zip` pour le PC
+- `KeyraDeck.apk` pour le téléphone
 
 Ces fichiers sont fabriqués automatiquement par GitHub à chaque modification du code (onglet **Actions**).
 
 ### 2. Sur le PC
 
-1. Dézippe `PhoneDeckPC-Windows.zip` où tu veux (par exemple `Documents\PhoneDeck`).
-2. Lance `PhoneDeckPC.exe`.
+1. Dézippe `KeyraDeck-Windows.zip` où tu veux (par exemple `Documents\KeyraDeck`).
+2. Lance `KeyraDeck.exe`.
    - Windows peut afficher « Windows a protégé votre ordinateur » (l'appli n'est pas signée) : clique sur **Informations complémentaires → Exécuter quand même**.
    - Le pare-feu Windows demande l'autorisation : coche **Réseaux privés** et valide. Sans ça, le téléphone ne pourra pas se connecter.
 3. Une fenêtre affiche un **QR code**, l'adresse IP et un **code** à 6 caractères.
@@ -52,7 +52,7 @@ Fermer la fenêtre la range près de l'horloge (l'appli reste active). Pour quit
 
 ### 3. Sur le téléphone
 
-1. Copie `PhoneDeck.apk` sur le téléphone (ou télécharge-le directement depuis le téléphone) et ouvre-le.
+1. Copie `KeyraDeck.apk` sur le téléphone (ou télécharge-le directement depuis le téléphone) et ouvre-le.
 2. Android demande d'autoriser l'installation d'applis inconnues pour ton navigateur / gestionnaire de fichiers : accepte.
 3. Ouvre **KeyraDeck**, touche **Scanner le QR code** et vise l'écran du PC.
 
@@ -90,7 +90,7 @@ La fenêtre de KeyraDeck PC est un **configurateur** : elle affiche une copie du
 
 Le dossier **Launchers** reprend le contenu du dossier « Launcher » de ton menu Démarrer. Pour le modifier à la main, clique sur « Détacher du menu Démarrer ».
 
-La configuration est enregistrée dans `%APPDATA%\PhoneDeckPC\config.json` (bouton « Dossier de config »). Tu peux aussi l'éditer à la main : la fenêtre et le téléphone se mettent à jour dès que tu enregistres.
+La configuration est enregistrée dans `%APPDATA%\KeyraDeck\config.json` (bouton « Dossier de config »). Tu peux aussi l'éditer à la main : la fenêtre et le téléphone se mettent à jour dès que tu enregistres.
 
 ## Widgets
 
@@ -151,6 +151,6 @@ Puis dans l'appli, choisis **Connexion par câble USB**, saisis le code et conne
 
 ## Pour les développeurs
 
-- PC : `dotnet run --project pc/PhoneDeckPC` (Windows, .NET 8). `--console` lance le serveur sans fenêtre, `--data <dossier>` change le dossier de config (par défaut `%APPDATA%\PhoneDeckPC`).
+- PC : `dotnet run --project pc/PhoneDeckPC` (Windows, .NET 8). `--console` lance le serveur sans fenêtre, `--data <dossier>` change le dossier de config (par défaut `%APPDATA%\KeyraDeck`).
 - Android : ouvrir `android/` dans Android Studio, ou `./gradlew assembleDebug`.
 - Protocole : messages JSON sur `ws://IP:8765/ws?token=CODE`. Téléphone → PC : `getLayout`, `press`, `getMixer`, `setVolume`, `setMute`, `setIcon`, `resetIcon`, `ping`. PC → téléphone : `layout`, `mixer`, `toast`, `pong`.

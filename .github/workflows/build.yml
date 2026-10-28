@@ -32,11 +32,16 @@ jobs:
             exit 1
           }
       - name: Renommer
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk PhoneDeck.apk
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk KeyraDeck.apk
+          # Ancien nom, pour que les téléphones pas encore mis à jour trouvent toujours leur fichier.
+          cp KeyraDeck.apk PhoneDeck.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: PhoneDeck-Android
-          path: PhoneDeck.apk
+          name: KeyraDeck-Android
+          path: |
+            KeyraDeck.apk
+            PhoneDeck.apk
 
   windows:
     name: Appli Windows (exe)
@@ -50,11 +55,18 @@ jobs:
         run: dotnet publish pc/PhoneDeckPC/PhoneDeckPC.csproj -c Release -p:BuildNumber=${{ github.run_number }} -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
       - name: Zipper
         shell: pwsh
-        run: Compress-Archive -Path publish/* -DestinationPath PhoneDeckPC-Windows.zip
+        run: |
+          Compress-Archive -Path publish/* -DestinationPath KeyraDeck-Windows.zip
+          # Ancien nom (zip contenant PhoneDeckPC.exe) pour les PC pas encore mis à jour : au lancement il devient KeyraDeck.exe.
+          New-Item -ItemType Directory -Path legacy | Out-Null
+          Copy-Item publish/KeyraDeck.exe legacy/PhoneDeckPC.exe
+          Compress-Archive -Path legacy/* -DestinationPath PhoneDeckPC-Windows.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: PhoneDeck-Windows
-          path: PhoneDeckPC-Windows.zip
+          name: KeyraDeck-Windows
+          path: |
+            KeyraDeck-Windows.zip
+            PhoneDeckPC-Windows.zip
 
   release:
     name: Publier la dernière version
@@ -70,7 +82,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release delete derniere-version --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
-          gh release create derniere-version PhoneDeck.apk PhoneDeckPC-Windows.zip \
+          gh release create derniere-version KeyraDeck.apk KeyraDeck-Windows.zip PhoneDeck.apk PhoneDeckPC-Windows.zip \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
             --title "KeyraDeck : dernière version" \
-            --notes "build:${{ github.run_number }} — fabriquée automatiquement depuis le commit $GITHUB_SHA. PhoneDeck.apk = KeyraDeck pour Android, PhoneDeckPC-Windows.zip = KeyraDeck pour Windows (les noms de fichiers restent les mêmes pour que la mise à jour automatique continue de fonctionner)."
+            --notes "build:${{ github.run_number }} — fabriquée automatiquement depuis le commit $GITHUB_SHA. KeyraDeck.apk = appli Android, KeyraDeck-Windows.zip = appli Windows (PhoneDeck.apk et PhoneDeckPC-Windows.zip sont les mêmes fichiers sous l'ancien nom, gardés pour la mise à jour automatique des anciennes installations)."

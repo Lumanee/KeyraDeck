@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <AssemblyName>PhoneDeckPC</AssemblyName>
+    <AssemblyName>KeyraDeck</AssemblyName>
     <RootNamespace>PhoneDeckPC</RootNamespace>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <BuildNumber Condition="'$(BuildNumber)' == ''">0</BuildNumber>

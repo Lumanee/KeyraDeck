@@ -523,6 +523,7 @@ public class DeckServer
                     {
                         "folder" => "folder",
                         "mixer" => "mixer",
+                        "page" => "page",
                         _ => "action",
                     };
                     return new
@@ -534,7 +535,7 @@ public class DeckServer
                         icon = SafeIcon(b, Children),
                         slot = slots[b.Id],
                         kind,
-                        page = kind == "folder" ? b.Action.Page : null,
+                        page = kind is "folder" or "page" ? b.Action.Page : null,
                         // Comme un dossier Android : on referme après avoir lancé une appli,
                         // mais on reste ouvert pour les raccourcis (micro, sourdine…).
                         closeFolder = b.Action.Type.Equals("open", StringComparison.OrdinalIgnoreCase)

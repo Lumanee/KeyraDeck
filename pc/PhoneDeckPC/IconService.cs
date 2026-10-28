@@ -71,6 +71,8 @@ public class IconService
                     var kids = children(a.Page).Take(4)
                         .Select(k => ForButton(k, children, depth + 1)).ToList();
                     return kids.Count == 0 ? Cached("builtin:folder", () => Builtin("folder")) : FolderPreview(kids);
+                case "page":
+                    return Cached("builtin:goto", () => Builtin("goto"));
                 case "mixer":
                     return Cached("builtin:volume", () => Builtin("volume"));
                 case "keys":
@@ -177,6 +179,11 @@ public class IconService
                 var r = i % 2 == 0 ? 50f : 40f;
                 g.DrawLine(pen, c, c, c + (float)Math.Cos(angle) * r, c + (float)Math.Sin(angle) * r);
             }
+        }),
+        "goto" => Draw(g =>
+        {
+            // Grande flèche vers la droite : « aller à une autre page ».
+            g.FillPolygon(Brushes.White, new[] { new PointF(18, 50), new PointF(72, 50), new PointF(72, 28), new PointF(112, 64), new PointF(72, 100), new PointF(72, 78), new PointF(18, 78) });
         }),
         "discord" => Glyph('', Color.FromArgb(88, 101, 242)),
         "volume" => Glyph(''),

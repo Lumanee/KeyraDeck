@@ -153,10 +153,27 @@ public class ConfigStore
     private DateTime _ignoreUntil = DateTime.MinValue;
     private int _reloadTicket;
 
+    private static void CopyDir(string from, string to)
+    {
+        Directory.CreateDirectory(to);
+        foreach (var f in Directory.GetFiles(from)) File.Copy(f, Path.Combine(to, Path.GetFileName(f)), true);
+        foreach (var d in Directory.GetDirectories(from)) CopyDir(d, Path.Combine(to, Path.GetFileName(d)));
+    }
+
     public ConfigStore(string? dataDir = null)
     {
-        DataDir = dataDir ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PhoneDeckPC");
+        if (dataDir == null)
+        {
+            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            dataDir = Path.Combine(appData, "KeyraDeck");
+            // Anciens réglages (dossier « PhoneDeckPC ») : recopiés une seule fois vers le nouveau dossier.
+            var legacy = Path.Combine(appData, "PhoneDeckPC");
+            if (!Directory.Exists(dataDir) && Directory.Exists(legacy))
+            {
+                try { CopyDir(legacy, dataDir); } catch { }
+            }
+        }
+        DataDir = dataDir;
         ConfigPath = Path.Combine(DataDir, "config.json");
         IconsDir = Path.Combine(DataDir, "icons");
         Directory.CreateDirectory(IconsDir);

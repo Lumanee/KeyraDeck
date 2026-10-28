@@ -43,6 +43,8 @@
   .tabs { display: flex; gap: 6px; padding: 12px 16px 0; flex-wrap: wrap; align-items: center; }
   .tab { border-radius: 999px; padding: 4px 14px; }
   .tab.active { background: var(--accent2); border-color: var(--accent); }
+  .tabgrp { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); align-self: center; padding: 0 4px; }
+  .tabsep { width: 1px; background: var(--line); align-self: stretch; margin: 2px 8px; }
   .stage { flex: 1; display: flex; align-items: center; justify-content: center; padding: 16px; min-height: 0;
            background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--desk), white 12%), var(--desk)); }
   .gridbar { display: flex; gap: 18px; align-items: center; padding: 8px 16px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
@@ -247,6 +249,14 @@
   <div style="text-align:right;margin-top:14px"><button id="appClose">OK</button></div>
 </dialog>
 
+<dialog id="askDlg" style="min-width:320px">
+  <h2 id="askTitle"></h2>
+  <div class="hint" id="askMsg"></div>
+  <input type="text" id="askInput" style="margin-top:10px">
+  <div style="text-align:right;margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
+    <button id="askCancel">Annuler</button><button id="askOk">OK</button>
+  </div>
+</dialog>
 <div id="toast"></div>
 
 <script>
@@ -287,10 +297,44 @@ function toast(msg) {
   clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2600);
 }
 
+// Petites fenêtres intégrées à la place de celles du navigateur (qui affichaient « localhost »).
+function askDialog({ title, message, value, danger, okLabel }) {
+  return new Promise((resolve) => {
+    const dlg = $('#askDlg'), input = $('#askInput'), ok = $('#askOk');
+    $('#askTitle').textContent = title; $('#askMsg').textContent = message || '';
+    input.hidden = value === undefined; input.value = value ?? '';
+    ok.textContent = okLabel || 'OK'; ok.classList.toggle('danger', !!danger);
+    let result = null;
+    ok.onclick = () => { result = value === undefined ? true : input.value.trim(); dlg.close(); };
+    $('#askCancel').onclick = () => { result = null; dlg.close(); };
+    input.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); ok.click(); } };
+    dlg.onclose = () => resolve(result || null);
+    dlg.showModal();
+    if (value !== undefined) { input.focus(); input.select(); }
+  });
+}
+const askText = (title, value, message) => askDialog({ title, value, message });
+const askConfirm = (title, message, okLabel) => askDialog({ title, message, danger: true, okLabel: okLabel || 'Supprimer' });
+
 const uid = (p) => p + '-' + Math.random().toString(36).slice(2, 7);
 const pageById = (id) => state.cfg.pages.find(p => p.id === id);
 const homeId = () => state.cfg.pages[0].id;
-const isRoot = (p) => p === state.cfg.pages[0] || !!p.root;
+const isRoot = (p) => !!p.root || p === state.cfg.pages[0];
+const rootPages = () => state.cfg.pages.filter(isRoot);
+const folderPages = () => state.cfg.pages.filter(p => !isRoot(p));
+// Les pages (qu'on fait glisser sur le téléphone) passent toujours avant les dossiers ; chaque page garde sa propre grille.
+function normalizePages() {
+  const cfg = state.cfg; let did = false;
+  if (!cfg.pages.length) return false;
+  if (!cfg.pages[0].root) { cfg.pages[0].root = true; did = true; }
+  for (const p of cfg.pages) {
+    if (!p.root) continue;
+    if (p.columns == null || p.rows == null) { const g = pageGrid(p); p.columns = g.cols; p.rows = g.rows; did = true; }
+  }
+  const sorted = [...cfg.pages.filter(p => p.root), ...cfg.pages.filter(p => !p.root)];
+  if (sorted.some((p, i) => p !== cfg.pages[i])) { cfg.pages = sorted; did = true; }
+  return did;
+}
 const currentPage = () => pageById(state.page) || state.cfg.pages[0];
 const findWidget = (id) => { for (const p of state.cfg.pages) { const w = (p.widgets || []).find(w => w.id === id); if (w) return { page: p, widget: w }; } return null; };
 const WIDGET_INFO = {
@@ -333,7 +377,7 @@ const WIDGET_MODELS = {
 };
 const modelOf = (w) => (WIDGET_MODELS[w.type] || []).find(m => m.id === w.model);
 const COMMANDS = [
-  { group: 'Applications et liens', items: [['app', 'Appli…', 'Lance une appli installée'], ['web', 'Site web', 'Ouvre une adresse'], ['folder', 'Dossier', 'Regroupe des boutons']] },
+  { group: 'Applications et liens', items: [['app', 'Appli…', 'Lance une appli installée'], ['web', 'Site web', 'Ouvre une adresse'], ['folder', 'Dossier', 'Regroupe des boutons'], ['page', 'Aller à une page', 'Saute vers une autre page']] },
   { group: 'Clavier', items: [['keys', 'Raccourci / macro', 'Touches ou enchaînement'], ['text', 'Texte à taper', 'Écrit dans la fenêtre active']] },
   { group: 'Système', items: [['mixer', 'Mélangeur de volume', 'Un curseur par appli'], ['micmute', 'Micro Windows', 'Couper / rétablir'], ['mastermute', 'Son Windows', 'Couper / rétablir']] },
 ];
@@ -430,7 +474,7 @@ async function openSettings() {
 async function loadAll() {
   const [cfg, layout, info] = await Promise.all([api('/api/config'), api('/api/layout'), api('/api/info')]);
   state.cfg = cfg; state.layout = layout; state.info = info; state.version = info.version;
-  const norm = normalizeWidgets();
+  const norm = normalizeWidgets() | normalizePages();
   applyTheme();
   // On fige la position de chaque bouton (cases calculées par le PC) pour pouvoir les déplacer.
   for (const lp of layout.pages) {
@@ -500,11 +544,13 @@ function renderAll() { renderTabs(); renderStage(); renderGridBar(); renderInspe
 
 function renderTabs() {
   const tabs = $('#tabs'); tabs.replaceChildren();
-  state.cfg.pages.forEach((p, i) => {
-    tabs.append(el('button', { class: 'tab' + (p.id === state.page ? ' active' : ''), onclick: () => { state.page = p.id; state.selected = null; renderAll(); } },
-      (p.name || p.id)));
-  });
-  tabs.append(el('button', { class: 'tab', title: 'Ajouter une page d\'accueil (on passe de l\'une à l\'autre en glissant sur le téléphone)', onclick: addRootPage }, '＋ Page'));
+  const tab = (p) => el('button', { class: 'tab' + (p.id === state.page ? ' active' : ''), onclick: () => { state.page = p.id; state.selected = null; renderAll(); } }, (p.name || p.id));
+  tabs.append(el('span', { class: 'tabgrp', title: 'Les pages se parcourent en glissant sur le téléphone' }, 'Pages'));
+  for (const p of rootPages()) tabs.append(tab(p));
+  tabs.append(el('button', { class: 'tab', title: 'Ajouter une page (on passe de l\'une à l\'autre en glissant sur le téléphone)', onclick: addRootPage }, '＋ Page'));
+  tabs.append(el('span', { class: 'tabsep' }), el('span', { class: 'tabgrp', title: 'Un dossier s\'ouvre depuis un bouton' }, 'Dossiers'));
+  for (const p of folderPages()) tabs.append(tab(p));
+  tabs.append(el('button', { class: 'tab', title: 'Ajouter un dossier (à ouvrir depuis un bouton « Dossier »)', onclick: addFolder }, '＋ Dossier'));
 }
 
 function pageGrid(page) {
@@ -528,10 +574,10 @@ function iconFor(b) {
 }
 
 // Mesures identiques à celles de l'appli Android (DeckScreen.kt, Device) : marge 2,5 % et remplissage 3,4 % du petit côté de l'écran,
-// bandeau 26 dp, barre de flèches 34 dp (seulement s'il y a plusieurs pages), écart 14 %, touche max 140 dp.
+// bandeau 26 dp, pas de barre de flèches (on glisse), écart 14 %, touche max 140 dp.
 const DEV = { strip: 26, navH: 34, gap: 0.14, cap: 140 };
 const devMetrics = (W, H) => { const small = Math.min(W, H); return { margin: small * 0.025, pad: small * 0.034, radius: small * 0.075 }; };
-const navHeight = () => (state.cfg && state.cfg.pages.filter(isRoot).length > 1 ? DEV.navH : 0);
+const navHeight = () => 0; // plus de flèches : on change de page en glissant
 function deviceDims() {
   const d = state.info && state.info.device;
   return d && d.w > 0 && d.h > 0 ? { w: d.w, h: d.h, known: true, name: d.name, cut: d.cut || 0, r: d.r || 0 } : { w: 412, h: 915, known: false, name: '', cut: 0, r: 0 };
@@ -586,18 +632,9 @@ function renderStage() {
     }
   }
   dev.append(el('div', { class: 'strip', style: `height:${DEV.strip * scale}px;font-size:${Math.max(7, 10 * scale)}px` },
-    el('span', { class: 'dot' + (state.info && state.info.clients.length ? ' on' : '') }), el('img', { src: document.querySelector('.logoimg').src, style: `height:${Math.max(8, 14 * scale)}px;width:auto;opacity:.9` }), 'KEYRADECK',
-    el('span', { style: 'letter-spacing:0;font-weight:400;opacity:.7' }, ' ' + (phone.known ? phone.name + ' · ' + phone.w + '×' + phone.h : 'écran type 412×915'))));
+    el('span', { class: 'dot' + (state.info && state.info.clients.length ? ' on' : '') }), el('img', { src: document.querySelector('.logoimg').src, style: `height:${Math.max(8, 14 * scale)}px;width:auto;opacity:.9` }), 'KEYRADECK'));
   const holder = el('div', { style: 'flex:1;display:flex;align-items:center;justify-content:center;min-height:0' });
   dev.append(holder);
-  const nav = navHeight();
-  if (nav) {
-    const roots = state.cfg.pages.filter(isRoot); const idx = Math.max(0, roots.indexOf(page));
-    const arrow = (t) => el('span', { style: `width:${52 * scale}px;height:100%;border-radius:${12 * scale}px;background:#ffffff22;display:flex;align-items:center;justify-content:center;color:#ddd;font-size:${Math.max(10, 26 * scale)}px;font-weight:700` }, t);
-    dev.append(el('div', { style: `height:${nav * scale}px;display:flex;align-items:center;justify-content:space-between` }, arrow('‹'),
-      el('span', { style: 'display:flex;gap:5px' }, ...roots.map((_, i) => el('i', { style: `width:${6 * scale + 2}px;height:${6 * scale + 2}px;border-radius:50%;background:${i === idx ? '#ddd' : '#555'}` }))), arrow('›')));
-  }
-
   const grid = el('div', { class: 'grid', style: `grid-template-columns:repeat(${cols},${key}px);grid-template-rows:repeat(${rows},${key}px);gap:${key * g}px` });
   const bySlot = new Map();
   if (!page.generated) for (const b of page.buttons) bySlot.set(b.slot, b);
@@ -615,13 +652,14 @@ function renderStage() {
       else face.append(el('div', { style: 'flex:1' }));
       if (key >= 56 && !(b.hideLabel ?? state.cfg.hideLabels)) face.append(el('div', { class: 'lbl' }, b.label));
       if (b.action.type === 'folder') face.append(el('span', { class: 'badge' }, '📁'));
+      if (b.action.type === 'page') face.append(el('span', { class: 'badge' }, '↪'));
       k.append(face);
       k.draggable = true;
       k.addEventListener('dragstart', (e) => { e.dataTransfer.setData('application/x-pd-button', b.id); e.dataTransfer.effectAllowed = 'move'; select(b.id, true); });
       k.addEventListener('click', () => select(b.id));
       k.addEventListener('mouseenter', () => drawCallout(b.id));
       k.addEventListener('mouseleave', () => drawCallout(state.selected));
-      k.addEventListener('dblclick', () => { if (b.action.type === 'folder' && pageById(b.action.page)) { state.page = b.action.page; state.selected = null; renderAll(); } });
+      k.addEventListener('dblclick', () => { if ((b.action.type === 'folder' || b.action.type === 'page') && pageById(b.action.page)) { state.page = b.action.page; state.selected = null; renderAll(); } });
     } else if (gen.has(s)) {
       const gb = gen.get(s);
       const ic = iconFor(gb);
@@ -716,6 +754,7 @@ function actionSummary(b) {
     case 'micmute': return 'Coupe / rétablit le micro';
     case 'mastermute': return 'Coupe / rétablit le son';
     case 'folder': return 'Ouvre un dossier';
+    case 'page': return 'Va à une autre page';
     case 'mixer': return 'Ouvre le mélangeur de volume';
     default: return '';
   }
@@ -806,7 +845,7 @@ function placeWidget(page, widget, slot, w, h) {
   const mine = widgetCells({ slot, w, h }, cols);
   if (mine.some(c => taken.has(c))) return false;
   widget.slot = slot; widget.w = w; widget.h = h;
-  if (lastRow > rows) { if (page === state.cfg.pages[0]) state.cfg.rows = lastRow; else page.rows = lastRow; }
+  if (lastRow > rows) page.rows = lastRow;
   return true;
 }
 function addWidget(type, model, atSlot) {
@@ -848,7 +887,7 @@ function addButton(b, slot) {
   const { cols, rows } = pageGrid(page);
   // La grille s'agrandit d'une ligne si besoin.
   if (b.slot >= cols * rows) {
-    if (page === state.cfg.pages[0]) state.cfg.rows = Math.ceil((b.slot + 1) / cols); else page.rows = Math.ceil((b.slot + 1) / cols);
+    page.rows = Math.ceil((b.slot + 1) / cols);
   }
   page.buttons.push(b);
   state.selected = b.id;
@@ -869,11 +908,14 @@ function renderGridBar() {
   const { cols, rows } = pageGrid(page);
   $('#colVal').textContent = cols; $('#rowVal').textContent = rows;
   const tools = $('#pageTools'); tools.replaceChildren();
-  const isHome = page === state.cfg.pages[0];
-  if (!isHome) {
-    tools.append(el('button', { onclick: renamePage }, '✏️ Renommer'));
-    if (page.root) tools.append(' ', el('button', { class: 'danger', onclick: deleteRootPage }, '🗑 Supprimer la page'));
+  const root = isRoot(page), roots = rootPages();
+  if (root && roots.length > 1) {
+    const i = roots.indexOf(page);
+    tools.append(el('button', { onclick: () => movePage(-1), disabled: i === 0, title: 'Passe cette page avant la précédente' }, '◀ Avant'), ' ',
+      el('button', { onclick: () => movePage(1), disabled: i === roots.length - 1, title: 'Passe cette page après la suivante' }, 'Après ▶'), ' ');
   }
+  tools.append(el('button', { onclick: renamePage }, '✏️ Renommer'));
+  if (!root || roots.length > 1) tools.append(' ', el('button', { class: 'danger', onclick: deletePage }, root ? '🗑 Supprimer la page' : '🗑 Supprimer le dossier'));
   if (page.generated) {
     tools.append(' ', el('button', { onclick: detachPage, title: 'Copie les raccourcis du menu Démarrer en boutons que tu peux modifier' }, '🔗 Détacher du menu Démarrer'));
   }
@@ -881,7 +923,6 @@ function renderGridBar() {
 // Change la taille de la grille d'une page : chaque élément garde sa case s'il y tient, sinon il est replacé
 // à la première place libre (la grille s'agrandit vers le bas si nécessaire). Renvoie false si un widget est trop large.
 function reflowPage(page, nc, nr) {
-  const isHome = page === state.cfg.pages[0];
   const { cols } = pageGrid(page);
   const items = [...(page.widgets || []), ...page.buttons.slice().sort((a, b) => a.slot - b.slot)];
   if ((page.widgets || []).some(w => w.w > nc)) return false;
@@ -899,7 +940,7 @@ function reflowPage(page, nc, nr) {
   }
   for (const [it, slot] of pos) it.slot = slot;
   for (const it of items) rowsNeeded = Math.max(rowsNeeded, Math.floor(it.slot / nc) + (it.h || 1));
-  if (isHome) { state.cfg.columns = nc; state.cfg.rows = rowsNeeded; } else { page.columns = nc; page.rows = rowsNeeded; }
+  page.columns = nc; page.rows = rowsNeeded;
   return true;
 }
 function setGrid(dc, dr) {
@@ -935,29 +976,53 @@ function checkAdapt() {
   if (!state.info.adaptedTo && !state.dirty) { adaptAll(); toast(`Grille adaptée à ton téléphone (${rec.cols}×${rec.rows})`); return; }
   bar.append(el('button', { onclick: adaptAll, title: 'Remplit tout l\'écran du téléphone' }, `📱 Adapter la grille à ce téléphone (${rec.cols}×${rec.rows})`));
 }
-function addRootPage() {
-  const name = prompt('Nom de la nouvelle page :', 'Page ' + (state.cfg.pages.filter(isRoot).length + 1));
+async function addRootPage() {
+  const name = await askText('Nouvelle page', 'Page ' + (rootPages().length + 1), 'On passe d\'une page à l\'autre en glissant sur le téléphone.');
   if (!name) return;
   pushUndo();
-  const id = uid('page');
-  state.cfg.pages.push({ id, name, root: true, buttons: [] });
+  const id = uid('page'), g = pageGrid(rootPages()[0]);
+  const at = state.cfg.pages.indexOf(rootPages().pop()) + 1; // après la dernière page, avant les dossiers
+  state.cfg.pages.splice(at, 0, { id, name, root: true, columns: g.cols, rows: g.rows, buttons: [] });
   state.page = id; state.selected = null;
   changed({ immediate: true });
 }
-function deleteRootPage() {
-  const page = currentPage();
-  if (!confirm(`Supprimer la page « ${page.name} » et ses boutons ?`)) return;
+async function addFolder() {
+  const name = await askText('Nouveau dossier', 'Nouveau dossier', 'Un dossier s\'ouvre depuis un bouton « Dossier » et se referme avec la croix.');
+  if (!name) return;
   pushUndo();
+  const id = uid('dossier');
+  state.cfg.pages.push({ id, name, buttons: [] });
+  state.page = id; state.selected = null;
+  changed({ immediate: true });
+}
+function movePage(dir) {
+  const page = currentPage(), roots = rootPages();
+  const i = roots.indexOf(page), j = i + dir;
+  if (i < 0 || j < 0 || j >= roots.length) return;
+  pushUndo();
+  const pages = state.cfg.pages;
+  const a = pages.indexOf(page), b = pages.indexOf(roots[j]);
+  pages[a] = roots[j]; pages[b] = page;
+  changed({ immediate: true });
+}
+async function deletePage() {
+  const page = currentPage(), root = isRoot(page);
+  const links = state.cfg.pages.flatMap(p => p.buttons).filter(b => ['folder', 'page'].includes(b.action.type) && b.action.page === page.id);
+  const ok = await askConfirm(root ? `Supprimer la page « ${page.name} » ?` : `Supprimer le dossier « ${page.name} » ?`,
+    `Ses ${page.buttons.length} bouton(s) seront supprimés` + (links.length ? ` ainsi que les ${links.length} bouton(s) qui y mènent.` : '.'));
+  if (!ok) return;
+  pushUndo();
+  for (const p of state.cfg.pages) p.buttons = p.buttons.filter(b => !(['folder', 'page'].includes(b.action.type) && b.action.page === page.id));
   state.cfg.pages.splice(state.cfg.pages.indexOf(page), 1);
   state.page = homeId(); state.selected = null;
   changed({ immediate: true });
 }
-function renamePage() {
+async function renamePage() {
   const page = currentPage();
-  const n = prompt('Nom du dossier :', page.name); if (!n) return;
-  pushUndo(); page.name = n;
-  for (const b of state.cfg.pages.flatMap(p => p.buttons)) if (b.action.type === 'folder' && b.action.page === page.id && b.label === page.name) b.label = n;
-  changed();
+  const n = await askText(isRoot(page) ? 'Renommer la page' : 'Renommer le dossier', page.name); if (!n) return;
+  pushUndo(); const old = page.name; page.name = n;
+  for (const b of state.cfg.pages.flatMap(p => p.buttons)) if (['folder', 'page'].includes(b.action.type) && b.action.page === page.id && b.label === old) b.label = n;
+  changed({ immediate: true });
 }
 function detachPage() {
   const page = currentPage();
@@ -1016,7 +1081,7 @@ function renderInspector() {
       el('button', { onclick: () => upd(() => delete b.color) }, 'Aucune')));
 
   box.append(el('label', {}, 'Action'));
-  const types = [['open', 'Lancer une appli ou un fichier'], ['url', 'Ouvrir un site web'], ['keys', 'Raccourci clavier / macro'], ['text', 'Taper du texte'], ['micmute', 'Couper / rétablir le micro Windows'], ['mastermute', 'Couper / rétablir le son Windows'], ['folder', 'Ouvrir un dossier'], ['mixer', 'Ouvrir le mélangeur de volume']];
+  const types = [['open', 'Lancer une appli ou un fichier'], ['url', 'Ouvrir un site web'], ['keys', 'Raccourci clavier / macro'], ['text', 'Taper du texte'], ['micmute', 'Couper / rétablir le micro Windows'], ['mastermute', 'Couper / rétablir le son Windows'], ['folder', 'Ouvrir un dossier'], ['page', 'Aller à une page'], ['mixer', 'Ouvrir le mélangeur de volume']];
   box.append(el('select', { onchange: (e) => upd(() => changeType(b, e.target.value)) }, types.map(([v, t]) => el('option', { value: v, selected: a.type === v }, t))));
 
   if (a.type === 'open') {
@@ -1032,10 +1097,19 @@ function renderInspector() {
     box.append(el('label', {}, 'Texte à taper (dans la fenêtre active)'), el('textarea', { rows: 4, oninput: (e) => { a.text = e.target.value; changed2(); } }, a.text || ''));
   } else if (a.type === 'keys') {
     box.append(el('label', {}, 'Étapes de la macro'), macroEditor(b));
-  } else if (a.type === 'folder') {
+  } else if (a.type === 'folder' || a.type === 'page') {
+    const isPage = a.type === 'page';
+    const choices = (isPage ? rootPages().filter(x => x.id !== f.page.id) : folderPages());
     const p = pageById(a.page);
-    box.append(el('div', { class: 'hint', style: 'margin-top:10px' }, p ? `Contient ${p.buttons.length} bouton(s).` : 'Dossier introuvable.'),
-      p ? el('button', { style: 'margin-top:6px', onclick: () => { state.page = p.id; state.selected = null; renderAll(); } }, 'Ouvrir ce dossier') : null);
+    box.append(el('label', {}, isPage ? 'Page de destination' : 'Dossier à ouvrir'),
+      el('select', { onchange: async (e) => {
+        if (e.target.value === '__new') {
+          const name = await askText('Nouveau dossier', 'Nouveau dossier'); if (!name) { renderInspector(); return; }
+          pushUndo(); const id = uid('dossier'); state.cfg.pages.push({ id, name, buttons: [] }); a.page = id; if (!b.label || b.label === 'Dossier') b.label = name; changed({ immediate: true });
+        } else upd(() => { a.page = e.target.value; const t = pageById(e.target.value); if (t) b.label = t.name; });
+      } }, ...choices.map(x => el('option', { value: x.id, selected: a.page === x.id }, x.name)), isPage ? null : el('option', { value: '__new' }, '＋ Nouveau dossier…')),
+      el('div', { class: 'hint', style: 'margin-top:8px' }, !p ? (isPage ? 'Aucune autre page : crée-en une avec « ＋ Page ».' : 'Dossier introuvable.') : isPage ? 'Le téléphone saute vers cette page.' : `Contient ${p.buttons.length} bouton(s).`),
+      p ? el('button', { style: 'margin-top:6px', onclick: () => { state.page = p.id; state.selected = null; renderAll(); } }, isPage ? 'Aller à cette page' : 'Ouvrir ce dossier') : null);
   }
 
   if (a.type === 'keys' || a.type === 'text') {
@@ -1048,7 +1122,7 @@ function renderInspector() {
   }
 
   box.append(el('div', { class: 'row', style: 'margin-top:18px' },
-    el('button', { onclick: testButton, disabled: a.type === 'folder' || a.type === 'mixer' }, '▶ Tester sur le PC'),
+    el('button', { onclick: testButton, disabled: a.type === 'folder' || a.type === 'mixer' || a.type === 'page' }, '▶ Tester sur le PC'),
     el('button', { class: 'danger', onclick: () => deleteButton(b.id) }, '🗑 Supprimer')));
   box.append(el('div', { id: 'trash', ondragover: (e) => { e.preventDefault(); $('#trash').classList.add('over'); }, ondragleave: () => $('#trash').classList.remove('over'),
     ondrop: (e) => { e.preventDefault(); const id = e.dataTransfer.getData('application/x-pd-button'); if (id) deleteButton(id); } }, 'Glisse ici pour supprimer'));
@@ -1098,9 +1172,13 @@ function changeType(b, type) {
   if (type === 'open' || type === 'url') a.target = old.target && !String(old.target).startsWith('Ctrl') ? old.target : '';
   if (type === 'keys') a.keys = '';
   if (type === 'folder') {
-    const id = uid('dossier');
-    state.cfg.pages.push({ id, name: b.label || 'Dossier', buttons: [] });
-    a.page = id;
+    const existing = folderPages()[0];
+    if (existing) a.page = existing.id;
+    else { const id = uid('dossier'); state.cfg.pages.push({ id, name: b.label || 'Dossier', buttons: [] }); a.page = id; }
+  }
+  if (type === 'page') {
+    const target = rootPages().find(p => p.id !== state.page);
+    if (target) { a.page = target.id; b.label = target.name; }
   }
   b.action = a;
   if (b.icon === 'auto' || !b.icon) b.icon = 'auto';
@@ -1137,7 +1215,7 @@ function macroEditor(b) {
   wrap.append(rec);
   wrap.append(el('div', { class: 'row', style: 'margin-top:8px' },
     el('button', { onclick: () => write([...steps, 'wait:300']) }, '+ Pause 300 ms'),
-    el('button', { onclick: () => { const v = prompt('Touche média : PlayPause, Next, Prev, Mute, VolumeUp, VolumeDown, Stop', 'PlayPause'); if (v) write([...steps, v.trim()]); } }, '+ Touche média')));
+    el('button', { onclick: async () => { const v = await askText('Touche média', 'PlayPause', 'PlayPause, Next, Prev, Mute, VolumeUp, VolumeDown ou Stop.'); if (v) write([...steps, v]); } }, '+ Touche média')));
   wrap.append(el('label', {}, 'Texte brut (pour les experts)'),
     el('input', { type: 'text', value: a.keys || '', onchange: (e) => { pushUndo(); a.keys = e.target.value; changed(); } }));
   return wrap;
@@ -1178,10 +1256,6 @@ function deleteButton(id) {
   const f = findButton(id); if (!f) return;
   pushUndo();
   f.page.buttons.splice(f.page.buttons.indexOf(f.button), 1);
-  const fp = f.button.action.type === 'folder' && pageById(f.button.action.page);
-  if (fp && fp.id !== homeId() && !state.cfg.pages.some(p => p.buttons.some(x => x.action.type === 'folder' && x.action.page === fp.id))) {
-    state.cfg.pages.splice(state.cfg.pages.indexOf(fp), 1);
-  }
   delete state.cfg.iconOverrides[id];
   if (state.selected === id) state.selected = null;
   changed();
@@ -1195,23 +1269,29 @@ function undo() {
 
 // ---------- Ajout ----------
 
-function addFromPalette(kind) {
+async function addFromPalette(kind) {
+  const drop = state.dropSlot;
   if (kind === 'web') {
-    const url = prompt('Adresse du site :', 'https://');
+    const url = await askText('Site web', 'https://', 'Adresse du site à ouvrir.');
     if (!url) return;
     pushUndo();
     let host = url; try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { }
-    addButton({ id: uid('site'), label: host, icon: 'builtin:web', action: { type: 'url', target: url } });
+    addButton({ id: uid('site'), label: host, icon: 'builtin:web', action: { type: 'url', target: url } }, drop);
   } else if (kind === 'keys') {
     pushUndo(); addButton({ id: uid('macro'), label: 'Macro', icon: 'builtin:keyboard', action: { type: 'keys', keys: '' } });
   } else if (kind === 'text') {
     pushUndo(); addButton({ id: uid('texte'), label: 'Texte', icon: 'builtin:keyboard', action: { type: 'text', text: '' } });
   } else if (kind === 'folder') {
-    const name = prompt('Nom du dossier :', 'Nouveau dossier'); if (!name) return;
+    const name = await askText('Nouveau dossier', 'Nouveau dossier'); if (!name) return;
     pushUndo();
     const id = uid('dossier');
     state.cfg.pages.push({ id, name, buttons: [] });
-    addButton({ id: uid('btn'), label: name, icon: 'auto', action: { type: 'folder', page: id } });
+    addButton({ id: uid('btn'), label: name, icon: 'auto', action: { type: 'folder', page: id } }, drop);
+  } else if (kind === 'page') {
+    const target = rootPages().find(p => p.id !== state.page);
+    if (!target) { toast('Crée d\'abord une deuxième page avec « ＋ Page ».'); return; }
+    pushUndo();
+    addButton({ id: uid('aller'), label: target.name, icon: 'auto', action: { type: 'page', page: target.id } }, drop);
   } else if (kind === 'micmute') {
     pushUndo(); addButton({ id: uid('micro'), label: 'Micro', icon: 'builtin:mic', action: { type: 'micmute' } });
   } else if (kind === 'mastermute') {

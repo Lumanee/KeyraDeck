@@ -8,7 +8,9 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        if (Updater.MigrateFromLegacyExe(args)) return;
         Updater.CleanupOld();
+        StartupRegistration.MigrateLegacy();
         var console = args.Contains("--console");
         var dataDir = args.SkipWhile(a => a != "--data").Skip(1).FirstOrDefault();
 
