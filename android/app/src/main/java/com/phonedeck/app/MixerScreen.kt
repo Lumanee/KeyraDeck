@@ -64,7 +64,7 @@ fun MixerDialog(vm: DeckViewModel) {
                 Box(
                     Modifier.size(48.dp).clip(CircleShape).background(theme.accent).clickable { vm.closeMixer() },
                     contentAlignment = Alignment.Center,
-                ) { Text("✕", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold) }
+                ) { Text("✕", color = theme.onAccent, fontSize = 22.sp, fontWeight = FontWeight.Bold) }
             }
             if (vm.mixer.isEmpty()) {
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {

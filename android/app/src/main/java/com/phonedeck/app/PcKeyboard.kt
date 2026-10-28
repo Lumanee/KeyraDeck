@@ -226,6 +226,7 @@ private fun KeyCap(k: PcKey, state: PcKeyboardState, modifier: Modifier) {
     // Touches de caractère un peu plus claires que les touches spéciales, comme sur un vrai clavier.
     val special = !k.letter && k.shift == null && (k.main.length > 1 || k.vk == 0x20)
     val base = lerp(theme.key, Color.White, if (isMod || special) 0.04f else 0.10f)
+    val ink = if (lit) theme.onAccent else Color.White
     Box(
         modifier
             .clip(RoundedCornerShape(7.dp))
@@ -252,20 +253,20 @@ private fun KeyCap(k: PcKey, state: PcKeyboardState, modifier: Modifier) {
         when {
             k.letter -> {
                 val upper = state.shift != state.caps
-                Text(if (upper) k.main.uppercase() else k.main, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                Text(if (upper) k.main.uppercase() else k.main, color = ink, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                 if (k.altGr != null) Corner(k.altGr, state.altGr, Alignment.BottomEnd)
             }
             k.shift != null -> {
                 // Comme sur une vraie touche : symbole avec Maj en haut, symbole normal en bas, Alt Gr à droite.
                 val useShift = state.shift
-                Text(k.shift, color = Color.White.copy(alpha = if (useShift) 1f else 0.5f), fontSize = if (useShift) 15.sp else 10.sp,
+                Text(k.shift, color = ink.copy(alpha = if (useShift) 1f else 0.5f), fontSize = if (useShift) 15.sp else 10.sp,
                     modifier = Modifier.align(Alignment.TopStart).padding(start = 5.dp, top = 2.dp))
-                Text(k.main, color = Color.White.copy(alpha = if (useShift || state.altGr) 0.5f else 1f), fontSize = if (useShift) 10.sp else 15.sp,
+                Text(k.main, color = ink.copy(alpha = if (useShift || state.altGr) 0.5f else 1f), fontSize = if (useShift) 10.sp else 15.sp,
                     modifier = Modifier.align(Alignment.BottomStart).padding(start = 5.dp, bottom = 2.dp))
                 if (k.altGr != null) Corner(k.altGr, state.altGr, Alignment.BottomEnd)
             }
             else -> Text(
-                k.main, color = Color.White, fontSize = if (k.main.length <= 2) 16.sp else 11.sp,
+                k.main, color = ink, fontSize = if (k.main.length <= 2) 16.sp else 11.sp,
                 fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, maxLines = 1,
             )
         }
