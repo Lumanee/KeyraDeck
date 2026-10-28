@@ -18,6 +18,10 @@ public class DeckConfig
     public bool HideLabels { get; set; }
     /// <summary>Ville du widget météo (Open-Meteo).</summary>
     public string WeatherCity { get; set; } = "";
+    /// <summary>Connexion de secours par câble USB (adb reverse), surveillée en permanence.</summary>
+    public bool UsbEnabled { get; set; } = true;
+    /// <summary>Ouvre KeyraDeck sur le téléphone quand on le branche au PC.</summary>
+    public bool UsbOpenApp { get; set; } = true;
     /// <summary>Dernier téléphone connecté : taille de l'écran en dp (le configurateur copie ses proportions).</summary>
     public DeckDevice? Device { get; set; }
     /// <summary>Taille d'écran (arrondie) pour laquelle la grille a déjà été adaptée ; permet de ne proposer l'adaptation qu'une fois.</summary>

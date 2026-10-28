@@ -1,5 +1,6 @@
 package com.phonedeck.app
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.WindowManager
 import android.widget.Toast
@@ -60,6 +61,24 @@ class MainActivity : ComponentActivity() {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
         setContent { App(vm) }
+        handleUsbIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleUsbIntent(intent)
+    }
+
+    /** Le PC ouvre l'appli par le câble USB (adb) et donne son adresse, comme le QR code. */
+    private fun handleUsbIntent(intent: Intent?) {
+        if (intent == null) return
+        val url = intent.getStringExtra(EXTRA_USB_PAIR) ?: return
+        intent.removeExtra(EXTRA_USB_PAIR)
+        vm.pairFromUsb(url)
+    }
+
+    companion object {
+        const val EXTRA_USB_PAIR = "keyradeck_pair"
     }
 }
 
@@ -107,6 +126,16 @@ fun App(vm: DeckViewModel) {
                 UpdateBanner(vm)
                 NotificationOverlay(vm)
                 if (vm.showSettings) SettingsDialog(vm)
+                if (vm.showUsbGuide) UsbGuideDialog(vm)
+                vm.pendingUsbPair?.let { url ->
+                    AlertDialog(
+                        onDismissRequest = { vm.pendingUsbPair = null },
+                        title = { Text("Changer de PC ?") },
+                        text = { Text("Un autre PC branché par câble USB propose de se connecter. Utiliser ce PC à la place de l'actuel ?") },
+                        confirmButton = { TextButton(onClick = { vm.pendingUsbPair = null; vm.pair(url) }) { Text("Utiliser ce PC") } },
+                        dismissButton = { TextButton(onClick = { vm.pendingUsbPair = null }) { Text("Garder l'actuel") } },
+                    )
+                }
             }
         }
     }
@@ -139,6 +168,7 @@ private fun SettingsDialog(vm: DeckViewModel) {
                     Text("Version ${Updater.currentBuild(LocalContext.current)}", color = Color(0xFF8D8D99), fontSize = 12.sp, modifier = Modifier.weight(1f))
                     TextButton(onClick = { vm.checkForUpdate(manual = true) }) { Text("Vérifier les mises à jour") }
                 }
+                TextButton(onClick = { vm.showSettings = false; vm.showUsbGuide = true }) { Text("Connexion par câble USB") }
                 TextButton(onClick = { vm.showSettings = false; vm.forget() }) { Text("Changer de PC") }
             }
         },

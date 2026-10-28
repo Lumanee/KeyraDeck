@@ -141,15 +141,21 @@ Le bouton **Réglages** du configurateur propose 5 thèmes : **Noir OLED**, **Bl
 
 Tes boutons et réglages sont conservés.
 
-## Connexion par câble USB (facultatif)
+## Connexion par câble USB (secours, idéal en jeu)
 
-Avec les outils Android (`adb`) installés et le débogage USB activé sur le téléphone :
+Quand le Wi-Fi est capricieux, branche simplement le téléphone au PC : KeyraDeck passe tout seul par le câble, et revient sur le Wi-Fi quand tu le débranches. Le petit repère **USB** à côté de la LED du boîtier indique qu'il passe par le câble.
 
-```
-adb reverse tcp:8765 tcp:8765
-```
+À faire une seule fois :
 
-Puis dans l'appli, choisis **Connexion par câble USB**, saisis le code et connecte-toi.
+1. Sur le téléphone : **Paramètres › À propos du téléphone**, touche **7 fois « Numéro de build »** (Samsung : Informations sur le logiciel › Numéro de version ; Xiaomi : Version de MIUI / HyperOS).
+2. **Paramètres › Système › Options pour les développeurs** : active **« Débogage USB »**.
+3. Branche le téléphone au PC avec un câble de données, puis touche **« Autoriser »** (coche « Toujours autoriser depuis cet ordinateur »).
+
+Le PC s'occupe du reste : il télécharge une fois l'outil Android officiel de Google (« adb », ~7 Mo, rangé dans `%APPDATA%\KeyraDeck\platform-tools`), détecte le téléphone, ouvre le tunnel et ouvre KeyraDeck sur le téléphone. Le guide et l'état du câble sont dans **Connecter un téléphone** sur le PC (et dans **Réglages › Connexion par câble USB** sur le téléphone). Si KeyraDeck n'est pas installé sur le téléphone, un bouton permet de l'installer par le câble. Tout se désactive dans **Réglages › Câble USB** sur le PC.
+
+Rien ne se passe ? Essaie un autre câble ou une autre prise, choisis « Transfert de fichiers » dans la notification USB du téléphone, ou installe le [pilote USB du fabricant](https://developer.android.com/studio/run/oem-usb?hl=fr).
+
+Technique : `adb reverse tcp:8765 tcp:8766`. Le port 8766 du PC n'écoute que sur le PC lui-même et n'accepte que la connexion du deck (avec le code), jamais le configurateur.
 
 ## Pour les développeurs
 

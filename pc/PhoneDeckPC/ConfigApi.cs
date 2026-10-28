@@ -24,6 +24,9 @@ public class ConfigApi
     /// <summary>Demande à la fenêtre de se fermer (après le téléchargement d'une mise à jour).</summary>
     public Action? ExitRequested { get; set; }
 
+    /// <summary>Connexion par câble USB.</summary>
+    public UsbBridge? Usb { get; set; }
+
     public ConfigApi(ConfigStore store, AppCatalog catalog, StaWorker sta, DeckServer server)
     {
         _store = store;
@@ -68,6 +71,7 @@ public class ConfigApi
                         version = _server.LayoutVersion,
                         configPath = _store.ConfigPath,
                         error = _store.LastError,
+                        usb = Usb?.Status,
                     });
                     return;
 
@@ -197,6 +201,13 @@ public class ConfigApi
                     var error = await _updater.DownloadAndPrepareAsync();
                     await Json(ctx, new { ok = error == null, error });
                     if (error == null) { _ = Task.Delay(800).ContinueWith(_ => ExitRequested?.Invoke()); _ = Task.Delay(5000).ContinueWith(_ => Environment.Exit(0)); }
+                    return;
+                }
+
+                case "/api/usb/install" when method == "POST":
+                {
+                    var error = Usb == null ? "USB indisponible" : await Usb.InstallAppAsync();
+                    await Json(ctx, new { ok = error == null, error });
                     return;
                 }
 

@@ -112,6 +112,16 @@
   dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 14px; padding: 20px; max-width: 420px; }
   dialog::backdrop { background: #000a; }
   .qr { background: #fff; padding: 8px; border-radius: 8px; width: 240px; height: 240px; display: block; margin: 8px auto; }
+  .usbbox { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .usbstate { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; margin: 6px 0; }
+  .usbstate .dot { flex: none; margin-top: 4px; }
+  .usbstate .dot.wait { background: var(--warn); }
+  .usbsteps { font-size: 12px; color: var(--text); padding-left: 18px; margin: 8px 0; }
+  .usbsteps li { margin: 6px 0; line-height: 1.4; }
+  .usbsteps li.done { color: var(--muted); text-decoration: line-through; }
+  .usbsteps li.now { color: var(--text); font-weight: 600; }
+  .usbsteps a { color: var(--accent); }
+  details summary { cursor: pointer; color: var(--accent); font-size: 12px; }
   .code { font: 700 20px ui-monospace, Consolas, monospace; letter-spacing: .15em; text-align: center; }
   #trash { border: 1px dashed var(--line); border-radius: 10px; padding: 10px; text-align: center; color: var(--muted); margin-top: 14px; }
   #trash.over { border-color: var(--bad); color: var(--bad); }
@@ -229,6 +239,22 @@
   <label>Code</label>
   <div class="code" id="codeVal"></div>
   <div class="hint" id="portVal" style="text-align:center"></div>
+  <div class="usbbox">
+    <label style="margin-top:0">Par câble USB (secours quand le Wi-Fi flanche, idéal en jeu)</label>
+    <div class="usbstate"><span class="dot" id="usbDot"></span><span id="usbText">…</span></div>
+    <button id="usbInstall" class="primary" style="display:none">Installer KeyraDeck sur le téléphone</button>
+    <details id="usbGuide">
+      <summary>Guide pas à pas (à faire une seule fois)</summary>
+      <ol class="usbsteps">
+        <li data-step="1">Sur le téléphone, ouvre <b>Paramètres › À propos du téléphone</b> et touche <b>7 fois « Numéro de build »</b> jusqu'au message « Vous êtes développeur ».<br><span class="hint">Samsung : À propos du téléphone › Informations sur le logiciel › Numéro de version. Xiaomi : Version de MIUI / HyperOS.</span></li>
+        <li data-step="2">Dans <b>Paramètres › Système › Options pour les développeurs</b>, active <b>« Débogage USB »</b>.</li>
+        <li data-step="3">Branche le téléphone au PC avec un <b>câble de données</b> (pas un câble « charge seule »).</li>
+        <li data-step="4">Sur le téléphone, touche <b>« Autoriser »</b> dans la fenêtre « Autoriser le débogage USB ? » en cochant <b>« Toujours autoriser depuis cet ordinateur »</b>.</li>
+        <li data-step="5">C'est tout : KeyraDeck s'ouvre sur le téléphone et passe par le câble. Si tu débranches, il repasse sur le Wi-Fi tout seul.</li>
+      </ol>
+      <div class="hint">Rien ne se passe ? Essaie un autre câble ou une autre prise USB, choisis « Transfert de fichiers » dans la notification USB du téléphone, ou installe le <a href="https://developer.android.com/studio/run/oem-usb?hl=fr" target="_blank" style="color:var(--accent)">pilote USB du fabricant</a>.</div>
+    </details>
+  </div>
   <div style="text-align:right;margin-top:14px"><button id="pairClose">Fermer</button></div>
 </dialog>
 
@@ -244,6 +270,13 @@
   <label>Windows</label>
   <label style="display:flex;gap:8px;align-items:center;color:var(--text);cursor:pointer;margin-top:4px">
     <input type="checkbox" id="startWin" style="width:auto"> Lancer KeyraDeck au démarrage de Windows (discrètement, près de l'horloge)
+  </label>
+  <label>Câble USB</label>
+  <label style="display:flex;gap:8px;align-items:center;color:var(--text);cursor:pointer;margin-top:4px">
+    <input type="checkbox" id="usbOn" style="width:auto"> Connexion de secours par câble USB (le téléphone bascule tout seul entre Wi-Fi et câble)
+  </label>
+  <label style="display:flex;gap:8px;align-items:center;color:var(--text);cursor:pointer;margin-top:4px">
+    <input type="checkbox" id="usbOpen" style="width:auto"> Ouvrir KeyraDeck sur le téléphone quand on le branche
   </label>
   <label>Version</label>
   <div class="row"><span id="verText" class="hint"></span><button id="verBtn">Vérifier les mises à jour</button></div>
@@ -480,6 +513,8 @@ async function openSettings() {
     const st = await api('/api/settings');
     $('#startWin').checked = st.startWithWindows;
     $('#hideLbl').checked = !!state.cfg.hideLabels;
+    $('#usbOn').checked = state.cfg.usbEnabled !== false;
+    $('#usbOpen').checked = state.cfg.usbOpenApp !== false;
     $('#verText').textContent = 'KeyraDeck — version ' + st.build;
   } catch { }
   $('#setDlg').showModal();
@@ -1473,6 +1508,7 @@ async function refreshInfo() {
     if (!state.dirty && info.version !== state.version) { await loadAll(); }
     else if (!!was !== !!n) renderStage();
     checkAdapt();
+    renderUsb();
     if (info.error) setSaved(info.error, true);
   } catch { /* le PC est peut-être en train de redémarrer */ }
 }
@@ -1493,12 +1529,51 @@ async function checkUpdate(manual) {
     }
   } catch { /* hors ligne : on réessaiera */ }
 }
+// État du câble USB : texte, voyant et étape du guide à faire maintenant.
+function renderUsb() {
+  const u = state.info && state.info.usb;
+  if (!u) return;
+  const phone = u.phone || 'Le téléphone';
+  const msg = {
+    off: ['', 'Connexion par câble désactivée (Réglages › Câble USB).', 0],
+    notool: ['', 'Outil USB indisponible sur ce PC.', 0],
+    downloading: ['wait', 'Préparation de la connexion USB (outil Android de Google)… ' + (u.progress ?? 0) + ' %', 0],
+    nophone: ['', 'Aucun téléphone détecté sur le câble. Suis le guide ci-dessous.', 1],
+    unauthorized: ['wait', phone + ' est branché : touche « Autoriser » sur le téléphone (coche « Toujours autoriser »).', 4],
+    offline: ['wait', 'Téléphone détecté mais pas encore prêt : débranche et rebranche le câble.', 4],
+    noapp: ['wait', 'KeyraDeck n\'est pas encore installé sur ' + phone + '.', 5],
+    ready: u.usbClient ? ['on', phone + ' est connecté par le câble USB ✓', 6] : ['on', phone + ' est prêt par câble : ouvre KeyraDeck sur le téléphone, il passera par le câble tout seul.', 5],
+    error: ['', 'Problème USB : ' + (u.error || 'inconnu'), 1],
+  }[u.state] || ['', u.state, 0];
+  $('#usbDot').className = 'dot' + (msg[0] ? ' ' + msg[0] : '');
+  $('#usbText').textContent = msg[1];
+  const b = $('#usbInstall');
+  b.style.display = u.state === 'noapp' || u.installing ? '' : 'none';
+  b.disabled = !!u.installing;
+  b.textContent = u.installing ? 'Installation en cours…' : 'Installer KeyraDeck sur le téléphone';
+  document.querySelectorAll('.usbsteps li').forEach(li => {
+    const n = +li.dataset.step;
+    li.classList.toggle('done', msg[2] > 1 && n < msg[2]);
+    li.classList.toggle('now', n === msg[2]);
+  });
+}
+async function installOnPhone() {
+  const b = $('#usbInstall'); b.disabled = true; b.textContent = 'Installation en cours…';
+  try {
+    const r = await api('/api/usb/install', { method: 'POST' });
+    if (r.error) throw new Error(r.error);
+    toast('KeyraDeck est installé sur le téléphone ✓');
+  } catch (e) { toast(e.message); }
+  refreshInfo();
+}
 function openPair() {
   const info = state.info;
   const sel = $('#ipSel'); sel.replaceChildren(...info.addresses.map(ip => el('option', { value: ip }, ip)));
   const upd = () => { $('#qrImg').src = '/api/qr.png?ip=' + encodeURIComponent(sel.value) + '&t=' + Date.now(); };
   sel.onchange = upd; upd();
   $('#codeVal').textContent = info.token; $('#portVal').textContent = 'Port ' + info.port;
+  renderUsb();
+  if (info.usb && ['nophone', 'unauthorized', 'offline', 'error'].includes(info.usb.state)) $('#usbGuide').open = true;
   $('#pairDlg').showModal();
 }
 
@@ -1517,6 +1592,9 @@ $('#hideLbl').onchange = (e) => { pushUndo(); if (e.target.checked) state.cfg.hi
 $('#setClose').onclick = () => $('#setDlg').close();
 $('#verBtn').onclick = () => checkUpdate(true);
 $('#startWin').onchange = (e) => api('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ startWithWindows: e.target.checked }) }).catch(err => toast(err.message));
+$('#usbInstall').onclick = installOnPhone;
+$('#usbOn').onchange = (e) => { state.cfg.usbEnabled = e.target.checked; changed(); };
+$('#usbOpen').onchange = (e) => { state.cfg.usbOpenApp = e.target.checked; changed(); };
 $('#pairClose').onclick = () => $('#pairDlg').close();
 $('#appClose').onclick = () => $('#appDlg').close();
 $('#pageClose').onclick = () => $('#pageDlg').close();
