@@ -189,6 +189,40 @@
   .pcard small { color: var(--muted); font-size: 12px; }
   .pcard .px { color: var(--accent); }
   .pnotes div { margin-top: 8px; }
+  /* Menu du clic droit, sobre comme G HUB */
+  .ctx { position: fixed; z-index: 60; min-width: 230px; max-width: 320px; background: #141417; border: 1px solid #2c2c33; border-radius: 8px; padding: 5px 0; box-shadow: 0 14px 36px #000d; font-size: 13px; user-select: none; }
+  .ctx .it { display: flex; align-items: center; gap: 10px; padding: 7px 14px 7px 10px; cursor: default; white-space: nowrap; }
+  .ctx .it:hover, .ctx .it.on { background: #25252c; }
+  .ctx .it.dis { opacity: .38; pointer-events: none; }
+  .ctx .it.danger:hover { background: #3a1517; color: #ff8a8a; }
+  .ctx .it > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; }
+  .ctx .ic, .find .ic { width: 18px; flex: none; text-align: center; font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets"; font-size: 14px; color: #b9b9c3; }
+  .ctx .kb { margin-left: auto; padding-left: 24px; color: var(--muted); font-size: 11px; }
+  .ctx .arr { margin-left: auto; padding-left: 24px; color: var(--muted); }
+  .ctx .sep { height: 1px; background: #2a2a31; margin: 5px 0; }
+  .ctx .hd { padding: 4px 14px 6px; color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ctx i.sw { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1px solid #ffffff40; vertical-align: middle; background: repeating-linear-gradient(45deg, #333 0 3px, #222 3px 6px); }
+  /* Recherche de boutons */
+  .tabsrow { display: flex; align-items: flex-end; gap: 18px; }
+  .tabsrow .tabs { flex: 1; min-width: 0; }
+  .find { position: relative; width: 190px; flex: none; padding-top: 8px; transition: width .15s; }
+  .find:focus-within { width: 260px; }
+  .find input { padding-left: 30px !important; }
+  .find > .ic { position: absolute; left: 6px; bottom: 8px; pointer-events: none; color: var(--muted); }
+  .findres { position: absolute; right: 0; top: calc(100% + 4px); width: 360px; max-height: 60vh; overflow-y: auto; z-index: 40; background: #141417; border: 1px solid #2c2c33; border-radius: 8px; padding: 5px 0; box-shadow: 0 14px 36px #000d; }
+  .findres[hidden] { display: none; }
+  .fr { display: flex; gap: 10px; align-items: center; padding: 6px 12px; cursor: pointer; }
+  .fr.on, .fr:hover { background: #25252c; }
+  .fr.empty { color: var(--muted); cursor: default; }
+  .fr .fi { width: 30px; height: 30px; flex: none; background: #060608; border-radius: 7px; display: flex; align-items: center; justify-content: center; padding: 3px; }
+  .fr .fi img { width: 100%; height: 100%; object-fit: contain; }
+  .fr .ft { min-width: 0; display: flex; flex-direction: column; }
+  .fr .ft b, .fr .ft small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fr .ft b { font-weight: 600; }
+  .fr .ft small { color: var(--muted); font-size: 12px; }
+  .key.dim, .wdg.dim { opacity: .22; }
+  .key.flash { animation: flash 1.2s ease-out; }
+  @keyframes flash { 0%, 40% { transform: scale(1.12); outline-color: #fff; } 100% { transform: none; } }
 </style>
 </head>
 <body>
@@ -217,7 +251,10 @@
   </aside>
 
   <section class="center">
-    <div class="tabs" id="tabs"></div>
+    <div class="tabsrow">
+      <div class="tabs" id="tabs"></div>
+      <div class="find"><span class="ic"></span><input type="text" id="findInput" placeholder="Rechercher (Ctrl+F)" autocomplete="off"><div class="findres" id="findRes" hidden></div></div>
+    </div>
     <div class="stage" id="stage"><div class="phone" id="phone"><div class="device" id="device"></div></div></div>
     <div class="gridbar">
       <span>Grille : <span class="stepper"><button id="colMinus">−</button><b id="colVal"></b><button id="colPlus">+</button></span> colonnes ×
@@ -273,6 +310,10 @@
   <label style="display:flex;gap:8px;align-items:center;color:var(--text);cursor:pointer;margin-top:4px">
     <input type="checkbox" id="startWin" style="width:auto"> Lancer KeyraDeck au démarrage de Windows (discrètement, près de l'horloge)
   </label>
+  <label>Sauvegarde</label>
+  <div class="hint">Toute ta configuration dans un seul fichier : pages, dossiers, boutons, widgets, thème et images. Pour changer de PC ou de téléphone, ou pour garder une copie de côté.</div>
+  <div class="row" style="margin-top:8px;justify-content:flex-start"><button id="backupBtn">Sauvegarder dans un fichier…</button><button id="restoreBtn">Restaurer une sauvegarde…</button></div>
+  <input type="file" id="restoreFile" accept=".json,application/json" style="display:none">
   <label>Câble USB</label>
   <label style="display:flex;gap:8px;align-items:center;color:var(--text);cursor:pointer;margin-top:4px">
     <input type="checkbox" id="usbOn" style="width:auto"> Connexion de secours par câble USB (le téléphone bascule tout seul entre Wi-Fi et câble)
@@ -308,6 +349,7 @@
     <button id="askCancel">Annuler</button><button id="askOk">OK</button>
   </div>
 </dialog>
+<input type="file" id="ctxFile" accept="image/*" style="display:none">
 <div id="toast"></div>
 
 <script>
@@ -650,7 +692,8 @@ function renderAll() { renderTabs(); renderStage(); renderGridBar(); renderInspe
 
 function renderTabs() {
   const tabs = $('#tabs'); tabs.replaceChildren();
-  const tab = (p) => el('button', { class: 'tab' + (p.id === state.page ? ' active' : ''), onclick: () => { state.page = p.id; state.selected = null; renderAll(); } }, (p.name || p.id));
+  const tab = (p) => el('button', { class: 'tab' + (p.id === state.page ? ' active' : ''), onclick: () => goPage(p.id), title: 'Clic droit : renommer, dupliquer, supprimer…',
+    oncontextmenu: (e) => { e.preventDefault(); e.stopPropagation(); pageMenu(p, e.clientX, e.clientY); } }, (p.name || p.id));
   tabs.append(el('span', { class: 'tabgrp', title: 'Les pages se parcourent en glissant sur le téléphone' }, 'Pages'));
   for (const p of rootPages()) tabs.append(tab(p));
   tabs.append(el('button', { class: 'tab', title: 'Ajouter une page (on passe de l\'une à l\'autre en glissant sur le téléphone)', onclick: addRootPage }, '＋ Page'));
@@ -750,7 +793,7 @@ function renderStage() {
   for (let s = 0; s < cols * rows; s++) {
     if (covered.has(s)) continue;
     const b = bySlot.get(s);
-    const k = el('div', { class: 'key' + (b ? '' : ' empty') + (b && b.id === state.selected ? ' selected' : ''), 'data-slot': s, 'data-id': b ? b.id : null, style: `--lbl:${Math.max(9, Math.min(15, key * 0.12))}px` });
+    const k = el('div', { class: 'key' + (b ? '' : ' empty') + (b && b.id === state.selected ? ' selected' : '') + (state.findQ && !(b && matchButton(b, state.findQ)) && !(gen.has(s) && matchButton(gen.get(s), state.findQ)) ? ' dim' : ''), 'data-slot': s, 'data-id': b ? b.id : null, style: `--lbl:${Math.max(9, Math.min(15, key * 0.12))}px` });
     if (b) {
       const face = el('div', { class: 'face', style: b.color ? `background-color:${b.color}` : '' });
       const ic = iconFor(b);
@@ -766,6 +809,7 @@ function renderStage() {
       k.addEventListener('mouseenter', () => drawCallout(b.id));
       k.addEventListener('mouseleave', () => drawCallout(state.selected));
       k.addEventListener('dblclick', () => { if ((b.action.type === 'folder' || b.action.type === 'page') && pageById(b.action.page)) { state.page = b.action.page; state.selected = null; renderAll(); } });
+      k.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); if (state.selected !== b.id) select(b.id); buttonMenu(b, e.clientX, e.clientY); });
     } else if (gen.has(s)) {
       const gb = gen.get(s);
       const ic = iconFor(gb);
@@ -773,9 +817,11 @@ function renderStage() {
       if (ic) face.append(el('img', { class: 'icon', src: ic }));
       if (key >= 56) face.append(el('div', { class: 'lbl' }, gb.label));
       k.classList.remove('empty'); k.append(face);
+      k.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); showMenu([{ header: gb.label }, { icon: G.link, label: 'Détacher du menu Démarrer pour modifier', onclick: detachPage }], e.clientX, e.clientY); });
     } else {
       k.append(el('div', { class: 'face' }));
       k.addEventListener('click', () => { state.selected = null; renderInspector(); renderStage(); });
+      k.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); emptyMenu(s, e.clientX, e.clientY); });
     }
     k.addEventListener('dragover', (e) => {
       const t = e.dataTransfer.types;
@@ -789,10 +835,11 @@ function renderStage() {
   for (const w of widgets) {
     const info = WIDGET_INFO[w.type] || { name: w.type, icon: '▫' };
     const c = w.slot % cols, r = Math.floor(w.slot / cols);
-    const d = el('div', { 'data-id': w.id, class: 'wdg' + (w.h === 1 ? ' one' : '') + (w.id === state.selected ? ' selected' : ''), draggable: 'true', style: `grid-column:${c + 1} / span ${w.w};grid-row:${r + 1} / span ${w.h}` },
+    const d = el('div', { 'data-id': w.id, class: 'wdg' + (w.h === 1 ? ' one' : '') + (w.id === state.selected ? ' selected' : '') + (state.findQ ? ' dim' : ''), draggable: 'true', style: `grid-column:${c + 1} / span ${w.w};grid-row:${r + 1} / span ${w.h}` },
       el('div', { class: 'face' }));
     d.addEventListener('dragstart', (e) => { e.dataTransfer.setData('application/x-pd-widget', w.id); e.dataTransfer.effectAllowed = 'move'; select(w.id, true); });
     d.addEventListener('click', () => select(w.id));
+    d.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); if (state.selected !== w.id) select(w.id); widgetMenu(w, e.clientX, e.clientY); });
     grid.append(d);
   }
   holder.append(grid);
@@ -1028,15 +1075,9 @@ function renderGridBar() {
   const { cols, rows } = pageGrid(page);
   $('#colVal').textContent = cols; $('#rowVal').textContent = rows;
   const tools = $('#pageTools'); tools.replaceChildren();
-  const root = isRoot(page), roots = rootPages();
-  if (root && roots.length > 1) {
-    const i = roots.indexOf(page);
-    tools.append(el('button', { onclick: () => movePage(-1), disabled: i === 0, title: 'Passe cette page avant la précédente' }, '◀ Avant'), ' ',
-      el('button', { onclick: () => movePage(1), disabled: i === roots.length - 1, title: 'Passe cette page après la suivante' }, 'Après ▶'), ' ');
-  }
-  tools.append(el('button', { onclick: renamePage }, '✏️ Renommer'));
-  if (root && !page.generated) tools.append(' ', el('button', { onclick: exportPage, title: 'Enregistre cette page dans un fichier, pour la partager ou la garder' }, '⬇ Exporter'));
-  if (!root || roots.length > 1) tools.append(' ', el('button', { class: 'danger', onclick: deletePage }, root ? '🗑 Supprimer la page' : '🗑 Supprimer le dossier'));
+  const root = isRoot(page);
+  tools.append(el('button', { title: 'Renommer, dupliquer, exporter, déplacer, supprimer… (aussi au clic droit sur l\'onglet)',
+    onclick: (e) => { const r = e.currentTarget.getBoundingClientRect(); pageMenu(page, r.left, r.top, true); } }, (root ? 'Page' : 'Dossier') + ' ⋯'));
   if (page.generated) {
     tools.append(' ', el('button', { onclick: detachPage, title: 'Copie les raccourcis du menu Démarrer en boutons que tu peux modifier' }, '🔗 Détacher du menu Démarrer'));
   }
@@ -1257,7 +1298,8 @@ function exportPage() {
 async function importPageFile(file) {
   $('#pageDlg').close();
   try {
-    const data = JSON.parse(await file.text());
+    const text = await file.text(), data = JSON.parse(text);
+    if (data && data.keyradeck === 'backup') { restoreBackup(text, data); return; }
     const p = data && data.keyradeck === 'page' && data.page;
     if (!p || !Array.isArray(p.buttons)) throw new Error('ce n\'est pas une page KeyraDeck');
     const buttons = p.buttons.filter(b => b && b.action && typeof b.action.type === 'string' && !['folder', 'page'].includes(b.action.type))
@@ -1289,7 +1331,8 @@ function renderInspector() {
     box.append(el('h2', {}, 'Propriétés'),
       el('div', { class: 'hint' }, 'Clique sur un bouton pour le modifier.', el('br'), el('br'),
         'Astuces :', el('br'), '• glisse un bouton pour le déplacer', el('br'), '• dépose une image dessus pour changer son icône', el('br'),
-        '• double-clic sur un dossier pour l\'ouvrir', el('br'), '• Suppr pour effacer le bouton sélectionné'));
+        '• double-clic sur un dossier pour l\'ouvrir', el('br'), '• clic droit sur un bouton, une case vide ou un onglet pour voir toutes les actions', el('br'),
+        '• Ctrl+C / Ctrl+V pour copier un bouton vers une autre page, Ctrl+D pour le dupliquer', el('br'), '• Ctrl+F pour retrouver un bouton', el('br'), '• Suppr pour effacer le bouton sélectionné'));
     return;
   }
   const b = f.button, a = b.action;
@@ -1371,6 +1414,7 @@ function renderInspector() {
 
   box.append(el('div', { class: 'row', style: 'margin-top:18px' },
     el('button', { onclick: testButton, disabled: a.type === 'folder' || a.type === 'mixer' || a.type === 'page' }, '▶ Tester sur le PC'),
+    el('button', { onclick: () => duplicateItem(b.id), title: 'Ctrl+D' }, '⧉ Dupliquer'),
     el('button', { class: 'danger', onclick: () => deleteButton(b.id) }, '🗑 Supprimer')));
   box.append(el('div', { id: 'trash', ondragover: (e) => { e.preventDefault(); $('#trash').classList.add('over'); }, ondragleave: () => $('#trash').classList.remove('over'),
     ondrop: (e) => { e.preventDefault(); const id = e.dataTransfer.getData('application/x-pd-button'); if (id) deleteButton(id); } }, 'Glisse ici pour supprimer'));
@@ -1659,13 +1703,358 @@ function openPair() {
   $('#pairDlg').showModal();
 }
 
+// ---------- Menu du clic droit ----------
+
+// Pictogrammes de la police d'icônes de Windows (Segoe Fluent Icons / MDL2).
+const G = { cut: '', copy: '', paste: '', dup: '', rename: '', del: '', play: '', open: '', move: '',
+  image: '', reset: '', color: '', add: '', page: '', folder: '', back: '', next: '', export: '',
+  save: '', restore: '', undo: '', link: '', widget: '' };
+const ctxMenus = [];
+function closeMenu(level = 0) { while (ctxMenus.length > level) ctxMenus.pop().remove(); }
+// items : { label, icon, kb, onclick, disabled, danger, sub: [...] } | '-' (séparateur) | { header } ; null est ignoré.
+function showMenu(items, x, y, level = 0, anchor) {
+  closeMenu(level);
+  const list = [];
+  for (const it of items) { if (!it) continue; if (it === '-' && (!list.length || list[list.length - 1] === '-')) continue; list.push(it); }
+  while (list[list.length - 1] === '-') list.pop();
+  const m = el('div', { class: 'ctx', role: 'menu', oncontextmenu: (e) => { e.preventDefault(); e.stopPropagation(); } });
+  for (const it of list) {
+    if (it === '-') { m.append(el('div', { class: 'sep' })); continue; }
+    if (it.header) { m.append(el('div', { class: 'hd' }, it.header)); continue; }
+    const hasSub = Array.isArray(it.sub), off = it.disabled || (hasSub && !it.sub.filter(Boolean).length);
+    const row = el('div', { class: 'it' + (off ? ' dis' : '') + (it.danger ? ' danger' : ''), role: 'menuitem' },
+      el('span', { class: 'ic' }, it.icon || ''), el('span', {}, it.label), hasSub ? el('span', { class: 'arr' }, '›') : it.kb ? el('span', { class: 'kb' }, it.kb) : null);
+    row.addEventListener('mouseenter', () => {
+      m.querySelectorAll('.it.on').forEach(r => r.classList.remove('on'));
+      if (hasSub) { row.classList.add('on'); const r = row.getBoundingClientRect(); showMenu(it.sub, r.right - 3, r.top - 6, level + 1, r); }
+      else closeMenu(level + 1);
+    });
+    if (!hasSub) row.addEventListener('click', (e) => { e.stopPropagation(); closeMenu(); if (it.onclick) it.onclick(); });
+    m.append(row);
+  }
+  document.body.append(m); ctxMenus.push(m);
+  const w = m.offsetWidth, h = m.offsetHeight;
+  if (x + w > innerWidth - 4) x = anchor ? anchor.left - w + 3 : innerWidth - w - 4;
+  if (y + h > innerHeight - 4) y = innerHeight - h - 4;
+  m.style.left = Math.max(4, x) + 'px'; m.style.top = Math.max(4, y) + 'px';
+  return m;
+}
+const clone = (x) => JSON.parse(JSON.stringify(x));
+function goPage(id) { state.page = id; state.selected = null; renderAll(); }
+function clipName() { const c = state.clip; if (!c) return ''; return c.kind === 'widget' ? (WIDGET_INFO[c.data.type] || {}).name || 'widget' : c.data.label || 'bouton'; }
+const pasteItem = (onclick, where) => ({ icon: G.paste, label: state.clip ? `Coller « ${clipName()} »` + (where || '') : 'Coller', kb: 'Ctrl+V', disabled: !state.clip, onclick });
+const SWATCHES = [['Aucune', null], ['Rouge', '#C62828'], ['Orange', '#E65100'], ['Jaune', '#F9A825'], ['Vert', '#2E7D32'], ['Bleu', '#1565C0'], ['Violet', '#6A1B9A'], ['Rose', '#AD1457'], ['Gris', '#424242']];
+function moveTargets(id, from, avoid) {
+  const pick = (p) => ({ icon: isRoot(p) ? G.page : G.folder, label: p.name, onclick: () => moveToPage(id, p.id) });
+  const ok = (p) => p !== from && !p.generated && p.id !== avoid;
+  const r = rootPages().filter(ok).map(pick), f = folderPages().filter(ok).map(pick);
+  return [r.length ? { header: 'Pages' } : null, ...r, r.length && f.length ? '-' : null, f.length ? { header: 'Dossiers' } : null, ...f];
+}
+function buttonMenu(b, x, y) {
+  const f = findButton(b.id); if (!f) return;
+  const page = f.page, a = b.action, nav = (a.type === 'folder' || a.type === 'page') && pageById(a.page);
+  showMenu([
+    { header: b.label || 'Bouton' },
+    nav ? { icon: G.open, label: a.type === 'folder' ? 'Ouvrir le dossier' : 'Aller à cette page', onclick: () => goPage(a.page) } : null,
+    !nav && a.type !== 'mixer' ? { icon: G.play, label: 'Tester sur le PC', onclick: () => { state.selected = b.id; testButton(); } } : null,
+    { icon: G.rename, label: 'Renommer', kb: 'F2', onclick: () => renameButton(b.id) },
+    '-',
+    { icon: G.cut, label: 'Couper', kb: 'Ctrl+X', onclick: () => copyItem(b.id, true) },
+    { icon: G.copy, label: 'Copier', kb: 'Ctrl+C', onclick: () => copyItem(b.id) },
+    pasteItem(() => pasteAt(freeSlotAfter(page, b.slot)), ' à côté'),
+    { icon: G.dup, label: 'Dupliquer', kb: 'Ctrl+D', onclick: () => duplicateItem(b.id) },
+    { icon: G.move, label: 'Déplacer vers', sub: moveTargets(b.id, page, a.type === 'folder' ? a.page : null) },
+    '-',
+    { icon: G.image, label: 'Changer l\'image…', onclick: () => { state.iconTarget = b.id; $('#ctxFile').click(); } },
+    { icon: G.reset, label: 'Icône automatique', onclick: () => { state.selected = b.id; resetIcon(); } },
+    { icon: G.color, label: 'Couleur de fond', sub: SWATCHES.map(([n, c]) => ({ icon: el('i', { class: 'sw', style: c ? `background:${c}` : '' }), label: n + ((b.color || null) === c ? '  ✓' : ''),
+      onclick: () => { pushUndo(); if (c) b.color = c; else delete b.color; changed(); } })) },
+    '-',
+    { icon: G.del, label: 'Supprimer', kb: 'Suppr', danger: true, onclick: () => deleteButton(b.id) },
+  ], x, y);
+}
+function widgetMenu(w, x, y) {
+  const fw = findWidget(w.id); if (!fw) return;
+  showMenu([
+    { header: (WIDGET_INFO[w.type] || {}).name || 'Widget' },
+    { icon: G.cut, label: 'Couper', kb: 'Ctrl+X', onclick: () => copyItem(w.id, true) },
+    { icon: G.copy, label: 'Copier', kb: 'Ctrl+C', onclick: () => copyItem(w.id) },
+    pasteItem(() => pasteAt(null)),
+    { icon: G.dup, label: 'Dupliquer', kb: 'Ctrl+D', onclick: () => duplicateItem(w.id) },
+    { icon: G.move, label: 'Déplacer vers', sub: moveTargets(w.id, fw.page) },
+    '-',
+    { icon: G.del, label: 'Supprimer', kb: 'Suppr', danger: true, onclick: () => deleteWidget(w.id) },
+  ], x, y);
+}
+function emptyMenu(slot, x, y) {
+  const page = currentPage();
+  const addSub = COMMANDS.flatMap((g, i) => [i ? '-' : null, { header: g.group }, ...g.items.map(([k, n, d]) => ({ label: n, onclick: () => addAt(k, slot) }))]);
+  const wSub = Object.entries(WIDGET_MODELS).map(([type, list]) => ({ label: WIDGET_INFO[type].name, sub: list.map(m => ({ label: `${m.name}  (${m.w}×${m.h})`, onclick: () => addWidget(type, m, slot) })) }));
+  showMenu([
+    { header: 'Case vide' },
+    pasteItem(() => pasteAt(slot), ' ici'),
+    '-',
+    page.generated ? null : { icon: G.add, label: 'Ajouter un bouton', sub: addSub },
+    page.generated ? null : { icon: G.widget, label: 'Ajouter un widget', sub: wSub },
+  ], x, y);
+}
+function pageMenu(p, x, y, fromBar) {
+  const root = isRoot(p), roots = rootPages(), i = roots.indexOf(p), canDel = !root || roots.length > 1;
+  const on = (fn) => () => { if (state.page !== p.id) goPage(p.id); fn(); };
+  const m = showMenu([
+    { header: (root ? 'Page' : 'Dossier') + ' « ' + p.name + ' »' },
+    p.id !== state.page ? { icon: G.open, label: 'Ouvrir', onclick: () => goPage(p.id) } : null,
+    { icon: G.rename, label: 'Renommer', onclick: on(renamePage) },
+    { icon: G.dup, label: 'Dupliquer', onclick: () => duplicatePage(p) },
+    pasteItem(on(() => pasteAt(null)), root ? ' dans cette page' : ' dans ce dossier'),
+    root && !p.generated ? { icon: G.export, label: 'Exporter cette page…', onclick: on(exportPage) } : null,
+    p.generated ? { icon: G.link, label: 'Détacher du menu Démarrer', onclick: on(detachPage) } : null,
+    '-',
+    root && roots.length > 1 ? { icon: G.back, label: 'Placer avant', disabled: i === 0, onclick: on(() => movePage(-1)) } : null,
+    root && roots.length > 1 ? { icon: G.next, label: 'Placer après', disabled: i === roots.length - 1, onclick: on(() => movePage(1)) } : null,
+    '-',
+    canDel ? { icon: G.del, label: root ? 'Supprimer la page' : 'Supprimer le dossier', danger: true, onclick: on(deletePage) } : null,
+  ], x, y);
+  if (fromBar) m.style.top = Math.max(4, y - m.offsetHeight - 6) + 'px'; // au-dessus du bouton « ⋯ »
+}
+function stageMenu(x, y) {
+  const page = currentPage();
+  showMenu([
+    { header: (isRoot(page) ? 'Page' : 'Dossier') + ' « ' + page.name + ' »' },
+    pasteItem(() => pasteAt(null)),
+    { icon: G.undo, label: 'Annuler', kb: 'Ctrl+Z', disabled: !state.undo.length, onclick: undo },
+    '-',
+    { icon: G.page, label: 'Nouvelle page…', onclick: addRootPage },
+    { icon: G.folder, label: 'Nouveau dossier…', onclick: addFolder },
+    '-',
+    { icon: G.save, label: 'Sauvegarder toute la configuration…', onclick: downloadBackup },
+    { icon: G.restore, label: 'Restaurer une sauvegarde…', onclick: () => $('#restoreFile').click() },
+  ], x, y);
+}
+
+// ---------- Copier / coller / dupliquer / déplacer ----------
+
+function isFree(page, s) {
+  const { cols } = pageGrid(page);
+  return !page.buttons.some(b => b.slot === s) && !(page.widgets || []).some(w => widgetCells(w, cols).includes(s));
+}
+function freeSlotAfter(page, from) {
+  const { cols, rows } = pageGrid(page);
+  for (let s = (from ?? -1) + 1; s < cols * rows; s++) if (isFree(page, s)) return s;
+  return firstFreeSlot(page);
+}
+function areaFree(page, slot, w, h) {
+  const { cols } = pageGrid(page);
+  return slot % cols + w <= cols && widgetCells({ slot, w, h }, cols).every(c => isFree(page, c));
+}
+// Les images personnalisées sont rangées par id de bouton sur le PC : on les donne aussi aux copies.
+async function copyIcons(pairs) {
+  if (!pairs.length) return;
+  try {
+    await save();
+    await api('/api/icon/copy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pairs) });
+    await refreshLayout();
+  } catch { /* la copie garde son icône automatique */ }
+}
+function copyItem(id, cut) {
+  const fb = findButton(id), fw = !fb && findWidget(id);
+  if (fb && fb.page.generated) { toast('Détache d\'abord cette page du menu Démarrer.'); return; }
+  if (fb) state.clip = { kind: 'button', data: clone(fb.button), cut: !!cut };
+  else if (fw) state.clip = { kind: 'widget', data: clone(fw.widget), cut: !!cut };
+  else return;
+  if (cut) { if (fb) deleteButton(id); else deleteWidget(id); toast(`« ${clipName()} » coupé : clic droit > Coller sur la page de ton choix.`); }
+  else toast(`« ${clipName()} » copié : clic droit > Coller (ou Ctrl+V) sur n'importe quelle page.`);
+}
+function pasteAt(slot) {
+  const c = state.clip;
+  if (!c) { toast('Rien à coller : fais d\'abord clic droit > Copier sur un bouton.'); return; }
+  const page = currentPage();
+  if (page.generated) { toast('Cette page est remplie depuis le menu Démarrer : détache-la d\'abord.'); return; }
+  if (c.kind === 'widget') { pasteWidget(c.data, slot); c.cut = false; return; }
+  const b = clone(c.data), from = b.id;
+  // Un bouton coupé garde son identité (et son image) la première fois qu'on le colle.
+  if (!(c.cut && !findButton(b.id))) b.id = uid('b');
+  c.cut = false;
+  if (slot == null || !isFree(page, slot)) slot = firstFreeSlot(page);
+  pushUndo(); addButton(b, slot);
+  if (b.id !== from) copyIcons([{ from, to: b.id }]);
+}
+function pasteWidget(w, slot) {
+  const page = currentPage();
+  const m = modelOf(w) || { id: w.model, w: w.w, h: w.h };
+  addWidget(w.type, m, slot != null && areaFree(page, slot, m.w, m.h) ? slot : undefined);
+}
+function duplicateItem(id) {
+  const fb = findButton(id), fw = !fb && findWidget(id);
+  if (fb) {
+    if (fb.page.generated) return;
+    if (fb.page !== currentPage()) state.page = fb.page.id;
+    const b = clone(fb.button), from = b.id; b.id = uid('b');
+    pushUndo(); addButton(b, freeSlotAfter(fb.page, fb.button.slot));
+    copyIcons([{ from, to: b.id }]);
+  } else if (fw) {
+    if (fw.page !== currentPage()) state.page = fw.page.id;
+    pasteWidget(fw.widget);
+  }
+}
+function moveToPage(id, pid) {
+  const target = pageById(pid); if (!target || target.generated) return;
+  const fb = findButton(id), fw = !fb && findWidget(id);
+  pushUndo();
+  if (fb) {
+    fb.page.buttons.splice(fb.page.buttons.indexOf(fb.button), 1);
+    const s = firstFreeSlot(target), { cols, rows } = pageGrid(target);
+    fb.button.slot = s; target.buttons.push(fb.button);
+    if (s >= cols * rows) target.rows = Math.ceil((s + 1) / cols);
+  } else if (fw) {
+    const w = fw.widget, { cols, rows } = pageGrid(target);
+    if (w.w > cols) { state.undo.pop(); toast('Ce widget est trop large pour cette page.'); return; }
+    fw.page.widgets.splice(fw.page.widgets.indexOf(w), 1);
+    let ok = false;
+    for (let s = 0; s < cols * (rows + w.h) && !ok; s++) if (areaFree(target, s, w.w, w.h)) ok = placeWidget(target, w, s, w.w, w.h);
+    if (!ok) { state.cfg = JSON.parse(state.undo.pop()); toast('Pas de place pour ce widget sur cette page.'); renderAll(); return; }
+    (target.widgets ||= []).push(w);
+  } else { state.undo.pop(); return; }
+  state.selected = null;
+  changed();
+  toast(`Déplacé vers « ${target.name} »`);
+}
+async function renameButton(id) {
+  const f = findButton(id); if (!f) return;
+  const n = await askText('Renommer le bouton', f.button.label); if (n == null) return;
+  pushUndo(); f.button.label = n; changed();
+}
+function duplicatePage(p) {
+  const root = isRoot(p);
+  const copy = clone(p); delete copy.generated;
+  copy.id = uid(root ? 'page' : 'dossier');
+  copy.name = uniquePageName(p.name + ' (copie)');
+  delete copy.autoProcesses; // deux pages qui s'affichent pour la même appli se gêneraient
+  if (!root) delete copy.root;
+  const pairs = [];
+  for (const b of copy.buttons) { const id = uid('b'); pairs.push({ from: b.id, to: id }); b.id = id; }
+  copy.widgets = (copy.widgets || []).map(w => ({ ...w, id: uid('w') }));
+  pushUndo();
+  state.cfg.pages.splice(state.cfg.pages.indexOf(p) + 1, 0, copy);
+  state.page = copy.id; state.selected = null;
+  changed({ immediate: true });
+  copyIcons(pairs);
+  toast(`« ${copy.name} » créée.`);
+}
+function addAt(kind, slot) {
+  if (kind === 'app') { setLeftTab('app'); $('#appSearch').focus(); toast('Choisis l\'appli dans la liste à gauche (ou glisse-la sur la case).'); return; }
+  state.dropSlot = slot; try { addFromPalette(kind); } finally { state.dropSlot = undefined; }
+}
+
+// ---------- Recherche de boutons ----------
+
+const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const matchButton = (b, q) => norm([b.label, b.action && (b.action.target || b.action.keys || b.action.text), actionSummary(b)].join(' ')).includes(q);
+function renderFind() {
+  const q = norm($('#findInput').value.trim());
+  state.findQ = q;
+  renderStage();
+  const box = $('#findRes'); box.replaceChildren();
+  if (!q) { box.hidden = true; state.findRes = []; return; }
+  const res = [];
+  for (const p of state.cfg.pages) {
+    if (norm(p.name).includes(q)) res.push({ page: p });
+    for (const b of (p.generated || p.buttons)) if (matchButton(b, q)) res.push({ page: p, button: b });
+  }
+  // D'abord les noms qui correspondent, puis le reste (cible, raccourci…).
+  const byName = (r) => norm(r.button ? r.button.label : r.page.name).includes(q) ? 0 : 1;
+  res.sort((a, b) => byName(a) - byName(b));
+  state.findRes = res.slice(0, 60);
+  if (!res.length) box.append(el('div', { class: 'fr empty' }, 'Aucun bouton ne correspond.'));
+  state.findRes.forEach((r, i) => {
+    const ic = r.button && iconFor(r.button);
+    box.append(el('div', { class: 'fr' + (i === 0 ? ' on' : ''), onmousedown: (e) => { e.preventDefault(); chooseFind(r); } },
+      el('span', { class: 'fi' }, ic ? el('img', { src: ic }) : el('span', { class: 'ic' }, r.button ? '' : isRoot(r.page) ? G.page : G.folder)),
+      el('span', { class: 'ft' }, el('b', {}, r.button ? r.button.label : r.page.name),
+        el('small', {}, r.button ? `${isRoot(r.page) ? 'Page' : 'Dossier'} « ${r.page.name} » · ${actionSummary(r.button) || 'bouton'}` : isRoot(r.page) ? 'Page' : 'Dossier'))));
+  });
+  box.hidden = false;
+}
+function clearFind() { $('#findInput').value = ''; state.findQ = ''; $('#findRes').hidden = true; }
+function chooseFind(r) {
+  clearFind(); $('#findInput').blur();
+  state.page = r.page.id;
+  state.selected = r.button && !r.page.generated ? r.button.id : null;
+  renderAll();
+  const id = r.button && r.button.id;
+  if (id) requestAnimationFrame(() => { const k = document.querySelector(`#device [data-id="${CSS.escape(id)}"]`); if (k) k.classList.add('flash'); });
+}
+
+// ---------- Sauvegarde complète ----------
+
+async function downloadBackup() {
+  await save();
+  const a = el('a', { href: '/api/backup', download: '' });
+  document.body.append(a); a.click(); a.remove();
+  toast('Sauvegarde enregistrée dans le dossier Téléchargements.');
+}
+async function restoreBackup(text, data) {
+  $('#pageDlg').close();
+  if (data && data.keyradeck === 'page') { importPageFile(new File([text], 'page.json')); return; }
+  if (!data || data.keyradeck !== 'backup' || !data.config || !Array.isArray(data.config.pages)) { toast('Ce fichier n\'est pas une sauvegarde KeyraDeck.'); return; }
+  const pages = data.config.pages, n = pages.filter(p => p.root).length || 1, d = pages.length - n;
+  const when = data.date ? new Date(data.date).toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' }) : '';
+  const ok = await askDialog({ title: 'Restaurer cette sauvegarde ?', okLabel: 'Restaurer', danger: true,
+    message: (when ? `Sauvegarde du ${when} : ` : '') + `${n} page(s), ${d} dossier(s), ${Object.keys(data.icons || {}).length} image(s). ` +
+      'Elle remplace toute ta configuration actuelle. Une copie de l\'ancienne est gardée dans le dossier de config (sous-dossier « sauvegardes »).' });
+  if (!ok) return;
+  clearTimeout(saveTimer); state.dirty = false;
+  try {
+    await api('/api/restore', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: text });
+    state.undo = []; state.page = null; state.selected = null; state.clip = null;
+    $('#setDlg').close();
+    await loadAll();
+    toast('Sauvegarde restaurée ✓');
+  } catch (e) { toast('Impossible de restaurer : ' + e.message); }
+}
+
 // ---------- Démarrage ----------
 
 document.addEventListener('keydown', (e) => {
-  if (e.target.matches('input, textarea, select')) return;
-  if (e.key === 'Delete' && state.selected) { if (findWidget(state.selected)) deleteWidget(state.selected); else deleteButton(state.selected); }
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
+  const ctrl = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
+  if (e.key === 'Escape' && ctxMenus.length) { closeMenu(); return; }
+  if (ctrl && k === 'f') { e.preventDefault(); $('#findInput').focus(); $('#findInput').select(); return; }
+  if (e.target.matches('input, textarea, select') || document.querySelector('dialog[open]')) return;
+  const sel = state.selected;
+  if (e.key === 'Delete' && sel) { if (findWidget(sel)) deleteWidget(sel); else deleteButton(sel); }
+  else if (ctrl && k === 'z') { e.preventDefault(); undo(); }
+  else if (ctrl && (k === 'c' || k === 'x') && sel) { e.preventDefault(); copyItem(sel, k === 'x'); }
+  else if (ctrl && k === 'v') { e.preventDefault(); const fb = sel && findButton(sel); pasteAt(fb && fb.page === currentPage() ? freeSlotAfter(fb.page, fb.button.slot) : null); }
+  else if (ctrl && k === 'd' && sel) { e.preventDefault(); duplicateItem(sel); }
+  else if (e.key === 'F2') { e.preventDefault(); if (sel && findButton(sel)) renameButton(sel); else renamePage(); }
 });
+// Clic droit : notre menu partout, sauf dans les champs de texte (où le menu Couper/Copier/Coller de Windows est utile).
+document.addEventListener('contextmenu', (e) => {
+  if (e.target.matches('input[type=text], textarea') && !e.target.readOnly) return;
+  e.preventDefault();
+  if (e.target.closest('#stage') && !document.querySelector('dialog[open]')) stageMenu(e.clientX, e.clientY);
+  else closeMenu();
+});
+document.addEventListener('mousedown', (e) => { if (!e.target.closest('.ctx')) closeMenu(); }, true);
+window.addEventListener('blur', () => closeMenu());
+document.addEventListener('scroll', () => closeMenu(), true);
+$('#ctxFile').onchange = (e) => { const f = e.target.files[0]; e.target.value = ''; if (f && state.iconTarget) uploadIcon(state.iconTarget, f); };
+$('#findInput').oninput = renderFind;
+$('#findInput').onfocus = () => { if ($('#findInput').value.trim()) renderFind(); };
+$('#findInput').onblur = () => { $('#findRes').hidden = true; };
+$('#findInput').onkeydown = (e) => {
+  const rows = [...document.querySelectorAll('#findRes .fr:not(.empty)')];
+  let i = rows.findIndex(r => r.classList.contains('on'));
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault(); if (!rows.length) return;
+    rows[i]?.classList.remove('on'); i = (i + (e.key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length;
+    rows[i].classList.add('on'); rows[i].scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'Enter') { e.preventDefault(); if (state.findRes && state.findRes[Math.max(0, i)]) chooseFind(state.findRes[Math.max(0, i)]); }
+  else if (e.key === 'Escape') { e.preventDefault(); clearFind(); e.target.blur(); }
+};
+$('#backupBtn').onclick = downloadBackup;
+$('#restoreBtn').onclick = () => $('#restoreFile').click();
+$('#restoreFile').onchange = async (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) { const text = await f.text(); let data = null; try { data = JSON.parse(text); } catch { } restoreBackup(text, data); } };
 $('#undoBtn').onclick = undo;
 $('#folderBtn').onclick = () => api('/api/openfolder', { method: 'POST' });
 $('#pairBtn').onclick = openPair;

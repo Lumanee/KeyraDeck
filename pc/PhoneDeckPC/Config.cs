@@ -276,6 +276,32 @@ public class ConfigStore
         Changed?.Invoke();
     }
 
+    /// <summary>
+    /// Restaure une sauvegarde complète (autre PC, autre téléphone…). Le code d'appairage, le port et le téléphone
+    /// restent ceux de ce PC. L'ancienne config.json est d'abord copiée dans le dossier « sauvegardes ».
+    /// </summary>
+    public void Restore(DeckConfig config, Dictionary<string, string> iconOverrides)
+    {
+        try
+        {
+            var dir = Path.Combine(DataDir, "sauvegardes");
+            Directory.CreateDirectory(dir);
+            if (File.Exists(ConfigPath)) File.Copy(ConfigPath, Path.Combine(dir, $"avant-restauration-{DateTime.Now:yyyyMMdd-HHmmss}.json"), true);
+        }
+        catch { /* la restauration passe avant la copie de sécurité */ }
+        config.Token = Config.Token;
+        config.Port = Config.Port;
+        config.PcName = Config.PcName;
+        config.Device = Config.Device;
+        config.AdaptedTo = Config.AdaptedTo;
+        config.IconOverrides = iconOverrides;
+        Config = config;
+        LastError = null;
+        Save();
+        Reloaded?.Invoke();
+        Changed?.Invoke();
+    }
+
     /// <summary>Notifie un changement fait en mémoire (déjà sauvegardé).</summary>
     public void NotifyChanged() => Changed?.Invoke();
 

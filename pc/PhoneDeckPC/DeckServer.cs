@@ -330,6 +330,21 @@ public class DeckServer
         await OnConfigChangedAsync();
     }
 
+    /// <summary>Donne aux copies de boutons (copier/coller, dupliquer) l'image personnalisée de l'original.</summary>
+    public async Task CopyCustomIconsAsync(IEnumerable<(string From, string To)> pairs)
+    {
+        var any = false;
+        foreach (var (from, to) in pairs)
+        {
+            if (string.IsNullOrEmpty(to) || !_store.Config.IconOverrides.TryGetValue(from, out var file)) continue;
+            _store.Config.IconOverrides[to] = file;
+            any = true;
+        }
+        if (!any) return;
+        _store.Save();
+        await OnConfigChangedAsync();
+    }
+
     public async Task ResetIconAsync(string buttonId)
     {
         if (_store.Config.IconOverrides.Remove(buttonId))
