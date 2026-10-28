@@ -55,6 +55,13 @@ public class IconService
         if (choice.StartsWith("builtin:", StringComparison.OrdinalIgnoreCase))
             return Cached(choice.ToLowerInvariant(), () => Builtin(choice[8..].ToLowerInvariant()));
 
+        // "glyph:E7A7" : pictogramme de la police d'icônes de Windows (code hexadécimal), utilisé par les préréglages.
+        if (choice.StartsWith("glyph:", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!int.TryParse(choice[6..], System.Globalization.NumberStyles.HexNumber, null, out var code) || code is < 0xE000 or > 0xF8FF) return null;
+            return Cached(choice.ToUpperInvariant(), () => Glyph((char)code));
+        }
+
         if (choice.StartsWith("app:", StringComparison.OrdinalIgnoreCase))
         {
             var app = _catalog.Find(choice[4..]);

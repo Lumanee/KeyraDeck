@@ -172,6 +172,13 @@
   .wdg .face { background: transparent; background-image: linear-gradient(135deg, #ffffff12, #ffffff00 45%); border-radius: inherit; }
   .box { background: transparent; border: 0; padding: 0; }
   dialog { border-radius: 12px; background: #111114; }
+  .pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-top: 14px; max-height: 60vh; overflow-y: auto; }
+  .pcard { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; padding: 12px; border-radius: 12px; background: var(--panel2); }
+  .pcard:hover { border-color: var(--accent); }
+  .pcard .pe { font-size: 22px; }
+  .pcard small { color: var(--muted); font-size: 12px; }
+  .pcard .px { color: var(--accent); }
+  .pnotes div { margin-top: 8px; }
 </style>
 </head>
 <body>
@@ -247,6 +254,15 @@
   <h2>Choisir une appli</h2>
   <div class="hint">Utilise la liste « Applis installées » à gauche : clique sur une appli ou glisse-la sur une case.</div>
   <div style="text-align:right;margin-top:14px"><button id="appClose">OK</button></div>
+</dialog>
+
+<dialog id="pageDlg" style="max-width:760px;width:94vw">
+  <h2>Nouvelle page</h2>
+  <div class="hint">Choisis une page toute prête : les raccourcis sont déjà réglés. Tu pourras tout modifier ensuite.</div>
+  <div class="pgrid" id="presetList"></div>
+  <div class="hint pnotes" id="presetNotes"></div>
+  <input type="file" id="pageFile" accept=".json,application/json" style="display:none">
+  <div style="text-align:right;margin-top:14px"><button id="pageClose">Fermer</button></div>
 </dialog>
 
 <dialog id="askDlg" style="min-width:320px">
@@ -915,6 +931,7 @@ function renderGridBar() {
       el('button', { onclick: () => movePage(1), disabled: i === roots.length - 1, title: 'Passe cette page après la suivante' }, 'Après ▶'), ' ');
   }
   tools.append(el('button', { onclick: renamePage }, '✏️ Renommer'));
+  if (root && !page.generated) tools.append(' ', el('button', { onclick: exportPage, title: 'Enregistre cette page dans un fichier, pour la partager ou la garder' }, '⬇ Exporter'));
   if (!root || roots.length > 1) tools.append(' ', el('button', { class: 'danger', onclick: deletePage }, root ? '🗑 Supprimer la page' : '🗑 Supprimer le dossier'));
   if (page.generated) {
     tools.append(' ', el('button', { onclick: detachPage, title: 'Copie les raccourcis du menu Démarrer en boutons que tu peux modifier' }, '🔗 Détacher du menu Démarrer'));
@@ -976,16 +993,6 @@ function checkAdapt() {
   if (!state.info.adaptedTo && !state.dirty) { adaptAll(); toast(`Grille adaptée à ton téléphone (${rec.cols}×${rec.rows})`); return; }
   bar.append(el('button', { onclick: adaptAll, title: 'Remplit tout l\'écran du téléphone' }, `📱 Adapter la grille à ce téléphone (${rec.cols}×${rec.rows})`));
 }
-async function addRootPage() {
-  const name = await askText('Nouvelle page', 'Page ' + (rootPages().length + 1), 'On passe d\'une page à l\'autre en glissant sur le téléphone.');
-  if (!name) return;
-  pushUndo();
-  const id = uid('page'), g = pageGrid(rootPages()[0]);
-  const at = state.cfg.pages.indexOf(rootPages().pop()) + 1; // après la dernière page, avant les dossiers
-  state.cfg.pages.splice(at, 0, { id, name, root: true, columns: g.cols, rows: g.rows, buttons: [] });
-  state.page = id; state.selected = null;
-  changed({ immediate: true });
-}
 async function addFolder() {
   const name = await askText('Nouveau dossier', 'Nouveau dossier', 'Un dossier s\'ouvre depuis un bouton « Dossier » et se referme avec la croix.');
   if (!name) return;
@@ -1032,6 +1039,130 @@ function detachPage() {
   page.buttons = gen.buttons.map(lb => ({ id: lb.id, label: lb.label, icon: 'auto', slot: lb.slot, action: { type: 'open', target: lb.label } }));
   delete page.startMenuFolder; delete page.generated;
   changed({ immediate: true });
+}
+
+// ---------- Préréglages de pages ----------
+
+// Pages toutes prêtes, ajoutées en un clic depuis « ＋ Page ». Les icônes « glyph:XXXX » sont des pictogrammes
+// de la police d'icônes de Windows (dessinés par le PC). Raccourcis = ceux d'origine des applis (clavier AZERTY ou QWERTY).
+const K = (label, keys, glyph, toggle) => ({ label, icon: glyph ? 'glyph:' + glyph : 'auto', action: { type: 'keys', keys, toggle: !!toggle } });
+const OPEN = (label, target, icon, fallbackUrl) => ({ label, icon: icon || 'auto', action: { type: 'open', target, fallbackUrl } });
+const SYS = (label, type) => ({ label, icon: 'auto', action: { type } });
+const PAGE_PRESETS = [
+  { id: 'photoshop', name: 'Photoshop', emoji: '🖌', desc: 'Outils, calques, zoom et annuler.', procs: ['photoshop'], buttons: [
+    K('Annuler', 'Ctrl+Z', 'E7A7'), K('Rétablir', 'Ctrl+Shift+Z', 'E7A6'), K('Déplacer', 'V', 'E7C2'), K('Pinceau', 'B', 'E70F'), K('Gomme', 'E', 'E75C'),
+    K('Pipette', 'I', 'E790'), K('Sélection', 'M', 'E8B3'), K('Recadrer', 'C', 'E7A8'), K('Nouveau calque', 'Ctrl+Shift+N', 'E81E'), K('Dupliquer calque', 'Ctrl+J', 'E8C8'),
+    K('Transformer', 'Ctrl+T', 'E7AD'), K('Zoom +', 'Ctrl+Add', 'E8A3'), K('Zoom −', 'Ctrl+Subtract', 'E71F'), K('Ajuster à l\'écran', 'Ctrl+0', 'E740'), K('Enregistrer', 'Ctrl+S', 'E74E'),
+  ] },
+  { id: 'lightroom', name: 'Lightroom', emoji: '📷', desc: 'Tri des photos, notes, réglages et export (Lightroom Classic).', procs: ['lightroom'], buttons: [
+    K('Bibliothèque', 'G', 'E8A9'), K('Développement', 'D', 'E91B'), K('Avant / après', 'Y', 'E8AB'), K('Choisir', 'P', 'E7C1'), K('Rejeter', 'X', 'E711'),
+    K('1 étoile', '1', 'E734'), K('2 étoiles', '2', 'E734'), K('3 étoiles', '3', 'E734'), K('4 étoiles', '4', 'E734'), K('5 étoiles', '5', 'E734'),
+    K('Recadrer', 'R', 'E7A8'), K('Copier réglages', 'Ctrl+Shift+C', 'E8C8'), K('Coller réglages', 'Ctrl+Shift+V', 'E77F'), K('Exporter', 'Ctrl+Shift+E', 'E72D'), K('Annuler', 'Ctrl+Z', 'E7A7'),
+  ] },
+  { id: 'premiere', name: 'Montage (Premiere Pro)', emoji: '🎬', desc: 'Lecture J/K/L, points d\'entrée et de sortie, rasoir, export.', procs: ['adobe premiere pro'], buttons: [
+    K('Retour', 'J', 'E892'), K('Pause', 'K', 'E769'), K('Avance', 'L', 'E893'), K('Lecture', 'Space', 'E768'), K('Marqueur', 'M', 'E7C1'),
+    K('Entrée', 'I', 'E76B'), K('Sortie', 'O', 'E76C'), K('Sélection', 'V', 'E8B3'), K('Rasoir', 'C', 'E8C6'), K('Couper ici', 'Ctrl+K', 'E710'),
+    K('Supprimer + resserrer', 'Shift+Delete', 'E74D'), K('Annuler', 'Ctrl+Z', 'E7A7'), K('Rétablir', 'Ctrl+Shift+Z', 'E7A6'), K('Enregistrer', 'Ctrl+S', 'E74E'), K('Exporter', 'Ctrl+M', 'E72D'),
+  ] },
+  { id: 'obs', name: 'Streaming (OBS)', emoji: '🔴', desc: 'Live, enregistrement, scènes et micro.',
+    note: 'OBS n\'a pas de raccourcis par défaut : dans OBS > Paramètres > Raccourcis clavier, mets les mêmes que sur les boutons (Ctrl+Maj+F1 pour le live, F2 pour l\'enregistrement…).',
+    procs: ['obs64', 'obs32'], buttons: [
+    K('Live', 'Ctrl+Shift+F1', 'E714', true), K('Enregistrer', 'Ctrl+Shift+F2', 'E7C8', true), K('Pause enreg.', 'Ctrl+Shift+F3', 'E769', true), K('Replay', 'Ctrl+Shift+F7', 'E72C'), SYS('Micro', 'micmute'),
+    K('Scène 1', 'Ctrl+Shift+F4', 'E7F4'), K('Scène 2', 'Ctrl+Shift+F5', 'E7F4'), K('Scène 3', 'Ctrl+Shift+F6', 'E7F4'), SYS('Son', 'mastermute'), SYS('Mélangeur', 'mixer'),
+  ] },
+  { id: 'jeu', name: 'Jeu', emoji: '🎮', desc: 'Captures Xbox Game Bar, micro Discord, volume et lanceurs.',
+    note: 'Micro et sourdine Discord : dans Discord > Paramètres > Raccourcis, mets Ctrl+Maj+F9 et Ctrl+Maj+F10.', buttons: [
+    K('Game Bar', 'Win+G', 'E7FC'), K('Capture', 'Win+Alt+PrintScreen', 'E722'), K('Clip 30 s', 'Win+Alt+G', 'E714'), K('Enregistrer', 'Win+Alt+R', 'E7C8', true), SYS('Mélangeur', 'mixer'),
+    { ...K('Micro Discord', 'Ctrl+Shift+F9', null, true), icon: 'builtin:mic' }, { ...K('Sourdine Discord', 'Ctrl+Shift+F10', null, true), icon: 'builtin:headphones' },
+    K('Lecture / pause', 'PlayPause', 'E768'), OPEN('Steam', 'Steam'), OPEN('Discord', 'Discord', 'app:Discord|builtin:discord', 'https://discord.com/app'),
+  ] },
+  { id: 'bureau', name: 'Bureautique', emoji: '📄', desc: 'Copier, coller, annuler, capture d\'écran, Windows.', buttons: [
+    K('Copier', 'Ctrl+C', 'E8C8'), K('Coller', 'Ctrl+V', 'E77F'), K('Couper', 'Ctrl+X', 'E8C6'), K('Annuler', 'Ctrl+Z', 'E7A7'), K('Rétablir', 'Ctrl+Y', 'E7A6'),
+    K('Tout sélectionner', 'Ctrl+A', 'E8B3'), K('Rechercher', 'Ctrl+F', 'E721'), K('Enregistrer', 'Ctrl+S', 'E74E'), K('Imprimer', 'Ctrl+P', 'E749'), K('Capture', 'Win+Shift+S', 'E722'),
+    K('Presse-papiers', 'Win+V', 'E81C'), K('Bureau', 'Win+D', 'E7F4'), K('Explorateur', 'Win+E', 'E8B7'), { ...OPEN('Verrouiller', 'rundll32.exe', 'glyph:E72E'), action: { type: 'open', target: 'rundll32.exe', args: 'user32.dll,LockWorkStation' } }, OPEN('Calculatrice', 'calc.exe', 'glyph:E8EF'),
+  ] },
+  { id: 'musique', name: 'Musique', emoji: '🎵', desc: 'Lecture, morceau suivant, volume et Spotify.', buttons: [
+    K('Précédent', 'Prev', 'E892'), K('Lecture / pause', 'PlayPause', 'E768'), K('Suivant', 'Next', 'E893'), K('Stop', 'Stop', 'E71A'), SYS('Muet', 'mastermute'),
+    K('Volume −', 'VolumeDown', 'E738'), K('Volume +', 'VolumeUp', 'E710'), SYS('Mélangeur', 'mixer'), OPEN('Spotify', 'Spotify', 'auto', 'https://open.spotify.com'),
+  ] },
+];
+
+function uniquePageName(name) {
+  const names = new Set(state.cfg.pages.map(p => p.name));
+  if (!names.has(name)) return name;
+  let i = 2; while (names.has(`${name} ${i}`)) i++;
+  return `${name} ${i}`;
+}
+// Ajoute une page (après la dernière page, avant les dossiers) avec ses boutons rangés dans l'ordre, puis l'affiche.
+function insertRootPage({ name, autoProcesses, buttons, widgets, columns, rows }) {
+  const g = pageGrid(rootPages()[0]);
+  const page = { id: uid('page'), name: uniquePageName(name || 'Page'), root: true, columns: columns || g.cols, rows: rows || g.rows, buttons: [], widgets: [] };
+  if (autoProcesses && autoProcesses.length) page.autoProcesses = autoProcesses.slice();
+  page.widgets = (widgets || []).filter(w => WIDGET_MODELS[w.type]).map(w => ({ ...w, id: uid('w') }));
+  let next = 0;
+  page.buttons = buttons.map(b => {
+    const copy = JSON.parse(JSON.stringify(b)); copy.id = uid('b');
+    if (copy.slot == null) copy.slot = next++;
+    return copy;
+  });
+  pushUndo();
+  const at = state.cfg.pages.indexOf(rootPages().pop()) + 1;
+  state.cfg.pages.splice(at, 0, page);
+  // Si la grille du téléphone est plus petite, les boutons en trop passent à la ligne.
+  reflowPage(page, Math.max(page.columns, ...page.widgets.map(w => w.w)), page.rows);
+  state.page = page.id; state.selected = null;
+  changed({ immediate: true });
+  return page;
+}
+function addPreset(p) {
+  $('#pageDlg').close();
+  const page = insertRootPage({ name: p.name, autoProcesses: p.procs, buttons: p.buttons });
+  toast(p.procs ? `Page « ${page.name} » ajoutée : elle s'affiche toute seule quand l'appli est au premier plan.` : `Page « ${page.name} » ajoutée.`);
+}
+async function addEmptyPage() {
+  $('#pageDlg').close();
+  const name = await askText('Nouvelle page', 'Page ' + (rootPages().length + 1), 'On passe d\'une page à l\'autre en glissant sur le téléphone.');
+  if (name) insertRootPage({ name, buttons: [] });
+}
+function addRootPage() {
+  const list = $('#presetList'); list.replaceChildren();
+  const card = (emoji, name, desc, extra, onclick) => el('button', { class: 'pcard', onclick }, el('span', { class: 'pe' }, emoji), el('b', {}, name), el('small', {}, desc), extra ? el('small', { class: 'px' }, extra) : null);
+  list.append(card('＋', 'Page vide', 'Tu la remplis toi-même.', null, addEmptyPage));
+  for (const p of PAGE_PRESETS) list.append(card(p.emoji, p.name, p.desc, `${p.buttons.length} boutons` + (p.procs ? ' · s\'affiche toute seule' : ''), () => addPreset(p)));
+  list.append(card('📂', 'Importer un fichier…', 'Une page exportée depuis KeyraDeck (fichier .keyradeck.json).', null, () => $('#pageFile').click()));
+  const notes = PAGE_PRESETS.filter(p => p.note);
+  $('#presetNotes').replaceChildren(...notes.map(p => el('div', {}, el('b', {}, p.name + ' : '), p.note)));
+  $('#pageDlg').showModal();
+}
+
+// ---- Partage d'une page en fichier ----
+const isSharedIcon = (ic) => !ic || /^(auto|app:|builtin:|glyph:)/i.test(ic);
+function exportPage() {
+  const page = currentPage();
+  const buttons = page.buttons
+    .filter(b => !['folder', 'page'].includes(b.action.type)) // les dossiers et pages liés ne voyagent pas avec la page
+    .map(b => { const c = JSON.parse(JSON.stringify(b)); delete c.id; if (!isSharedIcon(c.icon)) c.icon = 'auto'; return c; });
+  const data = { keyradeck: 'page', version: 1, page: { name: page.name, autoProcesses: page.autoProcesses, columns: pageGrid(page).cols, rows: pageGrid(page).rows,
+    buttons, widgets: (page.widgets || []).map(w => { const c = { ...w }; delete c.id; return c; }) } };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = el('a', { href: URL.createObjectURL(blob), download: (page.name || 'page').replace(/[\\/:*?"<>|]/g, '_') + '.keyradeck.json' });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  toast('Page exportée dans le dossier Téléchargements.');
+}
+async function importPageFile(file) {
+  $('#pageDlg').close();
+  try {
+    const data = JSON.parse(await file.text());
+    const p = data && data.keyradeck === 'page' && data.page;
+    if (!p || !Array.isArray(p.buttons)) throw new Error('ce n\'est pas une page KeyraDeck');
+    const buttons = p.buttons.filter(b => b && b.action && typeof b.action.type === 'string' && !['folder', 'page'].includes(b.action.type))
+      .map(b => ({ ...b, icon: isSharedIcon(b.icon) ? b.icon : 'auto' }));
+    const cols = Math.min(12, Math.max(1, +p.columns || 0)) || null, rows = Math.min(12, Math.max(1, +p.rows || 0)) || null;
+    const page = insertRootPage({ name: String(p.name || 'Page importée'), autoProcesses: Array.isArray(p.autoProcesses) ? p.autoProcesses.map(String) : null,
+      buttons, widgets: Array.isArray(p.widgets) ? p.widgets : [], columns: cols, rows });
+    toast(`Page « ${page.name} » importée.`);
+  } catch (e) { toast('Impossible d\'importer : ' + e.message); }
 }
 
 // ---------- Panneau de droite ----------
@@ -1388,6 +1519,8 @@ $('#verBtn').onclick = () => checkUpdate(true);
 $('#startWin').onchange = (e) => api('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ startWithWindows: e.target.checked }) }).catch(err => toast(err.message));
 $('#pairClose').onclick = () => $('#pairDlg').close();
 $('#appClose').onclick = () => $('#appDlg').close();
+$('#pageClose').onclick = () => $('#pageDlg').close();
+$('#pageFile').onchange = (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) importPageFile(f); };
 $('#colMinus').onclick = () => setGrid(-1, 0); $('#colPlus').onclick = () => setGrid(1, 0);
 $('#rowMinus').onclick = () => setGrid(0, -1); $('#rowPlus').onclick = () => setGrid(0, 1);
 $('#appSearch').oninput = renderLeft;
