@@ -35,10 +35,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -220,7 +218,7 @@ private fun ColumnScope.KeyRow(keys: List<PcKey>, state: PcKeyboardState, height
 @Composable
 private fun KeyCap(k: PcKey, state: PcKeyboardState, modifier: Modifier) {
     val theme = LocalTheme.current
-    val haptic = LocalHapticFeedback.current
+    val touch = LocalTouch.current
     val scope = rememberCoroutineScope()
     var pressed by remember { mutableStateOf(false) }
     val isMod = k.vk in Modifiers
@@ -237,7 +235,7 @@ private fun KeyCap(k: PcKey, state: PcKeyboardState, modifier: Modifier) {
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false)
                     pressed = true
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    touch.touch(null, null, false)
                     state.down(k.vk)
                     val repeat = if (isMod || k.vk == VK_CAPS) null else scope.launch {
                         delay(450)
