@@ -388,6 +388,7 @@
   <label style="display:flex;gap:8px;align-items:center;color:var(--text);cursor:pointer;margin-top:4px">
     <input type="checkbox" id="hideLbl" style="width:auto"> Masquer le nom des boutons (l'icône prend toute la place)
   </label>
+  <div class="hint" style="margin-top:4px">S'applique à toutes les touches. Ensuite, chaque touche peut être changée à part dans ses propriétés (« Nom sur la touche »).</div>
   <label>Retour au toucher (téléphone)</label>
   <div id="fbBox"></div>
   <label>Windows</label>
@@ -2415,7 +2416,14 @@ $('#pairBtn').onclick = openPair;
 $('#settingsBtn').onclick = openSettings;
 $('#intBtn').onclick = openIntegrations;
 $('#intClose').onclick = () => $('#intDlg').close();
-$('#hideLbl').onchange = (e) => { pushUndo(); if (e.target.checked) state.cfg.hideLabels = true; else delete state.cfg.hideLabels; changed(); };
+// Le réglage général l'emporte : il remet chaque bouton sur « comme le réglage général ».
+// On peut ensuite changer une touche à part dans ses propriétés.
+$('#hideLbl').onchange = (e) => {
+  pushUndo();
+  if (e.target.checked) state.cfg.hideLabels = true; else delete state.cfg.hideLabels;
+  for (const p of state.cfg.pages) for (const b of p.buttons) delete b.hideLabel;
+  changed();
+};
 $('#setClose').onclick = () => $('#setDlg').close();
 $('#verBtn').onclick = () => checkUpdate(true);
 $('#startWin').onchange = (e) => api('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ startWithWindows: e.target.checked }) }).catch(err => toast(err.message));
