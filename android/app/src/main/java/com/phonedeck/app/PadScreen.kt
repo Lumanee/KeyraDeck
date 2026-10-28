@@ -54,9 +54,17 @@ import kotlin.math.max
 
 private const val Sentinel = "​"
 
-/** Page « souris / clavier » : un trackpad (clic gauche / droit en bas) et le clavier du téléphone pour taper sur le PC. */
+/**
+ * Page « souris / clavier » : un trackpad (clic gauche / droit en bas), un vrai clavier d'ordinateur en plein écran,
+ * et le clavier du téléphone pour taper du texte (dictée, emojis…).
+ */
 @Composable
 fun PadScreen(vm: DeckViewModel) {
+    var pcKeyboard by remember { mutableStateOf(false) }
+    if (pcKeyboard) {
+        PcKeyboardScreen(vm) { pcKeyboard = false }
+        return
+    }
     BackHandler { vm.showPad = false }
     val theme = LocalTheme.current
     var keyboard by remember { mutableStateOf(false) }
@@ -71,7 +79,9 @@ fun PadScreen(vm: DeckViewModel) {
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Souris et clavier", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            PadChip(if (keyboard) "Clavier ✓" else "Clavier", keyboard) { keyboard = !keyboard }
+            PadChip("⌨ Clavier", false) { keyboard = false; pcKeyboard = true }
+            Box(Modifier.width(8.dp))
+            PadChip(if (keyboard) "Texte ✓" else "Texte", keyboard) { keyboard = !keyboard }
             Box(Modifier.width(8.dp))
             Box(
                 Modifier.size(40.dp).clip(CircleShape).background(Color(0x26FFFFFF)).clickable { vm.showPad = false },
@@ -181,7 +191,7 @@ private fun PadButton(label: String, button: String, vm: DeckViewModel, modifier
     ) { Text(label, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
 }
 
-/** Champ invisible qui ouvre le clavier du téléphone et envoie ce qu'on tape au PC. */
+/** Champ invisible qui ouvre le clavier du téléphone et envoie ce qu'on tape au PC (bouton « Texte »). */
 @Composable
 private fun KeyboardCatcher(vm: DeckViewModel, mods: Set<String>, onSent: () -> Unit) {
     val focus = remember { FocusRequester() }

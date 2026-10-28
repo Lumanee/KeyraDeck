@@ -69,6 +69,13 @@ val Tile = Color(0xFF26262C)
 val LocalTheme = compositionLocalOf { DeckTheme.Default }
 val LocalSettings = compositionLocalOf { AppSettings() }
 
+/** Orientation choisie dans les réglages du téléphone. */
+fun orientationFor(settings: AppSettings) = when (settings.orientation) {
+    1 -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+    2 -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+    else -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+}
+
 @Composable
 fun App(vm: DeckViewModel) {
     val context = LocalContext.current
@@ -82,11 +89,7 @@ fun App(vm: DeckViewModel) {
         val activity = context as? Activity ?: return@LaunchedEffect
         if (settings.keepScreenOn) activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         else activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        activity.requestedOrientation = when (settings.orientation) {
-            1 -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-            2 -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-            else -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-        }
+        activity.requestedOrientation = orientationFor(settings)
     }
 
     val theme = vm.layout?.theme ?: DeckTheme.Default
