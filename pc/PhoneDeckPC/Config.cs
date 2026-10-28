@@ -14,6 +14,8 @@ public class DeckConfig
     public int Columns { get; set; } = 5;
     public int Rows { get; set; } = 3;
     public DeckTheme Theme { get; set; } = new();
+    /// <summary>Vibration et son quand on touche une touche du téléphone.</summary>
+    public DeckFeedback Feedback { get; set; } = new();
     /// <summary>Cache le nom des boutons : l'icône prend toute la place.</summary>
     public bool HideLabels { get; set; }
     /// <summary>Ville du widget météo (Open-Meteo).</summary>
@@ -55,6 +57,18 @@ public class DeckTheme
 }
 
 /// <summary>Un widget posé sur une page, sur plusieurs cases (comme sur Nova Launcher).</summary>
+/// <summary>Retour au toucher du téléphone. Appliqué au téléphone quand il change ici (le téléphone peut aussi le régler).</summary>
+public class DeckFeedback
+{
+    public bool Vibrate { get; set; } = true;
+    /// <summary>1 = léger, 2 = moyen, 3 = fort.</summary>
+    public int Strength { get; set; } = 2;
+    /// <summary>"off", "click", "tick", "pop" ou "bip".</summary>
+    public string Sound { get; set; } = "off";
+    /// <summary>Volume du son, de 0 à 100.</summary>
+    public int Volume { get; set; } = 60;
+}
+
 public class DeckWidget
 {
     public string Id { get; set; } = "";
@@ -100,6 +114,10 @@ public class DeckButton
     public int? Slot { get; set; }
     /// <summary>Cache le nom de ce bouton (l'icône prend toute la place).</summary>
     public bool? HideLabel { get; set; }
+    /// <summary>Vibration propre à ce bouton : vide = réglage général, 0 = aucune, 1 à 3 = force.</summary>
+    public int? Vibrate { get; set; }
+    /// <summary>Son propre à ce bouton : vide = réglage général, "off" = aucun.</summary>
+    public string? Sound { get; set; }
     public DeckAction Action { get; set; } = new();
 }
 

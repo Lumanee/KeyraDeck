@@ -241,6 +241,8 @@
   <label style="display:flex;gap:8px;align-items:center;color:var(--text);cursor:pointer;margin-top:4px">
     <input type="checkbox" id="hideLbl" style="width:auto"> Masquer le nom des boutons (l'icône prend toute la place)
   </label>
+  <label>Retour au toucher (téléphone)</label>
+  <div id="fbBox"></div>
   <label>Windows</label>
   <label style="display:flex;gap:8px;align-items:center;color:var(--text);cursor:pointer;margin-top:4px">
     <input type="checkbox" id="startWin" style="width:auto"> Lancer KeyraDeck au démarrage de Windows (discrètement, près de l'horloge)
@@ -474,8 +476,54 @@ function renderSettings() {
     cs.append(el('label', {}, label, el('input', { type: 'color', value: t[k], oninput: (e) => { t[k] = e.target.value; t.name = 'Personnalisé'; applyTheme(); changed2(); }, onchange: () => renderSettings() })));
   }
 }
+// ---------- Vibration et son au toucher ----------
+
+const SOUNDS = [['click', 'Clic'], ['tick', 'Tic'], ['pop', 'Pop'], ['bip', 'Bip']];
+const STRENGTHS = [[1, 'Légère'], [2, 'Moyenne'], [3, 'Forte']];
+let audioCtx = null;
+/** Aperçu du son sur le PC : mêmes formules que sur le téléphone (Feedback.kt). */
+function previewSound(name, volume) {
+  if (!name || name === 'off') return;
+  audioCtx = audioCtx || new AudioContext();
+  const rate = audioCtx.sampleRate;
+  const len = { click: 0.035, tick: 0.025, pop: 0.06 }[name] || 0.07;
+  const buf = audioCtx.createBuffer(1, Math.floor(rate * len), rate), d = buf.getChannelData(0);
+  const P = 2 * Math.PI;
+  for (let i = 0; i < d.length; i++) {
+    const t = i / rate;
+    d[i] = name === 'click' ? (Math.random() * 2 - 1) * Math.exp(-t * 900) * 0.7 + Math.sin(P * 180 * t) * Math.exp(-t * 120) * 0.5
+      : name === 'tick' ? Math.sin(P * 3200 * t) * Math.exp(-t * 260) * 0.8
+      : name === 'pop' ? Math.sin(P * (900 * t - 5000 * t * t)) * Math.exp(-t * 70) * 0.9
+      : Math.sin(P * 1250 * t) * Math.min(1, t * 400) * Math.exp(-t * 45) * 0.6;
+  }
+  const src = audioCtx.createBufferSource(), g = audioCtx.createGain();
+  g.gain.value = (volume ?? 60) / 100;
+  src.buffer = buf; src.connect(g).connect(audioCtx.destination); src.start();
+}
+function feedback() {
+  return state.cfg.feedback || (state.cfg.feedback = { vibrate: true, strength: 2, sound: 'off', volume: 60 });
+}
+function renderFeedback() {
+  const f = feedback();
+  const set = (fn) => { pushUndo(); fn(); changed2(); renderFeedback(); };
+  const check = (label, on, onchange) => el('label', { style: 'display:flex;gap:8px;align-items:center;color:var(--text);cursor:pointer;margin-top:4px' },
+    el('input', { type: 'checkbox', checked: on, style: 'width:auto', onchange }), label);
+  $('#fbBox').replaceChildren(
+    check('Vibrer quand on touche une touche', !!f.vibrate, (e) => set(() => f.vibrate = e.target.checked)),
+    f.vibrate ? el('div', { class: 'row', style: 'margin:4px 0 0 24px' }, el('span', { class: 'hint', style: 'flex:none' }, 'Force'),
+      el('select', { onchange: (e) => set(() => f.strength = +e.target.value) }, STRENGTHS.map(([v, t]) => el('option', { value: v, selected: f.strength === v }, t)))) : null,
+    check('Jouer un son quand on touche une touche', f.sound !== 'off', (e) => { set(() => f.sound = e.target.checked ? 'click' : 'off'); previewSound(f.sound, f.volume); }),
+    f.sound !== 'off' ? el('div', { class: 'row', style: 'margin:4px 0 0 24px' }, el('span', { class: 'hint', style: 'flex:none' }, 'Son'),
+      el('select', { onchange: (e) => { set(() => f.sound = e.target.value); previewSound(f.sound, f.volume); } }, SOUNDS.map(([v, t]) => el('option', { value: v, selected: f.sound === v }, t))),
+      el('span', { class: 'hint', style: 'flex:none' }, 'Volume'),
+      el('input', { type: 'range', min: 0, max: 100, value: f.volume ?? 60, onchange: (e) => { set(() => f.volume = +e.target.value); previewSound(f.sound, f.volume); } }),
+      el('button', { onclick: () => previewSound(f.sound, f.volume), title: 'Écouter' }, '▶')) : null,
+    el('div', { class: 'hint', style: 'margin-top:6px' }, 'Envoyé au téléphone dès que tu changes ici. On peut aussi régler sur le téléphone (⋮ > Réglages), et chaque bouton peut avoir son propre réglage.'));
+}
+
 async function openSettings() {
   renderSettings();
+  renderFeedback();
   try {
     const st = await api('/api/settings');
     $('#startWin').checked = st.startWithWindows;
@@ -1206,6 +1254,19 @@ function renderInspector() {
       el('option', { value: 'auto', selected: b.hideLabel == null }, 'Comme le réglage général (' + (state.cfg.hideLabels ? 'masqué' : 'affiché') + ')'),
       el('option', { value: 'show', selected: b.hideLabel === false }, 'Toujours afficher'),
       el('option', { value: 'hide', selected: b.hideLabel === true }, 'Toujours masquer (icône en plein)')));
+  const fb = feedback();
+  box.append(el('label', {}, 'Vibration au toucher'),
+    el('select', { onchange: (e) => upd(() => { const v = e.target.value; if (v === 'auto') delete b.vibrate; else b.vibrate = +v; }) },
+      el('option', { value: 'auto', selected: b.vibrate == null }, 'Comme le réglage général (' + (fb.vibrate ? STRENGTHS.find(x => x[0] === fb.strength)?.[1].toLowerCase() || 'oui' : 'aucune') + ')'),
+      el('option', { value: '0', selected: b.vibrate === 0 }, 'Aucune'),
+      STRENGTHS.map(([v, t]) => el('option', { value: v, selected: b.vibrate === v }, t))));
+  box.append(el('label', {}, 'Son au toucher'),
+    el('div', { class: 'row' },
+      el('select', { onchange: (e) => { const v = e.target.value; upd(() => { if (v === 'auto') delete b.sound; else b.sound = v; }); previewSound(v === 'auto' ? fb.sound : v, fb.volume); } },
+        el('option', { value: 'auto', selected: b.sound == null }, 'Comme le réglage général (' + (SOUNDS.find(x => x[0] === fb.sound)?.[1] || 'aucun') + ')'),
+        el('option', { value: 'off', selected: b.sound === 'off' }, 'Aucun'),
+        SOUNDS.map(([v, t]) => el('option', { value: v, selected: b.sound === v }, t))),
+      el('button', { onclick: () => previewSound(b.sound ?? fb.sound, fb.volume), title: 'Écouter' }, '▶')));
   box.append(el('label', {}, 'Couleur de fond (facultatif)'),
     el('div', { class: 'row' },
       el('input', { type: 'color', value: b.color || '#1b1b21', style: 'height:34px;padding:2px', oninput: (e) => { b.color = e.target.value; changed2(); }, onchange: () => pushUndo() }),

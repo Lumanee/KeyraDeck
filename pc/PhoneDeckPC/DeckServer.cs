@@ -554,6 +554,8 @@ public class DeckServer
                         // mais on reste ouvert pour les raccourcis (micro, sourdine…).
                         closeFolder = b.Action.Type.Equals("open", StringComparison.OrdinalIgnoreCase)
                                    || b.Action.Type.Equals("url", StringComparison.OrdinalIgnoreCase),
+                        vibrate = b.Vibrate,
+                        sound = b.Sound,
                     };
                 }).ToList(),
             };
@@ -567,6 +569,7 @@ public class DeckServer
             type = "layout",
             pcName = _store.PcName,
             theme = cfg.Theme,
+            feedback = cfg.Feedback,
             home = cfg.Pages.FirstOrDefault()?.Id ?? "",
             pages,
         }, Wire);
