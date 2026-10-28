@@ -19,9 +19,11 @@ internal static class Program
         var catalog = new AppCatalog(sta);
         var icons = new IconService(catalog, store);
         var audio = new AudioMixer();
-        var server = new DeckServer(store, catalog, icons, audio, sta);
+        var integrations = new Integrations(store.DataDir);
+        var server = new DeckServer(store, catalog, icons, audio, sta, integrations);
         var usb = new UsbBridge(store, server);
-        server.Api = new ConfigApi(store, catalog, sta, server) { Usb = usb };
+        server.Api = new ConfigApi(store, catalog, sta, server, integrations) { Usb = usb };
+        integrations.Start();
 
         catalog.RefreshAsync().GetAwaiter().GetResult();
 

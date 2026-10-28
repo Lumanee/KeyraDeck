@@ -71,6 +71,17 @@ data class DeckLayout(
 
 data class Weather(val temp: Int, val code: Int, val wind: Int, val humidity: Int, val city: String)
 
+/** Salon vocal Discord : qui est là, qui parle (envoyé par le PC s'il est connecté à Discord). */
+data class DiscordMember(val name: String, val speaking: Boolean, val muted: Boolean, val deafened: Boolean)
+data class DiscordVoice(
+    val connected: Boolean,
+    val status: String,
+    val channel: String,
+    val muted: Boolean,
+    val deafened: Boolean,
+    val members: List<DiscordMember>,
+)
+
 /** Morceau en cours sur le PC. [at] = moment de réception, pour faire avancer la barre entre deux messages. */
 data class NowPlayingInfo(val title: String, val artist: String, val app: String, val playing: Boolean, val pos: Int, val dur: Int, val at: Long)
 
@@ -156,6 +167,16 @@ object Parser {
                 icon = image(c.optStringOrNull("icon")) ?: oldIcons[id],
             )
         }
+    }
+
+    fun discord(d: JSONObject?): DiscordVoice? {
+        if (d == null) return null
+        val arr = d.optJSONArray("members") ?: JSONArray()
+        val members = (0 until arr.length()).map { i ->
+            val m = arr.getJSONObject(i)
+            DiscordMember(m.optString("name"), m.optBoolean("speaking"), m.optBoolean("muted"), m.optBoolean("deafened"))
+        }
+        return DiscordVoice(d.optBoolean("connected"), d.optString("status"), d.optString("channel"), d.optBoolean("muted"), d.optBoolean("deafened"), members)
     }
 
     fun image(base64: String?): ImageBitmap? {

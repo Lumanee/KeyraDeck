@@ -106,6 +106,14 @@
   .kbd { font-family: ui-monospace, Consolas, monospace; background: #2c2c36; border-radius: 4px; padding: 1px 6px; }
   .recording { outline: 2px solid var(--bad) !important; }
   .row > .preview { flex: none; }
+  .ist { font-size: 12px; color: var(--muted); }
+  .ist.ok { color: var(--ok); }
+  .ist.bad { color: var(--warn); }
+  .ibox h3 { margin: 0; font-size: 15px; display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+  .ibox ol { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: 12px; }
+  .ibox ol li { margin: 2px 0; }
+  .ibox a { color: var(--tacc); cursor: pointer; }
+  input[type=password] { background: #15151a; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; width: 100%; }
   .preview { width: 64px; height: 64px; background: #060608; border-radius: 12px; padding: 6px; }
   .preview img { width: 100%; height: 100%; object-fit: contain; }
 
@@ -234,6 +242,7 @@
   <span class="spacer"></span>
   <button id="updBtn" class="primary" style="display:none"></button>
   <button id="undoBtn" title="Annuler (Ctrl+Z)">Annuler</button>
+  <button id="intBtn" title="OBS, Discord, Home Assistant">Connexions</button>
   <button id="settingsBtn">Réglages</button>
   <button id="folderBtn" title="Ouvrir config.json et le dossier de configuration">Dossier de config</button>
   <span id="saved"></span>
@@ -324,6 +333,13 @@
   <label>Version</label>
   <div class="row"><span id="verText" class="hint"></span><button id="verBtn">Vérifier les mises à jour</button></div>
   <div style="text-align:right;margin-top:16px"><button id="setClose" class="primary">Fermer</button></div>
+</dialog>
+
+<dialog id="intDlg" style="max-width:620px;width:94vw;max-height:90vh">
+  <h2>Connexions</h2>
+  <div class="hint" style="margin-bottom:12px">Relie KeyraDeck à tes logiciels : les boutons montrent leur <b>vrai état</b> (live en cours, micro coupé, lampe allumée…).</div>
+  <div id="intBody"></div>
+  <div style="text-align:right;margin-top:14px"><button id="intClose" class="primary">Fermer</button></div>
 </dialog>
 
 <dialog id="appDlg">
@@ -437,6 +453,7 @@ const WIDGET_INFO = {
   clock: { name: 'Horloge', icon: '🕒', desc: 'Heure et date.' },
   system: { name: 'CPU / RAM', icon: '📊', desc: 'Charge du processeur et de la mémoire du PC.' },
   weather: { name: 'Météo', icon: '⛅', desc: 'Température et conditions actuelles de la ville choisie (Open-Meteo).' },
+  discord: { name: 'Salon vocal Discord', icon: '🎧', desc: 'Qui est dans ton salon vocal et qui parle, avec ton micro et ta sourdine. Discord doit être relié dans « Connexions ».' },
 };
 // Chaque modèle a une taille FIXE (en cases) : le contenu est dessiné pour cette taille et ne disparaît jamais.
 const WIDGET_MODELS = {
@@ -474,13 +491,24 @@ const WIDGET_MODELS = {
     { id: 'weather-2x1', name: 'Ville + degrés', w: 2, h: 1 },
     { id: 'weather-2x2', name: 'Détaillée', w: 2, h: 2 },
   ],
+  discord: [
+    { id: 'discord-2x1', name: '3 personnes', w: 2, h: 1 },
+    { id: 'discord-2x2', name: '4 personnes', w: 2, h: 2 },
+    { id: 'discord-3x2', name: '6 personnes', w: 3, h: 2 },
+  ],
 };
 const modelOf = (w) => (WIDGET_MODELS[w.type] || []).find(m => m.id === w.model);
 const COMMANDS = [
   { group: 'Applications et liens', items: [['app', 'Appli…', 'Lance une appli installée'], ['web', 'Site web', 'Ouvre une adresse'], ['folder', 'Dossier', 'Regroupe des boutons'], ['page', 'Aller à une page', 'Saute vers une autre page']] },
   { group: 'Clavier', items: [['keys', 'Raccourci / macro', 'Touches ou enchaînement'], ['text', 'Texte à taper', 'Écrit dans la fenêtre active']] },
   { group: 'Système', items: [['mixer', 'Mélangeur de volume', 'Un curseur par appli'], ['micmute', 'Micro Windows', 'Couper / rétablir'], ['mastermute', 'Son Windows', 'Couper / rétablir']] },
+  { group: 'OBS Studio', items: [['obs:stream', 'Live', 'Lancer / arrêter le live'], ['obs:record', 'Enregistrer', 'Lancer / arrêter'], ['obs:pause', 'Pause enregistrement', 'Mettre en pause'], ['obs:scene', 'Scène', 'Passer à une scène'],
+    ['obs:mute', 'Couper une source', 'Micro, son du bureau…'], ['obs:replay', 'Replay', 'Garder les dernières secondes'], ['obs:virtualcam', 'Caméra virtuelle', 'Activer / couper']] },
+  { group: 'Discord', items: [['discord:mute', 'Micro Discord', 'Couper / rétablir (état réel)'], ['discord:deafen', 'Sourdine Discord', 'Ne plus rien entendre'], ['discord:leave', 'Quitter le vocal', 'Raccrocher']] },
+  { group: 'Maison', items: [['ha', 'Appareil Home Assistant', 'Lampe, prise, scène…']] },
 ];
+const OBS_CMDS = { stream: 'Live', record: 'Enregistrer', pause: 'Pause enreg.', replay: 'Replay', virtualcam: 'Caméra virtuelle', scene: 'Scène', mute: 'Couper une source' };
+const DISCORD_CMDS = { mute: 'Micro Discord', deafen: 'Sourdine Discord', leave: 'Quitter le vocal' };
 function cmdRow(name, desc, mime, payload, onclick, cls) {
   const r = el('div', { class: 'cmd' + (cls ? ' ' + cls : ''), draggable: 'true', title: name + ' : ' + desc }, el('span', { class: 'cn' }, name), el('span', { class: 'cd' }, desc));
   r.addEventListener('dragstart', (e) => { e.dataTransfer.setData(mime, payload); e.dataTransfer.effectAllowed = 'copy'; });
@@ -899,6 +927,17 @@ function paintWidget(d, w) {
     else if (m === 'weather-2x2') html = `<span style="opacity:.7;font-size:${H * .09}px">${x.city}</span><span style="font-size:${H * .28}px">${wxIcon(x.code)}</span><b style="font-size:${H * .24}px">${x.temp}°</b><span style="opacity:.7;font-size:${H * .09}px">${wxText(x.code)}</span><span style="opacity:.7;font-size:${H * .075}px">💨 ${x.wind} km/h  💧 ${x.humidity} %</span>`;
     else if (m === 'weather-2x1') html = `<div style="display:flex;gap:10px;align-items:center;justify-content:space-around;width:100%"><span style="font-size:${Math.min(W * .24, H * .5)}px">${wxIcon(x.code)}</span><div style="text-align:center"><b style="font-size:${Math.min(W * .2, H * .4)}px">${x.temp}°</b><br><span style="opacity:.7;font-size:${Math.max(9, Math.min(W * .07, H * .14))}px">${x.city}</span></div></div>`;
     else html = `<span style="font-size:${H * .38}px">${wxIcon(x.code)}</span><b style="font-size:${H * .28}px">${x.temp}°</b>`;
+  } else if (w.type === 'discord') {
+    const x = live.discord;
+    const fs = Math.max(9, Math.min(12, W * .075));
+    if (!x || !x.connected) html = `<span style="opacity:.7;font-size:${fs}px;text-align:center">Discord<br>${esc(x ? x.status : 'à relier dans « Connexions »')}</span>`;
+    else {
+      const max = m === 'discord-2x1' ? 3 : m === 'discord-3x2' ? 6 : 4;
+      const face = Math.max(14, Math.min(W / (m === 'discord-2x2' ? 2 : 3) * .55, H * (m === 'discord-2x1' ? .45 : .28)));
+      const faces = x.members.slice(0, max).map(p => `<div style="display:flex;flex-direction:column;align-items:center;width:${100 / (m === 'discord-2x2' ? 2 : 3)}%"><div style="width:${face}px;height:${face}px;border-radius:50%;background:#5865F2;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:${face * .45}px;${p.speaking ? 'box-shadow:0 0 0 3px #23A55A' : ''}">${esc((p.name || '?').trim().charAt(0).toUpperCase())}</div><span style="font-size:${fs * .85}px;max-width:100%;overflow:hidden;white-space:nowrap;color:${p.speaking ? '#23A55A' : '#ddd'}">${esc(p.name)}</span></div>`).join('');
+      html = `<div style="display:flex;width:100%;align-items:center;gap:4px;font-size:${fs}px"><span style="flex:1;text-align:left;white-space:nowrap;overflow:hidden">${x.channel ? '🔊 ' + esc(x.channel) : 'Pas en vocal'}</span><span style="border-radius:50%;padding:1px 4px;background:${x.muted || x.deafened ? 'var(--bad)' : '#ffffff22'}">${x.muted || x.deafened ? '🔇' : '🎙'}</span><span style="border-radius:50%;padding:1px 4px;background:${x.deafened ? 'var(--bad)' : '#ffffff22'}">🎧</span></div>`
+        + `<div style="flex:1;display:flex;flex-wrap:wrap;align-content:space-evenly;width:100%">${faces || `<span style="opacity:.7;font-size:${fs}px;margin:auto">${x.channel ? 'Personne' : 'Rejoins un salon vocal'}</span>`}</div>`;
+    }
   }
   d.innerHTML = `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;overflow:hidden">${html}</div>`;
 }
@@ -923,6 +962,9 @@ function actionSummary(b) {
     case 'folder': return 'Ouvre un dossier';
     case 'page': return 'Va à une autre page';
     case 'mixer': return 'Ouvre le mélangeur de volume';
+    case 'obs': return 'OBS : ' + (a.command === 'scene' ? 'scène « ' + (a.target || '…') + ' »' : a.command === 'mute' ? 'coupe « ' + (a.target || '…') + ' »' : (OBS_CMDS[a.command] || '').toLowerCase());
+    case 'discord': return 'Discord : ' + (DISCORD_CMDS[a.command] || '').toLowerCase();
+    case 'ha': return 'Maison : ' + (a.target || 'appareil à choisir');
     default: return '';
   }
 }
@@ -1193,6 +1235,8 @@ function detachPage() {
 const K = (label, keys, glyph, toggle) => ({ label, icon: glyph ? 'glyph:' + glyph : 'auto', action: { type: 'keys', keys, toggle: !!toggle } });
 const OPEN = (label, target, icon, fallbackUrl) => ({ label, icon: icon || 'auto', action: { type: 'open', target, fallbackUrl } });
 const SYS = (label, type) => ({ label, icon: 'auto', action: { type } });
+const OBS = (label, command, target) => ({ label, icon: 'auto', action: { type: 'obs', command, target } });
+const DSC = (label, command, icon) => ({ label, icon: icon || 'auto', action: { type: 'discord', command } });
 const PAGE_PRESETS = [
   { id: 'photoshop', name: 'Photoshop', emoji: '🖌', desc: 'Outils, calques, zoom et annuler.', procs: ['photoshop'], buttons: [
     K('Annuler', 'Ctrl+Z', 'E7A7'), K('Rétablir', 'Ctrl+Shift+Z', 'E7A6'), K('Déplacer', 'V', 'E7C2'), K('Pinceau', 'B', 'E70F'), K('Gomme', 'E', 'E75C'),
@@ -1209,16 +1253,21 @@ const PAGE_PRESETS = [
     K('Entrée', 'I', 'E76B'), K('Sortie', 'O', 'E76C'), K('Sélection', 'V', 'E8B3'), K('Rasoir', 'C', 'E8C6'), K('Couper ici', 'Ctrl+K', 'E710'),
     K('Supprimer + resserrer', 'Shift+Delete', 'E74D'), K('Annuler', 'Ctrl+Z', 'E7A7'), K('Rétablir', 'Ctrl+Shift+Z', 'E7A6'), K('Enregistrer', 'Ctrl+S', 'E74E'), K('Exporter', 'Ctrl+M', 'E72D'),
   ] },
-  { id: 'obs', name: 'Streaming (OBS)', emoji: '🔴', desc: 'Live, enregistrement, scènes et micro.',
-    note: 'OBS n\'a pas de raccourcis par défaut : dans OBS > Paramètres > Raccourcis clavier, mets les mêmes que sur les boutons (Ctrl+Maj+F1 pour le live, F2 pour l\'enregistrement…).',
+  { id: 'obs', name: 'Streaming (OBS)', emoji: '🔴', desc: 'Live, enregistrement, scènes et micro, avec leur vrai état.',
+    note: 'Relie OBS dans « Connexions » (en haut) : les boutons s\'allument quand tu es en live ou en enregistrement, et tes scènes OBS sont ajoutées toutes seules.',
     procs: ['obs64', 'obs32'], buttons: [
-    K('Live', 'Ctrl+Shift+F1', 'E714', true), K('Enregistrer', 'Ctrl+Shift+F2', 'E7C8', true), K('Pause enreg.', 'Ctrl+Shift+F3', 'E769', true), K('Replay', 'Ctrl+Shift+F7', 'E72C'), SYS('Micro', 'micmute'),
-    K('Scène 1', 'Ctrl+Shift+F4', 'E7F4'), K('Scène 2', 'Ctrl+Shift+F5', 'E7F4'), K('Scène 3', 'Ctrl+Shift+F6', 'E7F4'), SYS('Son', 'mastermute'), SYS('Mélangeur', 'mixer'),
+    OBS('Live', 'stream'), OBS('Enregistrer', 'record'), OBS('Pause enreg.', 'pause'), OBS('Replay', 'replay'), SYS('Micro', 'micmute'),
+    OBS('Scène 1', 'scene', ''), OBS('Scène 2', 'scene', ''), OBS('Scène 3', 'scene', ''), SYS('Son', 'mastermute'), SYS('Mélangeur', 'mixer'),
+  ] },
+  { id: 'discord', name: 'Discord', emoji: '🎧', desc: 'Micro, sourdine et qui parle dans ton salon vocal.',
+    note: 'Relie Discord dans « Connexions » (en haut) pour voir le vrai état du micro et qui parle.',
+    procs: ['discord'], widgets: [{ type: 'discord', model: 'discord-3x2', slot: 0, w: 3, h: 2 }], buttons: [
+    DSC('Micro', 'mute', 'builtin:mic'), DSC('Sourdine', 'deafen', 'builtin:headphones'), DSC('Raccrocher', 'leave'), OPEN('Discord', 'Discord', 'app:Discord|builtin:discord', 'https://discord.com/app'),
   ] },
   { id: 'jeu', name: 'Jeu', emoji: '🎮', desc: 'Captures Xbox Game Bar, micro Discord, volume et lanceurs.',
-    note: 'Micro et sourdine Discord : dans Discord > Paramètres > Raccourcis, mets Ctrl+Maj+F9 et Ctrl+Maj+F10.', buttons: [
+    note: 'Micro et sourdine Discord : relie Discord dans « Connexions » pour voir leur vrai état.', buttons: [
     K('Game Bar', 'Win+G', 'E7FC'), K('Capture', 'Win+Alt+PrintScreen', 'E722'), K('Clip 30 s', 'Win+Alt+G', 'E714'), K('Enregistrer', 'Win+Alt+R', 'E7C8', true), SYS('Mélangeur', 'mixer'),
-    { ...K('Micro Discord', 'Ctrl+Shift+F9', null, true), icon: 'builtin:mic' }, { ...K('Sourdine Discord', 'Ctrl+Shift+F10', null, true), icon: 'builtin:headphones' },
+    DSC('Micro Discord', 'mute', 'builtin:mic'), DSC('Sourdine Discord', 'deafen', 'builtin:headphones'),
     K('Lecture / pause', 'PlayPause', 'E768'), OPEN('Steam', 'Steam'), OPEN('Discord', 'Discord', 'app:Discord|builtin:discord', 'https://discord.com/app'),
   ] },
   { id: 'bureau', name: 'Bureautique', emoji: '📄', desc: 'Copier, coller, annuler, capture d\'écran, Windows.', buttons: [
@@ -1259,9 +1308,20 @@ function insertRootPage({ name, autoProcesses, buttons, widgets, columns, rows }
   changed({ immediate: true });
   return page;
 }
-function addPreset(p) {
+async function addPreset(p) {
   $('#pageDlg').close();
-  const page = insertRootPage({ name: p.name, autoProcesses: p.procs, buttons: p.buttons });
+  let buttons = p.buttons;
+  if (p.id === 'obs') {
+    // OBS relié : les boutons « Scène » prennent les vraies scènes (jusqu'à 5).
+    const lists = await obsLists(true);
+    if (lists.scenes.length) {
+      const scenes = lists.scenes.slice(0, 5).map(n => OBS(n, 'scene', n));
+      const first = buttons.findIndex(b => b.action.command === 'scene');
+      buttons = buttons.filter(b => b.action.command !== 'scene');
+      buttons.splice(first, 0, ...scenes);
+    }
+  }
+  const page = insertRootPage({ name: p.name, autoProcesses: p.procs, buttons, widgets: p.widgets });
   toast(p.procs ? `Page « ${page.name} » ajoutée : elle s'affiche toute seule quand l'appli est au premier plan.` : `Page « ${page.name} » ajoutée.`);
 }
 async function addEmptyPage() {
@@ -1273,7 +1333,7 @@ function addRootPage() {
   const list = $('#presetList'); list.replaceChildren();
   const card = (emoji, name, desc, extra, onclick) => el('button', { class: 'pcard', onclick }, el('span', { class: 'pe' }, emoji), el('b', {}, name), el('small', {}, desc), extra ? el('small', { class: 'px' }, extra) : null);
   list.append(card('＋', 'Page vide', 'Tu la remplis toi-même.', null, addEmptyPage));
-  for (const p of PAGE_PRESETS) list.append(card(p.emoji, p.name, p.desc, `${p.buttons.length} boutons` + (p.procs ? ' · s\'affiche toute seule' : ''), () => addPreset(p)));
+  for (const p of PAGE_PRESETS) list.append(card(p.emoji, p.name, p.desc, `${p.buttons.length} boutons` + (p.widgets ? ' + widget' : '') + (p.procs ? ' · s\'affiche toute seule' : ''), () => addPreset(p)));
   list.append(card('📂', 'Importer un fichier…', 'Une page exportée depuis KeyraDeck (fichier .keyradeck.json).', null, () => $('#pageFile').click()));
   const notes = PAGE_PRESETS.filter(p => p.note);
   $('#presetNotes').replaceChildren(...notes.map(p => el('div', {}, el('b', {}, p.name + ' : '), p.note)));
@@ -1372,7 +1432,8 @@ function renderInspector() {
       el('button', { onclick: () => upd(() => delete b.color) }, 'Aucune')));
 
   box.append(el('label', {}, 'Action'));
-  const types = [['open', 'Lancer une appli ou un fichier'], ['url', 'Ouvrir un site web'], ['keys', 'Raccourci clavier / macro'], ['text', 'Taper du texte'], ['micmute', 'Couper / rétablir le micro Windows'], ['mastermute', 'Couper / rétablir le son Windows'], ['folder', 'Ouvrir un dossier'], ['page', 'Aller à une page'], ['mixer', 'Ouvrir le mélangeur de volume']];
+  const types = [['open', 'Lancer une appli ou un fichier'], ['url', 'Ouvrir un site web'], ['keys', 'Raccourci clavier / macro'], ['text', 'Taper du texte'], ['micmute', 'Couper / rétablir le micro Windows'], ['mastermute', 'Couper / rétablir le son Windows'], ['folder', 'Ouvrir un dossier'], ['page', 'Aller à une page'], ['mixer', 'Ouvrir le mélangeur de volume'],
+    ['obs', 'OBS Studio (live, scènes…)'], ['discord', 'Discord (micro, sourdine)'], ['ha', 'Maison (Home Assistant)']];
   box.append(el('select', { onchange: (e) => upd(() => changeType(b, e.target.value)) }, types.map(([v, t]) => el('option', { value: v, selected: a.type === v }, t))));
 
   if (a.type === 'open') {
@@ -1402,6 +1463,8 @@ function renderInspector() {
       el('div', { class: 'hint', style: 'margin-top:8px' }, !p ? (isPage ? 'Aucune autre page : crée-en une avec « ＋ Page ».' : 'Dossier introuvable.') : isPage ? 'Le téléphone saute vers cette page.' : `Contient ${p.buttons.length} bouton(s).`),
       p ? el('button', { style: 'margin-top:6px', onclick: () => { state.page = p.id; state.selected = null; renderAll(); } }, isPage ? 'Aller à cette page' : 'Ouvrir ce dossier') : null);
   }
+
+  if (a.type === 'obs' || a.type === 'discord' || a.type === 'ha') integrationInspector(box, b, upd);
 
   if (a.type === 'keys' || a.type === 'text') {
     box.append(el('label', { style: 'display:flex;gap:8px;align-items:center;color:var(--text);margin-top:14px;cursor:pointer' },
@@ -1435,6 +1498,7 @@ function renderWidgetInspector(box, fw) {
   };
   box.append(el('h2', {}, 'Widget'), el('div', { style: 'font-size:18px;font-weight:600' }, info.icon + ' ' + info.name),
     el('div', { class: 'hint', style: 'margin:6px 0 12px' }, info.desc),
+    w.type === 'discord' ? el('button', { style: 'margin-bottom:10px', onclick: openIntegrations }, 'Ouvrir « Connexions »') : null,
     el('label', {}, 'Modèle (taille fixe)'),
     el('div', { class: 'models' }, ...(WIDGET_MODELS[w.type] || []).map(m =>
       el('button', { class: 'model' + (m.id === w.model ? ' on' : ''), onclick: () => pick(m) },
@@ -1472,6 +1536,9 @@ function changeType(b, type) {
     const target = rootPages().find(p => p.id !== state.page);
     if (target) { a.page = target.id; b.label = target.name; }
   }
+  if (type === 'obs') { a.command = 'stream'; b.label = OBS_CMDS.stream; }
+  if (type === 'discord') { a.command = 'mute'; b.label = DISCORD_CMDS.mute; }
+  if (type === 'ha') { a.command = 'toggle'; a.target = ''; }
   b.action = a;
   if (b.icon === 'auto' || !b.icon) b.icon = 'auto';
 }
@@ -1592,6 +1659,17 @@ async function addFromPalette(kind) {
     pushUndo(); addButton({ id: uid('volume'), label: 'Volume', icon: 'builtin:volume', action: { type: 'mixer' } });
   } else if (kind === 'app') {
     setLeftTab('app'); $('#appSearch').focus();
+  } else if (kind.startsWith('obs:')) {
+    const command = kind.slice(4);
+    pushUndo(); addButton({ id: uid('obs'), label: OBS_CMDS[command], icon: 'auto', action: { type: 'obs', command, target: command === 'scene' || command === 'mute' ? '' : undefined } }, drop);
+    integrationReminder('obs');
+  } else if (kind.startsWith('discord:')) {
+    const command = kind.slice(8);
+    pushUndo(); addButton({ id: uid('discord'), label: DISCORD_CMDS[command], icon: command === 'deafen' ? 'builtin:headphones' : command === 'mute' ? 'builtin:mic' : 'auto', action: { type: 'discord', command } }, drop);
+    integrationReminder('discord');
+  } else if (kind === 'ha') {
+    pushUndo(); addButton({ id: uid('maison'), label: 'Lampe', icon: 'auto', action: { type: 'ha', command: 'toggle', target: '' } }, drop);
+    integrationReminder('homeAssistant');
   }
 }
 
@@ -1701,6 +1779,147 @@ function openPair() {
   renderUsb();
   if (info.usb && ['nophone', 'unauthorized', 'offline', 'error'].includes(info.usb.state)) $('#usbGuide').open = true;
   $('#pairDlg').showModal();
+}
+
+// ---------- Connexions : OBS, Discord, Home Assistant ----------
+
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const integ = { info: null, obs: null, obsAt: 0, ha: null, haAt: 0, timer: null };
+const postJson = (path, body) => api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+async function loadIntegrations() { try { integ.info = await api('/api/integrations'); } catch { } return integ.info; }
+// Scènes et sources audio d'OBS (gardées quelques secondes).
+async function obsLists(fresh) {
+  if (fresh || !integ.obs || Date.now() - integ.obsAt > 5000) {
+    try { integ.obs = await api('/api/obs/lists'); integ.obsAt = Date.now(); } catch { integ.obs = { connected: false, scenes: [], inputs: [] }; }
+  }
+  return integ.obs;
+}
+async function haEntities(fresh) {
+  if (fresh || !integ.ha || Date.now() - integ.haAt > 30000) {
+    try { integ.ha = await api('/api/ha/entities'); integ.haAt = Date.now(); } catch { integ.ha = []; }
+  }
+  return integ.ha;
+}
+async function integrationReminder(key) {
+  const info = await loadIntegrations();
+  if (info && !info[key].enabled) toast('Pense à relier ' + ({ obs: 'OBS', discord: 'Discord', homeAssistant: 'Home Assistant' })[key] + ' dans « Connexions » (en haut).');
+}
+function statusLine(x) {
+  return el('span', { class: 'ist' + (x.connected ? ' ok' : x.enabled ? ' bad' : '') }, x.enabled || x.connected ? '● ' + x.status : 'Désactivé');
+}
+const openUrl = (url) => postJson('/api/openurl', { url }).catch(e => toast(e.message));
+function integField(label, value, opts, onsave) {
+  return [el('label', {}, label), el('input', { type: opts.password ? 'password' : 'text', value: value ?? '', placeholder: opts.placeholder || '', autocomplete: 'off', spellcheck: 'false',
+    onchange: (e) => onsave(e.target.value.trim()) })];
+}
+function renderIntegrations() {
+  const i = integ.info; const body = $('#intBody'); if (!i) return;
+  const save = (part) => postJson('/api/integrations', part).then(r => { integ.info = r; integ.obsAt = integ.haAt = 0; renderIntegrations(); }).catch(e => toast(e.message));
+  const toggle = (key, x) => el('label', { style: 'display:flex;gap:8px;align-items:center;color:var(--text);cursor:pointer;margin:10px 0 0' },
+    el('input', { type: 'checkbox', checked: !!x.enabled, style: 'width:auto', onchange: (e) => save({ [key]: { enabled: e.target.checked } }) }), 'Activer');
+  const head = (title, x) => el('h3', {}, title, el('span', { 'data-st': title }, statusLine(x)));
+  const o = i.obs, d = i.discord, h = i.homeAssistant;
+  body.replaceChildren(
+    el('div', { class: 'box ibox' }, head('OBS Studio', o),
+      el('ol', {}, el('li', {}, 'Dans OBS : menu ', el('b', {}, 'Outils > Paramètres du serveur WebSocket'), '.'),
+        el('li', {}, 'Coche ', el('b', {}, 'Activer le serveur WebSocket'), ', puis clique sur ', el('b', {}, 'Afficher les informations de connexion'), '.'),
+        el('li', {}, 'Copie le mot de passe ci-dessous, puis coche « Activer ».')),
+      toggle('obs', o),
+      el('div', { class: 'row' }, el('div', {}, ...integField('Adresse (localhost si OBS est sur ce PC)', o.host, {}, v => save({ obs: { host: v || 'localhost' } }))),
+        el('div', { style: 'flex:0 0 90px' }, ...integField('Port', o.port, {}, v => save({ obs: { port: +v || 4455 } })))),
+      ...integField('Mot de passe du serveur WebSocket', o.password, { password: true, placeholder: 'vide si l\'authentification est décochée' }, v => save({ obs: { password: v } }))),
+
+    el('div', { class: 'box ibox' }, head('Discord', d),
+      el('ol', {}, el('li', {}, 'Ouvre le ', el('a', { onclick: () => openUrl('https://discord.com/developers/applications') }, 'portail développeur de Discord'), ' et connecte-toi.'),
+        el('li', {}, 'Clique sur ', el('b', {}, 'New Application'), ', nomme-la « KeyraDeck », accepte les conditions.'),
+        el('li', {}, 'Menu ', el('b', {}, 'OAuth2'), ' : copie le ', el('b', {}, 'Client ID'), ', puis ', el('b', {}, 'Reset Secret'), ' et copie le ', el('b', {}, 'Client Secret'), '.'),
+        el('li', {}, 'Toujours dans OAuth2, ', el('b', {}, 'Redirects > Add Redirect'), ' : écris ', el('span', { class: 'kbd' }, 'http://localhost'), ' puis ', el('b', {}, 'Save Changes'), '.'),
+        el('li', {}, 'Colle les deux ici, coche « Activer », clique sur ', el('b', {}, 'Connecter Discord'), ' et accepte dans la fenêtre de Discord.')),
+      toggle('discord', d),
+      el('div', { class: 'row' }, el('div', {}, ...integField('Client ID (Application ID)', d.clientId, {}, v => save({ discord: { clientId: v } }))),
+        el('div', {}, ...integField('Client Secret', d.clientSecret, { password: true }, v => save({ discord: { clientSecret: v } })))),
+      el('div', { class: 'row', style: 'margin-top:10px' },
+        el('button', { class: 'primary', disabled: !d.enabled || !d.clientId || !d.clientSecret, onclick: () => postJson('/api/discord/authorize').then(() => toast('Regarde Discord : une fenêtre te demande d\'autoriser KeyraDeck.')) }, d.authorized ? 'Reconnecter Discord' : 'Connecter Discord'),
+        d.authorized ? el('button', { onclick: () => postJson('/api/discord/forget').then(loadIntegrations).then(renderIntegrations) }, 'Oublier l\'autorisation') : null),
+      el('div', { class: 'hint', style: 'margin-top:6px' }, 'L\'application reste privée : elle sert seulement à ce que Discord accepte de parler à KeyraDeck sur ton PC.')),
+
+    el('div', { class: 'box ibox' }, head('Maison (Home Assistant)', h),
+      el('ol', {}, el('li', {}, 'Home Assistant pilote presque toutes les marques (Philips Hue, IKEA, Xiaomi, Tuya, Shelly…).'),
+        el('li', {}, 'Dans Home Assistant : clique sur ton ', el('b', {}, 'profil'), ' (en bas à gauche) > onglet ', el('b', {}, 'Sécurité'), ' > ', el('b', {}, 'Jetons d\'accès longue durée'), ' > ', el('b', {}, 'Créer un jeton'), '.'),
+        el('li', {}, 'Colle l\'adresse de Home Assistant et le jeton ici, puis coche « Activer ».')),
+      toggle('homeAssistant', h),
+      ...integField('Adresse', h.url, { placeholder: 'http://homeassistant.local:8123' }, v => save({ homeAssistant: { url: v } })),
+      ...integField('Jeton d\'accès longue durée', '', { password: true, placeholder: h.hasToken ? '•••••••• (déjà enregistré, colle un nouveau jeton pour le changer)' : 'colle le jeton ici' }, v => v && save({ homeAssistant: { token: v } }))));
+}
+async function openIntegrations() {
+  await loadIntegrations();
+  renderIntegrations();
+  $('#intDlg').showModal();
+  clearInterval(integ.timer);
+  // Les statuts (« Connecté », « OBS n'est pas ouvert »…) se mettent à jour tant que la fenêtre est ouverte.
+  integ.timer = setInterval(async () => {
+    if (!$('#intDlg').open) { clearInterval(integ.timer); return; }
+    const i = await loadIntegrations(); if (!i) return;
+    for (const [title, x] of [['OBS Studio', i.obs], ['Discord', i.discord], ['Maison (Home Assistant)', i.homeAssistant]]) {
+      const span = $(`#intBody [data-st="${title}"]`); if (span) span.replaceChildren(statusLine(x));
+    }
+  }, 1500);
+}
+// Réglages propres aux boutons OBS / Discord / Maison, dans le panneau de droite.
+function integrationInspector(box, b, upd) {
+  const a = b.action;
+  const note = el('div', { class: 'hint', style: 'margin-top:8px' });
+  const key = a.type === 'ha' ? 'homeAssistant' : a.type;
+  loadIntegrations().then(i => {
+    if (!i) return;
+    const x = i[key];
+    if (x.connected) note.replaceChildren('Le bouton s\'allume selon l\'état réel.');
+    else note.replaceChildren(el('span', { class: 'ist bad' }, (x.enabled ? x.status : 'Pas encore relié') + '. '),
+      el('a', { style: 'color:var(--tacc);cursor:pointer', onclick: openIntegrations }, 'Ouvrir « Connexions »'));
+  });
+  if (a.type === 'obs') {
+    box.append(el('label', {}, 'Commande OBS'),
+      el('select', { onchange: (e) => upd(() => { const old = OBS_CMDS[a.command]; a.command = e.target.value; if (!b.label || b.label === old) b.label = OBS_CMDS[a.command]; if (a.command !== 'scene' && a.command !== 'mute') delete a.target; else a.target = ''; }) },
+        Object.entries(OBS_CMDS).map(([k, t]) => el('option', { value: k, selected: a.command === k }, t))));
+    if (a.command === 'scene' || a.command === 'mute') {
+      const isScene = a.command === 'scene';
+      const sel = el('select', { onchange: (e) => upd(() => { const old = a.target; a.target = e.target.value; if (isScene && (!b.label || b.label === old || /^Scène( \d)?$/.test(b.label))) b.label = a.target; }) },
+        el('option', { value: '', selected: !a.target }, isScene ? '— choisis une scène —' : '— choisis une source —'),
+        a.target ? el('option', { value: a.target, selected: true }, a.target) : null);
+      box.append(el('label', {}, isScene ? 'Scène' : 'Source audio à couper'), sel);
+      obsLists(true).then(l => {
+        for (const n of (isScene ? l.scenes : l.inputs)) if (n !== a.target) sel.append(el('option', { value: n }, n));
+        if (!l.connected) sel.after(el('div', { class: 'hint' }, 'Ouvre OBS pour voir la liste.'));
+      });
+    }
+  } else if (a.type === 'discord') {
+    box.append(el('label', {}, 'Commande Discord'),
+      el('select', { onchange: (e) => upd(() => { const old = DISCORD_CMDS[a.command]; a.command = e.target.value; if (!b.label || b.label === old) b.label = DISCORD_CMDS[a.command]; }) },
+        Object.entries(DISCORD_CMDS).map(([k, t]) => el('option', { value: k, selected: a.command === k }, t))));
+  } else if (a.type === 'ha') {
+    const sel = el('select', { onchange: (e) => upd(() => {
+      const ent = (integ.ha || []).find(x => x.id === e.target.value);
+      const oldName = ((integ.ha || []).find(x => x.id === a.target) || {}).name;
+      a.target = e.target.value;
+      if (ent && (!b.label || b.label === 'Lampe' || b.label === oldName)) b.label = ent.name;
+    }) }, el('option', { value: '', selected: !a.target }, '— choisis un appareil —'), a.target ? el('option', { value: a.target, selected: true }, a.target) : null);
+    box.append(el('label', {}, 'Appareil'), sel,
+      el('label', {}, 'Au toucher'),
+      el('select', { onchange: (e) => upd(() => { a.command = e.target.value; }) },
+        [['toggle', 'Allumer / éteindre'], ['on', 'Allumer seulement'], ['off', 'Éteindre seulement']].map(([k, t]) => el('option', { value: k, selected: (a.command || 'toggle') === k }, t))),
+      el('div', { class: 'hint' }, 'Les scènes et scripts se lancent à chaque toucher.'));
+    haEntities(true).then(list => {
+      const groups = {};
+      for (const e of list) (groups[e.id.split('.')[0]] ||= []).push(e);
+      const names = { light: 'Lumières', switch: 'Prises et interrupteurs', scene: 'Scènes', script: 'Scripts', cover: 'Volets', media_player: 'Lecteurs', fan: 'Ventilateurs', climate: 'Chauffage', lock: 'Serrures' };
+      for (const [g, items] of Object.entries(groups)) {
+        sel.append(el('optgroup', { label: names[g] || g }, items.map(e => el('option', { value: e.id, selected: e.id === a.target }, e.name + '  (' + e.id + ')'))));
+      }
+      if (a.target && list.some(e => e.id === a.target)) [...sel.options].find(o => o.value === a.target && !o.parentElement.matches('optgroup'))?.remove();
+      if (!list.length) sel.after(el('div', { class: 'hint' }, 'Relie Home Assistant dans « Connexions » pour voir tes appareils.'));
+    });
+  }
+  box.append(note);
 }
 
 // ---------- Menu du clic droit ----------
@@ -2059,6 +2278,8 @@ $('#undoBtn').onclick = undo;
 $('#folderBtn').onclick = () => api('/api/openfolder', { method: 'POST' });
 $('#pairBtn').onclick = openPair;
 $('#settingsBtn').onclick = openSettings;
+$('#intBtn').onclick = openIntegrations;
+$('#intClose').onclick = () => $('#intDlg').close();
 $('#hideLbl').onchange = (e) => { pushUndo(); if (e.target.checked) state.cfg.hideLabels = true; else delete state.cfg.hideLabels; changed(); };
 $('#setClose').onclick = () => $('#setDlg').close();
 $('#verBtn').onclick = () => checkUpdate(true);

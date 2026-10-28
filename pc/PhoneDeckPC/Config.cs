@@ -127,9 +127,13 @@ public class DeckButton
 
 public class DeckAction
 {
-    /// <summary>open | url | keys | text | folder | mixer | micmute | mastermute</summary>
+    /// <summary>open | url | keys | text | folder | mixer | micmute | mastermute | obs | discord | ha</summary>
     public string Type { get; set; } = "open";
-    /// <summary>open : nom d'appli (menu Démarrer), "chrome.exe", chemin complet ou adresse web.</summary>
+    /// <summary>obs : stream | record | pause | replay | virtualcam | scene | mute.
+    /// discord : mute | deafen | leave. ha : toggle | on | off.</summary>
+    public string? Command { get; set; }
+    /// <summary>open : nom d'appli (menu Démarrer), "chrome.exe", chemin complet ou adresse web.
+    /// obs : nom de la scène ou de la source audio. ha : appareil de Home Assistant (ex. "light.salon").</summary>
     public string? Target { get; set; }
     public string? Args { get; set; }
     /// <summary>open : adresse web ouverte si l'appli est introuvable.</summary>

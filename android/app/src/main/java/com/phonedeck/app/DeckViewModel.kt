@@ -88,6 +88,8 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
     private var volumeDragging = false
     var weather by mutableStateOf<Weather?>(null)
         private set
+    var discord by mutableStateOf<DiscordVoice?>(null)
+        private set
     var nowPlaying by mutableStateOf<NowPlayingInfo?>(null)
         private set
     var nowPlayingArt by mutableStateOf<ImageBitmap?>(null)
@@ -379,8 +381,10 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
                 val ramNow = if (json.has("ram") && !json.isNull("ram")) json.optInt("ram") else null
                 val wj = json.optJSONObject("weather")
                 val weatherNow = wj?.let { Weather(it.optInt("temp"), it.optInt("code"), it.optInt("wind"), it.optInt("humidity"), it.optString("city")) }
+                val discordNow = Parser.discord(json.optJSONObject("discord"))
                 post {
                     weather = weatherNow
+                    discord = discordNow
                     active = ids
                     if (!volumeDragging) { masterVolume = volume; masterMuted = muted }
                     cpu = cpuNow
@@ -541,6 +545,11 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
     /** Touche ou raccourci simple, ex. "Enter" ou "Ctrl+C". */
     fun typeKey(spec: String) {
         send(JSONObject().put("type", "type").put("key", spec))
+    }
+
+    /** Micro / sourdine Discord depuis le widget « Salon vocal ». */
+    fun sendDiscord(command: String) {
+        send(JSONObject().put("type", "discord").put("command", command))
     }
 
     /** Précédent / lecture-pause / suivant pour le widget « Morceau en cours ». */

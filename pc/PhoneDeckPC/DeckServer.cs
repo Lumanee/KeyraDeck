@@ -21,13 +21,15 @@ public class DeckServer
     private readonly IconService _icons;
     private readonly AudioMixer _audio;
     private readonly StaWorker _sta;
+    private readonly Integrations _int;
     private readonly List<Client> _clients = new();
     private readonly SemaphoreSlim _layoutLock = new(1, 1);
     private readonly Dictionary<string, bool> _toggles = new();
     private string _lastStates = "";
     private string? _autoPage;
     private readonly SystemStats _systemStats = new();
-    private bool _needVolume, _needSystem, _needWeather, _needNowPlaying;
+    private bool _needVolume, _needSystem, _needWeather, _needDiscord, _needNowPlaying;
+    private int _statesQueued;
     private readonly NowPlaying _nowPlaying = new();
     private string _lastNowPlaying = "";
     private string _lastArtKey = "";
@@ -44,8 +46,15 @@ public class DeckServer
     public event Action? ClientsChanged;
     public event Action<string>? Log;
 
-    public DeckServer(ConfigStore store, AppCatalog catalog, IconService icons, AudioMixer audio, StaWorker sta)
+    public DeckServer(ConfigStore store, AppCatalog catalog, IconService icons, AudioMixer audio, StaWorker sta, Integrations integrations)
     {
+        _int = integrations;
+        // OBS, Discord ou Home Assistant a changé : on prévient le téléphone (regroupé, « qui parle » peut changer très vite).
+        _int.StateChanged += () =>
+        {
+            if (Interlocked.Exchange(ref _statesQueued, 1) == 1) return;
+            _ = Task.Delay(80).ContinueWith(_ => { Interlocked.Exchange(ref _statesQueued, 0); return BroadcastStatesAsync(force: false); });
+        };
         _store = store;
         _catalog = catalog;
         _icons = icons;
@@ -281,6 +290,18 @@ public class DeckServer
                 break;
             }
 
+            case "discord":
+            {
+                // Micro / sourdine touchés sur le widget « Salon vocal ».
+                var cmd = root.GetProperty("command").GetString() ?? "";
+                if (cmd is "mute" or "deafen")
+                {
+                    var error = await _int.Discord.RunAsync(cmd);
+                    if (error != null) await client.SendAsync(new { type = "toast", message = error });
+                }
+                break;
+            }
+
             case "getMixer":
             {
                 var full = root.TryGetProperty("full", out var f) && f.GetBoolean();
@@ -381,6 +402,9 @@ public class DeckServer
             "text" => await Task.Run(() => KeySender.TypeText(action.Text ?? "")),
             "micmute" => await Task.Run(() => { _audio.ToggleMic(); return (string?)null; }),
             "mastermute" => await Task.Run(() => { _audio.ToggleMaster(); return (string?)null; }),
+            "obs" => await _int.Obs.RunAsync(action.Command ?? "", action.Target),
+            "discord" => await _int.Discord.RunAsync(action.Command ?? ""),
+            "ha" => await _int.HomeAssistant.RunAsync(action.Command, action.Target),
             _ => null,
         };
         if (error == null && action.Toggle)
@@ -405,6 +429,33 @@ public class DeckServer
             {
                 case "micmute": states[id] = mic ??= _audio.MicMuted(); break;
                 case "mastermute": states[id] = master ??= _audio.MasterMuted(); break;
+                case "obs":
+                {
+                    var obs = _int.Obs;
+                    states[id] = (a.Command ?? "").ToLowerInvariant() switch
+                    {
+                        "stream" => obs.Streaming,
+                        "record" => obs.Recording,
+                        "pause" => obs.RecordPaused,
+                        "replay" => obs.ReplayActive,
+                        "virtualcam" => obs.VirtualCam,
+                        "scene" => obs.Connected && string.Equals(obs.CurrentScene, a.Target, StringComparison.OrdinalIgnoreCase),
+                        "mute" => obs.Connected && obs.IsInputMuted(a.Target ?? ""),
+                        _ => false,
+                    };
+                    break;
+                }
+                case "discord":
+                    states[id] = (a.Command ?? "").ToLowerInvariant() switch
+                    {
+                        "mute" => _int.Discord.Muted || _int.Discord.Deafened,
+                        "deafen" => _int.Discord.Deafened,
+                        _ => false,
+                    };
+                    break;
+                case "ha":
+                    states[id] = _int.HomeAssistant.Connected && _int.HomeAssistant.IsOn(a.Target ?? "");
+                    break;
                 default:
                     if (a.Toggle) lock (_toggles) states[id] = _toggles.GetValueOrDefault(id);
                     break;
@@ -431,9 +482,19 @@ public class DeckServer
         WeatherData? weather = _needWeather ? _weather.Current(_store.Config.WeatherCity) : null;
         if (_needVolume) { volume = _audio.MasterVolume(); muted = _audio.MasterMuted(); }
         if (_needSystem) { var (c, r) = _systemStats.Read(); cpu = c; ram = r; }
+        var dc = _int.Discord;
+        object? discord = !_needDiscord ? null : new
+        {
+            connected = dc.Connected,
+            status = dc.Status,
+            channel = dc.ChannelName,
+            muted = dc.Muted,
+            deafened = dc.Deafened,
+            members = dc.Members().Take(12).Select(m => new { name = m.Name, speaking = m.Speaking, muted = m.Muted, deafened = m.Deafened }).ToList(),
+        };
         Live = new
         {
-            cpu, ram,
+            cpu, ram, discord,
             volume = volume == null ? (int?)null : (int)Math.Round(volume.Value * 100),
             muted,
             weather = weather == null ? null : new { temp = weather.Temp, code = weather.Code, wind = weather.Wind, humidity = weather.Humidity, city = weather.City },
@@ -449,6 +510,7 @@ public class DeckServer
             cpu,
             ram,
             weather = weather == null ? null : new { temp = weather.Temp, code = weather.Code, wind = weather.Wind, humidity = weather.Humidity, city = weather.City },
+            discord,
         }, Wire);
     }
 
@@ -653,6 +715,8 @@ public class DeckServer
         _needVolume = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "volume"));
         _needSystem = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "system"));
         _needWeather = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "weather"));
+        _needDiscord = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "discord"));
+        _int.HomeAssistant.Watch(lookup.Values.Where(b => b.Action.Type.Equals("ha", StringComparison.OrdinalIgnoreCase)).Select(b => b.Action.Target ?? ""));
         _needNowPlaying = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "nowplaying"));
         _lastNowPlaying = ""; // un nouveau widget reçoit tout de suite le morceau en cours
         _lastArtKey = "";
