@@ -396,6 +396,28 @@ public class DeckServer
                 break;
             }
 
+            case "getOutputs":
+                await client.SendAsync(await OutputsMessageAsync());
+                break;
+
+            case "setOutput":
+            {
+                // Sortie son choisie dans la liste du volume (casque, enceintes…).
+                var id = root.GetProperty("id").GetString() ?? "";
+                try
+                {
+                    var name = await Task.Run(() => AudioOutputs.SetDefault(id));
+                    Log?.Invoke($"Sortie son : {name}");
+                }
+                catch (Exception ex)
+                {
+                    await client.SendAsync(new { type = "toast", message = "Impossible de changer la sortie son : " + ex.Message });
+                }
+                await BroadcastAsync(await OutputsMessageAsync());
+                _ = BroadcastStatesAsync(force: true); // le volume affiché est celui de la nouvelle sortie
+                break;
+            }
+
             case "setMute":
             {
                 var id = root.GetProperty("id").GetString() ?? "";
@@ -453,6 +475,31 @@ public class DeckServer
         }
     }
 
+    private static async Task<object> OutputsMessageAsync()
+    {
+        var outputs = await Task.Run(() =>
+        {
+            try { return AudioOutputs.List(); } catch { return new List<AudioOutput>(); }
+        });
+        return new { type = "outputs", outputs = outputs.Select(o => new { id = o.Id, name = o.Name, isDefault = o.IsDefault }) };
+    }
+
+    /// <summary>Bouton « Changer de sortie son » : passe à la sortie suivante et l'affiche sur le téléphone.</summary>
+    private async Task<string?> CycleOutputAsync(DeckAction action)
+    {
+        try
+        {
+            var name = await Task.Run(() => AudioOutputs.Cycle(AudioOutputs.ParseIds(action.Target)));
+            await BroadcastAsync(new { type = "toast", message = name == null ? "Une seule sortie son disponible" : "🎧 " + name });
+            await BroadcastAsync(await OutputsMessageAsync());
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return "Impossible de changer la sortie son : " + ex.Message;
+        }
+    }
+
     private async Task PressAsync(Client client, string buttonId)
     {
         var (found, error) = await ExecuteAsync(buttonId);
@@ -480,6 +527,7 @@ public class DeckServer
             "text" => await Task.Run(() => KeySender.TypeText(action.Text ?? "")),
             "micmute" => await Task.Run(() => { _audio.ToggleMic(); return (string?)null; }),
             "mastermute" => await Task.Run(() => { _audio.ToggleMaster(); return (string?)null; }),
+            "audioout" => await CycleOutputAsync(action),
             "obs" => await _int.Obs.RunAsync(action.Command ?? "", action.Target),
             "discord" when string.Equals(action.Command, "panel", StringComparison.OrdinalIgnoreCase) => null, // menu ouvert sur le téléphone
             "discord" => await _int.Discord.RunAsync(action.Command ?? ""),

@@ -285,6 +285,12 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
     var mixer by mutableStateOf<List<MixerChannel>>(emptyList())
         private set
 
+    /** Liste des sorties son du PC, ouverte depuis le volume. */
+    var outputsOpen by mutableStateOf(false)
+        private set
+    var outputs by mutableStateOf<List<AudioOutput>?>(null)
+        private set
+
     private val _toasts = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val toasts: SharedFlow<String> = _toasts
 
@@ -483,6 +489,10 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
                     folderStack.removeAll { it !in parsed.pages }
                 }
             }
+            "outputs" -> {
+                val list = Parser.outputs(json)
+                post { outputs = list }
+            }
             "mixer" -> post {
                 val fresh = Parser.mixer(json, mixer)
                 mixer = fresh.map { c ->
@@ -636,6 +646,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         folderStack.clear()
         mixerOpen = true
         send(JSONObject().put("type", "getMixer").put("full", true))
+        send(JSONObject().put("type", "getOutputs")) // nom de la sortie son en haut du mélangeur
         mixerJob?.cancel()
         mixerJob = viewModelScope.launch {
             // Rafraîchit la liste (nouvelles applis, volume changé sur le PC…).
@@ -647,6 +658,22 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
                 send(JSONObject().put("type", "getMixer").put("full", tick % 7 == 0))
             }
         }
+    }
+
+    fun openOutputs() {
+        outputsOpen = true
+        send(JSONObject().put("type", "getOutputs"))
+    }
+
+    fun closeOutputs() {
+        outputsOpen = false
+    }
+
+    /** Fait de cette sortie la sortie son du PC ; le PC renvoie la liste à jour. */
+    fun chooseOutput(output: AudioOutput) {
+        outputs = outputs?.map { it.copy(isDefault = it.id == output.id) }
+        send(JSONObject().put("type", "setOutput").put("id", output.id))
+        outputsOpen = false
     }
 
     fun closeMixer() {

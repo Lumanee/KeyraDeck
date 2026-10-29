@@ -134,6 +134,7 @@ fun App(vm: DeckViewModel) {
                     }
                 }
                 if (vm.serverUrl != null && vm.mixerOpen) MixerDialog(vm)
+                if (vm.serverUrl != null && vm.outputsOpen) OutputsDialog(vm)
                 UpdateBanner(vm)
                 NotificationOverlay(vm)
                 if (vm.showSettings) SettingsDialog(vm)

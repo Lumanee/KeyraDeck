@@ -37,6 +37,8 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberUpdatedState
@@ -83,6 +85,25 @@ fun MixerDialog(vm: DeckViewModel) {
                     contentAlignment = Alignment.Center,
                 ) { Text("✕", color = theme.onAccent, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
             }
+            // Sortie son actuelle : la toucher ouvre la liste (casque, enceintes…).
+            val current = vm.outputs?.firstOrNull { it.isDefault }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0x1FFFFFFF))
+                    .clickable { vm.openOutputs() }
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text("🎧", fontSize = 18.sp)
+                Column(Modifier.weight(1f)) {
+                    Text("Sortie son", color = Color(0xFF9A9AA4), fontSize = 11.sp)
+                    Text(current?.name ?: "Choisir…", color = Color.White, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Text("›", color = Color.White, fontSize = 22.sp)
+            }
             if (vm.mixer.isEmpty()) {
                 Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
                     Text(if (vm.status == Status.Connected) "Chargement…" else "Pas connecté au PC", color = Color(0xFFBBBBC4))
@@ -96,6 +117,73 @@ fun MixerDialog(vm: DeckViewModel) {
                 }
             }
         }
+    }
+}
+
+/** Liste des sorties son du PC : la sortie actuelle est cochée, en toucher une la choisit. */
+@Composable
+fun OutputsDialog(vm: DeckViewModel) {
+    val theme = LocalTheme.current
+    BackHandler { vm.closeOutputs() }
+    BoxWithConstraints(
+        Modifier
+            .fillMaxSize()
+            .background(Color(0xB0000000))
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { vm.closeOutputs() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier
+                .width(maxWidth * 0.9f)
+                .widthIn(max = 420.dp)
+                .heightIn(max = maxHeight * 0.85f)
+                .clip(RoundedCornerShape(24.dp))
+                .background(lerp(theme.body, Color.Black, 0.25f))
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { }
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Sortie son", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Box(
+                    Modifier.size(44.dp).clip(CircleShape).background(theme.accent).clickable { vm.closeOutputs() },
+                    contentAlignment = Alignment.Center,
+                ) { Text("✕", color = theme.onAccent, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+            }
+            val list = vm.outputs
+            when {
+                list == null -> Text(if (vm.status == Status.Connected) "Chargement…" else "Pas connecté au PC", color = Color(0xFFBBBBC4))
+                list.isEmpty() -> Text("Aucune sortie son trouvée sur le PC.", color = Color(0xFFBBBBC4))
+                else -> Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (o in list) {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (o.isDefault) lerp(theme.key, theme.accent, 0.35f) else lerp(theme.key, Color.White, 0.06f))
+                                .clickable { if (!o.isDefault) vm.chooseOutput(o) else vm.closeOutputs() }
+                                .padding(horizontal = 14.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Text(outputGlyph(o.name), fontSize = 20.sp)
+                            Text(o.name, color = Color.White, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                            if (o.isDefault) Text("✓", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Petit dessin selon le nom que Windows donne à la sortie. */
+private fun outputGlyph(name: String): String {
+    val n = name.lowercase()
+    return when {
+        "casque" in n || "headphone" in n || "headset" in n || "écouteur" in n || "earphone" in n || "buds" in n || "airpods" in n -> "🎧"
+        "hdmi" in n || "display" in n || "moniteur" in n || "écran" in n || "tv" in n -> "🖥"
+        else -> "🔊"
     }
 }
 
