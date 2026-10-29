@@ -28,7 +28,7 @@ public class DeckServer
     private string _lastStates = "";
     private string? _autoPage;
     private readonly SystemStats _systemStats = new();
-    private bool _needVolume, _needSystem, _needPerfApp, _needWeather, _needDiscord, _needNowPlaying;
+    private bool _needVolume, _needSystem, _needPerfApp, _needWeather, _needDiscord, _needNowPlaying, _needTwitch;
     private int _statesQueued;
     private readonly NowPlaying _nowPlaying = new();
     private string _lastNowPlaying = "";
@@ -36,6 +36,7 @@ public class DeckServer
     private readonly SemaphoreSlim _nowPlayingLock = new(1, 1);
     private readonly WeatherService _weather = new();
     private readonly WindowsNotifications _winNotifs = new();
+    private readonly TwitchChat _twitch = new();
     /// <summary>Dernières notifications envoyées : un téléphone qui (re)vient les reçoit sans bandeau.</summary>
     private readonly List<object> _recentNotifs = new();
     private readonly List<string> _recentNotifIds = new();
@@ -67,6 +68,9 @@ public class DeckServer
         _store.Changed += () => _ = OnConfigChangedAsync();
         _winNotifs.Added += n => _ = NotifyAsync(n.App, n.Title, n.Text, n.Id, n.Time);
         _winNotifs.Removed += id => _ = NotifyGoneAsync(id);
+        _twitch.MessageAdded += m => _ = BroadcastAsync(new { type = "twitchMsg", msg = m });
+        _twitch.Deleted += (id, user) => _ = BroadcastAsync(new { type = "twitchDel", id, user });
+        _twitch.StatusChanged += () => _ = BroadcastAsync(new { type = "twitchStatus", channel = _twitch.Channel, state = _twitch.State, status = _twitch.Status });
     }
 
     /// <summary>Lecture des notifications de Windows (état affiché dans le configurateur).</summary>
@@ -212,7 +216,20 @@ public class DeckServer
                 List<object> recent;
                 lock (_recentNotifs) recent = _recentNotifs.ToList();
                 if (recent.Count > 0) await client.SendAsync(new { type = "notifyList", items = recent });
+                if (_needTwitch) await client.SendAsync(new { type = "twitchList", channel = _twitch.Channel, state = _twitch.State, status = _twitch.Status, items = _twitch.Recent(50) });
                 break;
+
+            case "getEmote":
+            {
+                // Image d'une emote du chat Twitch : le PC la télécharge (une seule fois) et la passe au téléphone.
+                var id = root.GetProperty("id").GetString() ?? "";
+                _ = Task.Run(async () =>
+                {
+                    var png = await _twitch.EmoteAsync(id);
+                    if (png != null) try { await client.SendAsync(new { type = "twitchEmote", id, png = Convert.ToBase64String(png) }); } catch { }
+                });
+                break;
+            }
 
             case "getScreenBg":
             {
@@ -599,6 +616,7 @@ public class DeckServer
             nowPlaying = !_needNowPlaying || _nowPlaying.Current is not { } np ? null
                 : new { title = np.Title, artist = np.Artist, app = np.App, playing = np.Playing, pos = np.Pos, dur = np.Dur, artKey = np.ArtKey },
             notifs = NotifsLive(),
+            twitch = !_needTwitch ? null : new { channel = _twitch.Channel, state = _twitch.State, status = _twitch.Status, items = _twitch.Recent(12) },
         };
         return JsonSerializer.Serialize(new
         {
@@ -873,6 +891,8 @@ public class DeckServer
         // Le pavé média « avec titre » affiche aussi le morceau en cours.
         _needNowPlaying = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "nowplaying" || (w.Type == "media" && w.Model.EndsWith("t"))));
         _lastNowPlaying = ""; // un nouveau widget reçoit tout de suite le morceau en cours
+        _needTwitch = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "twitch"));
+        _twitch.Watch(_needTwitch ? cfg.TwitchChannel : null);
         _lastArtKey = "";
         var json = JsonSerializer.Serialize(new
         {
