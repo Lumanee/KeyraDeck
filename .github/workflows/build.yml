@@ -2,6 +2,8 @@ name: Build
 
 on:
   push:
+    # Pas de build sur les tags v0.0.x : ce sont les étiquettes des versions déjà publiées.
+    branches: ['**']
   pull_request:
   workflow_dispatch:
 
@@ -89,6 +91,9 @@ jobs:
     needs: [version, android, windows]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
@@ -102,3 +107,26 @@ jobs:
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
             --title "KeyraDeck $VERSION (dernière version)" \
             --notes "version:$VERSION build:${{ github.run_number }} — fabriquée automatiquement depuis le commit $GITHUB_SHA. KeyraDeck.apk = appli Android, KeyraDeck-Windows.zip = appli Windows (PhoneDeck.apk et PhoneDeckPC-Windows.zip sont les mêmes fichiers sous l'ancien nom, gardés pour la mise à jour automatique des anciennes installations)."
+      - name: Garder chaque version dans la liste des releases (v0.0.1, v0.0.2…)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.version.outputs.display }}
+        run: |
+          # La mise à jour automatique lit seulement « derniere-version » : ces releases sont l'historique.
+          existing=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1000 --json tagName --jq '.[].tagName')
+          # Versions passées (sans fichiers, leurs builds ne sont plus disponibles), de la plus ancienne à la plus récente.
+          for sha in $(git rev-list --reverse --first-parent 76c0145044cb193f0713fe941cc0f4f09b2bdef9..HEAD~1); do
+            v=$(bash .github/version.sh "$sha")
+            if ! grep -qx "v$v" <<<"$existing"; then
+              title=$(git log -1 --format=%b "$sha" | sed -n '/./{p;q}')
+              [ -n "$title" ] || title=$(git log -1 --format=%s "$sha")
+              gh release create "v$v" --repo "$GITHUB_REPOSITORY" --target "$sha" --latest=false \
+                --title "KeyraDeck $v" --notes "$title"
+            fi
+          done
+          title=$(git log -1 --format=%b HEAD | sed -n '/./{p;q}')
+          [ -n "$title" ] || title=$(git log -1 --format=%s HEAD)
+          gh release delete "v$VERSION" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
+          gh release create "v$VERSION" KeyraDeck.apk KeyraDeck-Windows.zip \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --latest \
+            --title "KeyraDeck $VERSION" --notes "$title"
