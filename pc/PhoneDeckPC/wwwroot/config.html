@@ -927,11 +927,11 @@ function deleteBlock(id) {
   toast('Grille retirée : ses boutons sont revenus sur la page.');
 }
 // Mesures d'un bloc (en dp, comme sur le téléphone : DeckScreen.kt, GridBlockPanel) pour une touche de page de « key » dp.
-function blockMetrics(g, key) {
-  const W = key * g.w + key * DEV.gap * (g.w - 1), H = key * g.h + key * DEV.gap * (g.h - 1);
+function blockMetrics(g, kd) {
+  const W = kd.w * g.w + kd.w * DEV.gap * (g.w - 1), H = kd.h * g.h + kd.h * DEV.gap * (g.h - 1), key = Math.min(kd.w, kd.h);
   const pad = key * 0.05, title = (g.name || '').trim() ? Math.max(key * 0.2, 16) : 0;
-  const k = Math.min((W - 2 * pad) / (g.columns + (g.columns - 1) * DEV.gap), (H - 2 * pad - title) / (g.rows + (g.rows - 1) * DEV.gap));
-  return { W, H, pad, title, key: k, gap: k * DEV.gap, radius: key * 0.22 };
+  const kw = (W - 2 * pad) / (g.columns + (g.columns - 1) * DEV.gap), kh = (H - 2 * pad - title) / (g.rows + (g.rows - 1) * DEV.gap);
+  return { W, H, pad, title, kw, kh, gapW: kw * DEV.gap, gapH: kh * DEV.gap, radius: key * 0.22, unit: key };
 }
 const findButton = (id) => { for (const p of state.cfg.pages) { const b = p.buttons.find(b => b.id === id); if (b) return { page: p, button: b }; } return null; };
 
@@ -1182,16 +1182,19 @@ const devMetrics = (W, H) => { const small = Math.min(W, H); return { margin: sm
 const navHeight = () => 0; // plus de flèches : on change de page en glissant
 function deviceDims(land) {
   const d = state.info && state.info.device;
-  const p = d && d.w > 0 && d.h > 0 ? { w: d.w, h: d.h, known: true, name: d.name, cut: d.cut || 0, r: d.r || 0 } : { w: 412, h: 915, known: false, name: '', cut: 0, r: 0 };
+  // Le téléphone envoie la taille de son écran dans l'orientation où il se trouve : on la remet toujours debout (petit côté = largeur),
+  // sinon « Portrait » montrerait un écran couché dès que le téléphone est tourné.
+  const p = d && d.w > 0 && d.h > 0 ? { w: Math.min(d.w, d.h), h: Math.max(d.w, d.h), known: true, name: d.name, cut: d.w <= d.h ? d.cut || 0 : 0, r: d.r || 0 } : { w: 412, h: 915, known: false, name: '', cut: 0, r: 0 };
   // Paysage : l'écran est couché, la caméra n'est plus en haut.
   return land ? { ...p, w: p.h, h: p.w, cut: 0 } : p;
 }
-function keySizeFor(cols, rows, W, H) {
+// Taille d'une touche (largeur et hauteur) : la grille remplit tout l'écran, les touches ne sont carrées que si la grille a les proportions de l'écran.
+function keyDimsFor(cols, rows, W, H) {
   const m = devMetrics(W, H);
-  const kw = (W - 2 * m.margin - 2 * m.pad) / (cols + (cols - 1) * DEV.gap);
-  const kh = (H - 2 * m.margin - 2 * m.pad - DEV.strip - navHeight()) / (rows + (rows - 1) * DEV.gap);
-  return Math.min(kw, kh, DEV.cap);
+  return { w: (W - 2 * m.margin - 2 * m.pad) / (cols + (cols - 1) * DEV.gap),
+    h: (H - 2 * m.margin - 2 * m.pad - DEV.strip - navHeight()) / (rows + (rows - 1) * DEV.gap) };
 }
+function keySizeFor(cols, rows, W, H) { const k = keyDimsFor(cols, rows, W, H); return Math.min(k.w, k.h); }
 // Grille la plus agréable pour cet écran : touches d'environ 64 à 110 dp qui remplissent le mieux la place.
 function recommendGrid(W, H) {
   let best = null;
@@ -1280,8 +1283,8 @@ function renderStage() {
   const phoneEl = $('#phone');
   const totalH = phone.h + phone.cut;
   const scale = Math.min((stage.clientWidth - 40) / phone.w, (stage.clientHeight - 40) / totalH);
-  const keyDp = keySizeFor(cols, rows, phone.w, phone.h);
-  const key = keyDp * scale, g = DEV.gap;
+  const kd = keyDimsFor(cols, rows, phone.w, phone.h);
+  const keyW = kd.w * scale, keyH = kd.h * scale, key = Math.min(keyW, keyH), g = DEV.gap;
   const dm = devMetrics(phone.w, phone.h);
   dev.style.width = (phone.w - 2 * dm.margin) * scale + 'px';
   dev.style.height = (phone.h - 2 * dm.margin) * scale + 'px';
@@ -1304,7 +1307,7 @@ function renderStage() {
     el('span', { class: 'ledbox' }, page.name ? ledDisplay(page.name, Math.max(9, 14 * scale)) : '')));
   const holder = el('div', { style: 'flex:1;display:flex;align-items:center;justify-content:center;min-height:0' });
   dev.append(holder);
-  const grid = el('div', { class: 'grid', style: `grid-template-columns:repeat(${cols},${key}px);grid-template-rows:repeat(${rows},${key}px);gap:${key * g}px` });
+  const grid = el('div', { class: 'grid', style: `grid-template-columns:repeat(${cols},${keyW}px);grid-template-rows:repeat(${rows},${keyH}px);gap:${keyH * g}px ${keyW * g}px` });
   const bySlot = new Map();
   if (!page.generated) for (const b of mainButtons(page)) bySlot.set(b.slot, b);
   const gen = new Map((page.generated || []).map(b => [b.slot, b]));
@@ -1354,7 +1357,7 @@ function renderStage() {
     }
     grid.append(stageKey(b, s, key, pos, null));
   }
-  for (const g of blocks(page)) grid.append(stageBlock(page, g, cols, keyDp, scale));
+  for (const g of blocks(page)) grid.append(stageBlock(page, g, cols, kd, scale));
   for (const w of widgets) {
     const info = WIDGET_INFO[w.type] || { name: w.type, icon: '▫' };
     const c = w.slot % cols, r = Math.floor(w.slot / cols);
@@ -1406,13 +1409,13 @@ function stageKey(b, s, key, pos, blk) {
   return k;
 }
 // Une grille séparée dans l'aperçu : un cadre sur ses cases de la page, avec son titre et ses propres touches.
-function stageBlock(page, g, cols, keyDp, scale) {
-  const m = blockMetrics(g, keyDp), key = m.key * scale;
+function stageBlock(page, g, cols, kd, scale) {
+  const m = blockMetrics(g, kd), keyW = m.kw * scale, keyH = m.kh * scale, key = Math.min(keyW, keyH), keyDp = m.unit;
   const d = el('div', { class: 'blk' + (state.selected === g.id ? ' selected' : ''), 'data-id': g.id, draggable: 'true',
     title: 'Grille séparée : glisse le cadre pour la déplacer, clic pour régler sa taille',
     style: `grid-column:${g.slot % cols + 1} / span ${g.w};grid-row:${Math.floor(g.slot / cols) + 1} / span ${g.h};padding:${m.pad * scale}px;border-radius:${m.radius * scale}px` });
   if (m.title) d.append(el('div', { class: 'blkt', style: `height:${m.title * scale}px;font-size:${Math.max(10, Math.min(14, keyDp * 0.13)) * scale}px` }, g.name));
-  const inner = el('div', { class: 'blkg', style: `grid-template-columns:repeat(${g.columns},${key}px);grid-template-rows:repeat(${g.rows},${key}px);gap:${m.gap * scale}px` });
+  const inner = el('div', { class: 'blkg', style: `grid-template-columns:repeat(${g.columns},${keyW}px);grid-template-rows:repeat(${g.rows},${keyH}px);gap:${m.gapH * scale}px ${m.gapW * scale}px` });
   const bySlot = new Map(blockButtons(page, g).map(b => [b.slot, b]));
   for (let s = 0; s < g.columns * g.rows; s++) inner.append(stageKey(bySlot.get(s), s, key, `grid-column:${s % g.columns + 1};grid-row:${Math.floor(s / g.columns) + 1}`, g));
   d.append(el('div', { class: 'blkin' }, inner));
@@ -1892,7 +1895,10 @@ function adaptAll() {
   const d = deviceDims(); const rec = recommendGrid(d.w, d.h);
   pushUndo();
   let bad = false;
-  for (const p of state.cfg.pages) if (isRoot(p) && !p.generated && !p._port) { if (!reflowPage(p, rec.cols, rec.rows)) bad = true; }
+  for (const p of state.cfg.pages) if (isRoot(p) && !p.generated && !p._port) {
+    if (!reflowPage(p, rec.cols, rec.rows)) bad = true;
+    else if (p.land) p.land = makeLandscape(p); // le paysage suit la nouvelle grille portrait
+  }
   api('/api/adapted?key=' + encodeURIComponent(screenKey(d)), { method: 'POST' }).catch(() => { });
   state.info.adaptedTo = screenKey(d);
   if (bad) toast('Une page contient un widget trop large : elle garde sa grille.');
@@ -1903,6 +1909,9 @@ function checkAdapt() {
   bar.replaceChildren();
   const d = deviceDims(); if (!d.known || !state.cfg) return;
   const key = screenKey(d), rec = recommendGrid(d.w, d.h), cur = pageGrid(state.cfg.pages[0]);
+  // Une adaptation faite quand le téléphone était couché (écran vu à l'envers du portrait) est refaite toute seule en vertical.
+  const flipped = Math.round(d.h / 10) * 10 + 'x' + Math.round(d.w / 10) * 10;
+  if (flipped !== key && state.info.adaptedTo === flipped && !state.dirty) { adaptAll(); toast(`Grille remise en portrait (${rec.cols}×${rec.rows})`); return; }
   const same = cur.cols === rec.cols && cur.rows === rec.rows;
   if (state.info.adaptedTo === key || same) {
     if (state.info.adaptedTo !== key) { state.info.adaptedTo = key; api('/api/adapted?key=' + key, { method: 'POST' }).catch(() => { }); }

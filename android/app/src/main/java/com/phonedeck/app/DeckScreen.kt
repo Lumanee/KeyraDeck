@@ -283,9 +283,9 @@ private fun Device(
         val pad = small * 0.034f
         val strip = 26.dp
         val gapRatio = 0.14f
-        val keyW = (maxWidth - margin * 2 - pad * 2) / (cols + (cols - 1) * gapRatio)
+        // La grille remplit tout l'écran : touches rectangulaires si la grille n'a pas les proportions de l'écran (jamais de bande vide).
+        val key = (maxWidth - margin * 2 - pad * 2) / (cols + (cols - 1) * gapRatio)
         val keyH = (maxHeight - margin * 2 - pad * 2 - strip) / (rws + (rws - 1) * gapRatio)
-        val key = min(min(keyW, keyH), 140.dp)
         val gap = key * gapRatio
         val shape = RoundedCornerShape(small * 0.075f)
 
@@ -301,7 +301,7 @@ private fun Device(
         ) {
             StatusStrip(vm, pageIndex, 1, pageName, Modifier.fillMaxWidth().height(strip))
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                KeyGrid(vm, cols, rws, buttons, widgets, key, gap, vm.active, vm::press, onLongPress, screen, grids)
+                KeyGrid(vm, cols, rws, buttons, widgets, key, gap, vm.active, vm::press, onLongPress, screen, grids, keyH, keyH * gapRatio)
             }
         }
     }
@@ -326,39 +326,42 @@ fun KeyGrid(
     onLongPress: (DeckButton) -> Unit,
     screen: DeckScreenArea? = null,
     grids: List<DeckGridBlock> = emptyList(),
+    keyH: Dp = key,
+    gapH: Dp = gap,
 ) {
+    val unit = min(key, keyH)
     val covered = widgets.flatMap { w -> (0 until w.h).flatMap { dy -> (0 until w.w).map { dx -> w.slot + dy * cols + dx } } }.toSet() +
         screen?.cells(cols).orEmpty() + grids.flatMap { it.cells(cols) }
     val gridIds = grids.map { it.id }.toSet()
     val bySlot = buttons.filter { it.grid == null || it.grid !in gridIds }.associateBy { it.slot }
-    Box(Modifier.size(key * cols + gap * (cols - 1), key * rows + gap * (rows - 1))) {
+    Box(Modifier.size(key * cols + gap * (cols - 1), keyH * rows + gapH * (rows - 1))) {
         for (slot in 0 until cols * rows) {
             if (slot in covered) continue
             val b = bySlot[slot]
-            Box(Modifier.offset((key + gap) * (slot % cols), (key + gap) * (slot / cols))) {
-                DeckKey(b, key, b != null && b.id in active, onPress, onLongPress)
-                if (b != null && vm.discordPanel == b.id) DiscordPanel(vm, key)
+            Box(Modifier.offset((key + gap) * (slot % cols), (keyH + gapH) * (slot / cols))) {
+                DeckKey(b, key, b != null && b.id in active, onPress, onLongPress, keyH)
+                if (b != null && vm.discordPanel == b.id) DiscordPanel(vm, unit)
             }
         }
         if (screen != null) {
-            Box(Modifier.offset((key + gap) * (screen.slot % cols), (key + gap) * (screen.slot / cols))) {
-                ScreenPanel(key * screen.w + gap * (screen.w - 1), key * screen.h + gap * (screen.h - 1), key, screen, vm)
+            Box(Modifier.offset((key + gap) * (screen.slot % cols), (keyH + gapH) * (screen.slot / cols))) {
+                ScreenPanel(key * screen.w + gap * (screen.w - 1), keyH * screen.h + gapH * (screen.h - 1), unit, screen, vm)
             }
         }
         for (w in widgets) {
-            Box(Modifier.offset((key + gap) * (w.slot % cols), (key + gap) * (w.slot / cols))) {
-                DeckWidgetView(w, key * w.w + gap * (w.w - 1), key * w.h + gap * (w.h - 1), key, vm, framed = screen?.holds(w, cols) != true, screenHere = screen != null)
+            Box(Modifier.offset((key + gap) * (w.slot % cols), (keyH + gapH) * (w.slot / cols))) {
+                DeckWidgetView(w, key * w.w + gap * (w.w - 1), keyH * w.h + gapH * (w.h - 1), unit, vm, framed = screen?.holds(w, cols) != true, screenHere = screen != null)
             }
         }
         // Widget Notifications sur une page avec zone écran : le bandeau et la liste s'affichent dans la zone.
         if (screen != null && widgets.any { it.type == "notifications" }) {
-            Box(Modifier.offset((key + gap) * (screen.slot % cols), (key + gap) * (screen.slot / cols))) {
-                ScreenNotifications(vm, key * screen.w + gap * (screen.w - 1), key * screen.h + gap * (screen.h - 1), key)
+            Box(Modifier.offset((key + gap) * (screen.slot % cols), (keyH + gapH) * (screen.slot / cols))) {
+                ScreenNotifications(vm, key * screen.w + gap * (screen.w - 1), keyH * screen.h + gapH * (screen.h - 1), unit)
             }
         }
         for (g in grids) {
-            Box(Modifier.offset((key + gap) * (g.slot % cols), (key + gap) * (g.slot / cols))) {
-                GridBlockPanel(vm, g, key * g.w + gap * (g.w - 1), key * g.h + gap * (g.h - 1), key, buttons.filter { it.grid == g.id }, active, onPress, onLongPress)
+            Box(Modifier.offset((key + gap) * (g.slot % cols), (keyH + gapH) * (g.slot / cols))) {
+                GridBlockPanel(vm, g, key * g.w + gap * (g.w - 1), keyH * g.h + gapH * (g.h - 1), unit, buttons.filter { it.grid == g.id }, active, onPress, onLongPress)
             }
         }
     }
@@ -385,11 +388,10 @@ private fun GridBlockPanel(
     val pad = key * 0.05f
     val title = if (block.name.isNotBlank()) max(key * 0.2f, 16.dp) else 0.dp
     val gapRatio = 0.14f
-    val k = min(
-        (width - pad * 2) / (cols + (cols - 1) * gapRatio),
-        (height - pad * 2 - title) / (rows + (rows - 1) * gapRatio),
-    )
+    val k = (width - pad * 2) / (cols + (cols - 1) * gapRatio)
+    val kh = (height - pad * 2 - title) / (rows + (rows - 1) * gapRatio)
     val g = k * gapRatio
+    val gh = kh * gapRatio
     val shape = RoundedCornerShape(key * 0.22f)
     val bySlot = buttons.associateBy { it.slot }
     Column(
@@ -414,12 +416,12 @@ private fun GridBlockPanel(
             }
         }
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-            Box(Modifier.size(k * cols + g * (cols - 1), k * rows + g * (rows - 1))) {
+            Box(Modifier.size(k * cols + g * (cols - 1), kh * rows + gh * (rows - 1))) {
                 for (slot in 0 until cols * rows) {
                     val b = bySlot[slot]
-                    Box(Modifier.offset((k + g) * (slot % cols), (k + g) * (slot / cols))) {
-                        DeckKey(b, k, b != null && b.id in active, onPress, onLongPress)
-                        if (b != null && vm.discordPanel == b.id) DiscordPanel(vm, k)
+                    Box(Modifier.offset((k + g) * (slot % cols), (kh + gh) * (slot / cols))) {
+                        DeckKey(b, k, b != null && b.id in active, onPress, onLongPress, kh)
+                        if (b != null && vm.discordPanel == b.id) DiscordPanel(vm, min(k, kh))
                     }
                 }
             }
@@ -504,8 +506,10 @@ fun DeckKey(
     active: Boolean,
     onPress: (DeckButton) -> Unit,
     onLongPress: (DeckButton) -> Unit,
+    height: Dp = size,
 ) {
     val touch = LocalTouch.current
+    val unit = min(size, height)
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.92f else 1f, label = "press")
@@ -513,11 +517,11 @@ fun DeckKey(
     val flash = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
     val flashColor = LocalTheme.current.accent
-    val capShape = RoundedCornerShape(size * 0.2f)
-    val screenShape = RoundedCornerShape(size * 0.14f)
+    val capShape = RoundedCornerShape(unit * 0.2f)
+    val screenShape = RoundedCornerShape(unit * 0.14f)
 
     var mod = Modifier
-        .size(size)
+        .size(size, height)
         .scale(scale)
         .shadow(if (pressed) 1.dp else 5.dp, capShape)
         .clip(capShape)
@@ -538,7 +542,7 @@ fun DeckKey(
         )
     }
 
-    Box(mod.padding(size * 0.05f)) {
+    Box(mod.padding(unit * 0.05f)) {
         Column(
             Modifier
                 .fillMaxSize()
@@ -560,7 +564,7 @@ fun DeckKey(
                     )
                 }
                 .border(1.dp, GlassEdge, screenShape)
-                .padding(size * 0.07f),
+                .padding(unit * 0.07f),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
@@ -576,11 +580,11 @@ fun DeckKey(
             } else {
                 Spacer(Modifier.weight(1f))
             }
-            if (size >= 56.dp && !button.hideLabel) {
+            if (unit >= 56.dp && !button.hideLabel) {
                 Text(
                     button.label,
                     color = Color.White,
-                    fontSize = (size.value * 0.12f).coerceIn(9f, 15f).sp,
+                    fontSize = (unit.value * 0.12f).coerceIn(9f, 15f).sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
