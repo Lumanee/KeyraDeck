@@ -128,6 +128,11 @@ data class NowPlayingInfo(val title: String, val artist: String, val app: String
 
 data class Notif(val id: String, val app: String, val title: String, val text: String)
 
+/** Morceau d'un message du chat Twitch : du texte, ou une emote ([emote] = son id Twitch, [text] = son nom). */
+data class TwitchPart(val text: String, val emote: String?)
+/** Message du chat Twitch relayé par le PC. [action] = message « /me » (en italique, de la couleur du pseudo). */
+data class TwitchMsg(val id: String, val user: String, val userId: String, val color: String, val action: Boolean, val parts: List<TwitchPart>)
+
 data class MixerChannel(
     val id: String,
     val name: String,
@@ -140,6 +145,14 @@ data class MixerChannel(
 data class AudioOutput(val id: String, val name: String, val isDefault: Boolean)
 
 object Parser {
+    fun twitchMsg(j: JSONObject): TwitchMsg {
+        val arr = j.optJSONArray("parts") ?: JSONArray()
+        val parts = (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }.map {
+            TwitchPart(it.optString("t"), if (it.isNull("e")) null else it.optString("e").ifEmpty { null })
+        }
+        return TwitchMsg(j.optString("id"), j.optString("user"), j.optString("userId"), j.optString("color"), j.optBoolean("action"), parts)
+    }
+
     fun layout(json: JSONObject): DeckLayout {
         val pages = LinkedHashMap<String, DeckPage>()
         val arr = json.optJSONArray("pages") ?: JSONArray()

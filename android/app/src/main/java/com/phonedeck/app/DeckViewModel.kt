@@ -190,6 +190,29 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         if (showBanner) banner = n
     }
 
+    /** Chat Twitch lu par le PC (widget « Chat Twitch ») : derniers messages, le plus ancien en premier. */
+    val twitchMessages = mutableStateListOf<TwitchMsg>()
+    var twitchChannel by mutableStateOf("")
+        private set
+    /** off | connecting | ok | error */
+    var twitchState by mutableStateOf("off")
+        private set
+    var twitchStatus by mutableStateOf("")
+        private set
+    /** Images des emotes déjà reçues du PC, par id Twitch. */
+    val twitchEmotes = mutableStateMapOf<String, ImageBitmap>()
+    private val twitchEmotesAsked = mutableSetOf<String>()
+    /** Demande au PC l'image d'une emote (une seule fois). */
+    fun requestEmote(id: String) {
+        if (id in twitchEmotes || id in twitchEmotesAsked) return
+        if (send(JSONObject().put("type", "getEmote").put("id", id))) twitchEmotesAsked.add(id)
+    }
+    private fun addTwitch(m: TwitchMsg) {
+        if (twitchMessages.any { it.id == m.id }) return
+        twitchMessages.add(m)
+        while (twitchMessages.size > 60) twitchMessages.removeAt(0)
+    }
+
     var settings by mutableStateOf(
         AppSettings(
             haptics = prefs.getBoolean("haptics", true),
@@ -441,6 +464,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
     override fun onOpen() = post {
         opened = true
         screenBgAsked.clear()
+        twitchEmotesAsked.clear()
         link = tryingLink
         status = Status.Connected
         sendScreen()
@@ -528,6 +552,41 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
                 val list = (0 until items.length()).mapNotNull { items.optJSONObject(it) }
                     .map { Notif(it.optString("id"), it.optString("app"), it.optString("title"), it.optString("text")) }
                 post { list.asReversed().forEach { addNotif(it, showBanner = false) } }
+            }
+            // Chat Twitch : la liste complète à la connexion, puis message par message.
+            "twitchList" -> {
+                val items = json.optJSONArray("items") ?: JSONArray()
+                val list = (0 until items.length()).mapNotNull { items.optJSONObject(it) }.map { Parser.twitchMsg(it) }
+                val channel = json.optString("channel"); val st = json.optString("state"); val text = json.optString("status")
+                post {
+                    twitchChannel = channel; twitchState = st; twitchStatus = text
+                    twitchMessages.clear(); list.forEach { addTwitch(it) }
+                }
+            }
+            "twitchMsg" -> {
+                val m = json.optJSONObject("msg")?.let { Parser.twitchMsg(it) } ?: return
+                post { addTwitch(m) }
+            }
+            // Effacé par la modération (un message, tous ceux d'un utilisateur, ou tout le chat).
+            "twitchDel" -> {
+                val id = if (json.isNull("id")) "" else json.optString("id")
+                val user = if (json.isNull("user")) "" else json.optString("user")
+                post {
+                    when {
+                        id.isNotEmpty() -> twitchMessages.removeAll { it.id == id }
+                        user.isNotEmpty() -> twitchMessages.removeAll { it.userId == user }
+                        else -> twitchMessages.clear()
+                    }
+                }
+            }
+            "twitchStatus" -> {
+                val channel = json.optString("channel"); val st = json.optString("state"); val text = json.optString("status")
+                post { twitchChannel = channel; twitchState = st; twitchStatus = text }
+            }
+            "twitchEmote" -> {
+                val id = json.optString("id")
+                val img = Parser.image(json.optString("png"))
+                if (img != null) post { twitchEmotes[id] = img }
             }
             // Fermée sur le PC : elle disparaît aussi ici.
             "notifyGone" -> {
