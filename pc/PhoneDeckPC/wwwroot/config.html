@@ -310,10 +310,10 @@
   .key.scell { background: transparent; box-shadow: none; border-radius: 12%; }
   .key.scell[draggable=true] { cursor: grab; }
   .key.scell.over { outline-offset: -2px; transform: none; }
-  .blk { position: relative; display: flex; flex-direction: column; background: #ffffff08; box-shadow: inset 0 0 0 1px #ffffff12; cursor: grab; min-width: 0; min-height: 0; }
+  .blk { position: relative; display: flex; flex-direction: column; background: transparent; box-shadow: inset 0 0 0 1px #ffffff1a; cursor: grab; min-width: 0; min-height: 0; }
   .blk.selected { outline: 2px solid var(--accent); outline-offset: 3px; }
   .blk.over { outline: 2px dashed var(--ok); outline-offset: 3px; }
-  .blk .blkt { display: flex; align-items: center; padding-left: .3em; color: #8e8e98; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: none; }
+  .blk .blkt { display: flex; align-items: center; padding-left: .3em; color: #d2d2da; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: none; }
   .blk .blkin { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
   .blk .blkg { display: grid; }
   .wdg.inscr { background: transparent; border-color: transparent; box-shadow: none; }
@@ -860,7 +860,7 @@ function deleteBlock(id) {
 // Mesures d'un bloc (en dp, comme sur le téléphone : DeckScreen.kt, GridBlockPanel) pour une touche de page de « key » dp.
 function blockMetrics(g, key) {
   const W = key * g.w + key * DEV.gap * (g.w - 1), H = key * g.h + key * DEV.gap * (g.h - 1);
-  const pad = key * 0.05, title = (g.name || '').trim() ? Math.max(key * 0.12, 9) : 0;
+  const pad = key * 0.05, title = (g.name || '').trim() ? Math.max(key * 0.2, 16) : 0;
   const k = Math.min((W - 2 * pad) / (g.columns + (g.columns - 1) * DEV.gap), (H - 2 * pad - title) / (g.rows + (g.rows - 1) * DEV.gap));
   return { W, H, pad, title, key: k, gap: k * DEV.gap, radius: key * 0.22 };
 }
@@ -1258,7 +1258,7 @@ function stageBlock(page, g, cols, keyDp, scale) {
   const d = el('div', { class: 'blk' + (state.selected === g.id ? ' selected' : ''), 'data-id': g.id, draggable: 'true',
     title: 'Grille séparée : glisse le cadre pour la déplacer, clic pour régler sa taille',
     style: `grid-column:${g.slot % cols + 1} / span ${g.w};grid-row:${Math.floor(g.slot / cols) + 1} / span ${g.h};padding:${m.pad * scale}px;border-radius:${m.radius * scale}px` });
-  if (m.title) d.append(el('div', { class: 'blkt', style: `height:${m.title * scale}px;font-size:${Math.max(7, Math.min(11, keyDp * 0.09)) * scale}px` }, g.name));
+  if (m.title) d.append(el('div', { class: 'blkt', style: `height:${m.title * scale}px;font-size:${Math.max(10, Math.min(14, keyDp * 0.13)) * scale}px` }, g.name));
   const inner = el('div', { class: 'blkg', style: `grid-template-columns:repeat(${g.columns},${key}px);grid-template-rows:repeat(${g.rows},${key}px);gap:${m.gap * scale}px` });
   const bySlot = new Map(blockButtons(page, g).map(b => [b.slot, b]));
   for (let s = 0; s < g.columns * g.rows; s++) inner.append(stageKey(bySlot.get(s), s, key, `grid-column:${s % g.columns + 1};grid-row:${Math.floor(s / g.columns) + 1}`, g));

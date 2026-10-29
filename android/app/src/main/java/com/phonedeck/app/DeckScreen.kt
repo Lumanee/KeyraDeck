@@ -340,7 +340,7 @@ fun KeyGrid(
 }
 
 /**
- * Grille séparée : un simple regroupement (fond et liseré très légers), avec son petit titre et sa propre grille de touches,
+ * Grille séparée : un simple regroupement de boutons (liseré fin, sans fond pour ne pas ressembler à une zone écran), avec son titre lisible et sa propre grille de touches,
  * aussi grandes que possible. Mêmes mesures que le configurateur du PC (config.html : blockMetrics).
  */
 @Composable
@@ -358,7 +358,7 @@ private fun GridBlockPanel(
     val cols = block.columns
     val rows = block.rows
     val pad = key * 0.05f
-    val title = if (block.name.isNotBlank()) max(key * 0.12f, 9.dp) else 0.dp
+    val title = if (block.name.isNotBlank()) max(key * 0.2f, 16.dp) else 0.dp
     val gapRatio = 0.14f
     val k = min(
         (width - pad * 2) / (cols + (cols - 1) * gapRatio),
@@ -371,8 +371,7 @@ private fun GridBlockPanel(
         Modifier
             .size(width, height)
             .clip(shape)
-            .background(Color(0x08FFFFFF))
-            .border(1.dp, Color(0x12FFFFFF), shape)
+            .border(1.dp, Color(0x1AFFFFFF), shape)
             .padding(pad),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -380,9 +379,9 @@ private fun GridBlockPanel(
             Box(Modifier.height(title).fillMaxWidth().padding(start = 4.dp), contentAlignment = Alignment.CenterStart) {
                 Text(
                     block.name.uppercase(),
-                    color = Color(0xFF8E8E98),
-                    fontSize = (key.value * 0.09f).coerceIn(7f, 11f).sp,
-                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFFD2D2DA),
+                    fontSize = (key.value * 0.13f).coerceIn(10f, 14f).sp,
+                    fontWeight = FontWeight.Bold,
                     letterSpacing = 0.8.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
