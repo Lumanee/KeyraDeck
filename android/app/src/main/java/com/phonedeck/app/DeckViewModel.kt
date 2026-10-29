@@ -509,7 +509,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
                 val gpuNow = if (json.has("gpu") && !json.isNull("gpu")) json.optInt("gpu") else null
                 val diskNow = if (json.has("disk") && !json.isNull("disk")) json.optInt("disk") else null
                 val appNow = json.optJSONObject("app")?.let {
-                    AppPerf(it.optString("name"), it.optInt("cpu"), it.optInt("ram"), it.optInt("gpu"), if (it.isNull("fps")) null else it.optInt("fps"))
+                    AppPerf(it.optString("name"), it.optInt("cpu"), it.optInt("ram"), it.optInt("gpu"), if (it.isNull("fps")) null else it.optInt("fps"), if (it.isNull("fpsNote")) null else it.optString("fpsNote"))
                 }
                 val wj = json.optJSONObject("weather")
                 val weatherNow = wj?.let { Weather(it.optInt("temp"), it.optInt("code"), it.optInt("wind"), it.optInt("humidity"), it.optString("city")) }
@@ -694,6 +694,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
     // ---------- Page souris / clavier ----------
 
     var showPad by mutableStateOf(false)
+    var showPcKeyboard by mutableStateOf(false)
     private var moveX = 0f
     private var moveY = 0f
     private var lastMoveAt = 0L
@@ -755,6 +756,12 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
     fun nowPlayingCommand(action: String) {
         if (action == "toggle") nowPlaying = nowPlaying?.let { it.copy(playing = !it.playing, at = System.currentTimeMillis()) }
         send(JSONObject().put("type", "nowPlaying").put("action", action))
+    }
+
+    /** Widget « Appli active » : demande au PC d'autoriser la mesure des FPS (fenêtre « Oui / Non » de Windows sur le PC). */
+    fun enableFps() {
+        send(JSONObject().put("type", "fpsEnable"))
+        toast("Réponds « Oui » sur l'écran du PC pour activer les FPS")
     }
 
     /** Touches média (lecture, suivant…) pour le widget « Pavé média ». */

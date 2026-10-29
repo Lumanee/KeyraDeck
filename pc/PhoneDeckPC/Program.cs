@@ -8,6 +8,7 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        if (FpsAccess.HandleElevatedStart(args)) return;
         if (Updater.MigrateFromLegacyExe(args)) return;
         Updater.CleanupOld();
         StartupRegistration.MigrateLegacy();

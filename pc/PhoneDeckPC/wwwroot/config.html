@@ -174,6 +174,15 @@
   .cmd .cn { flex: 0 0 46%; font-size: 12px; font-weight: 600; letter-spacing: .02em; }
   .cmd .cd { color: var(--muted); font-size: 12px; }
   .cmd.sz .cn { flex-basis: 34%; }
+  /* Widgets repliés : une ligne par widget, ses tailles s'ouvrent au clic */
+  .wgrp { font-weight: 600; font-size: 13px; padding: 8px 4px; border-bottom: 1px solid #202025; display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+  .wgrp:hover { background: #17171b; }
+  .wgrp .wi { width: 20px; text-align: center; }
+  .wgrp .wn { flex: 1; }
+  .wgrp small { color: var(--muted); font-weight: 400; font-size: 11px; }
+  .wgrp .chev { color: var(--muted); transition: transform .15s; }
+  .wgrp.open .chev { transform: rotate(90deg); }
+  .cmd.sz.inwg { padding-left: 32px; }
   #wprev { position: fixed; z-index: 60; pointer-events: none; padding: 14px; border-radius: 16px; background: #0b0b0ee6; border: 1px solid #ffffff1f; box-shadow: 0 12px 40px #000c; display: flex; flex-direction: column; align-items: center; gap: 10px; animation: wpin .12s ease-out; }
   #wprev .wdg { cursor: default; }
   #wprev .wpcap { font-size: 12px; color: var(--muted); white-space: nowrap; }
@@ -202,6 +211,13 @@
   .pcard small { color: var(--muted); font-size: 12px; }
   .pcard .px { color: var(--accent); }
   .pnotes div { margin-top: 8px; }
+  .rareopt { grid-column: 1 / -1; display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: var(--panel2); font-size: 13px; cursor: pointer; }
+  .rareopt input { margin-top: 3px; }
+  .raretab { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .raretab th, .raretab td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line, rgba(128,128,128,.25)); }
+  .raretab th { color: var(--muted); font-weight: 600; }
+  .raretab .muted { color: var(--muted); }
+  .raretab kbd { font-family: inherit; padding: 1px 6px; border-radius: 5px; background: var(--panel2); border: 1px solid var(--line, rgba(128,128,128,.35)); }
   .pback { margin-top: 10px; }
   .picgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; margin-top: 12px; max-height: 55vh; overflow-y: auto; }
   .picgrid button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 2px; font-size: 10px; color: var(--muted); }
@@ -470,6 +486,13 @@
   <div style="text-align:right;margin-top:14px"><button id="pageClose">Fermer</button></div>
 </dialog>
 
+<dialog id="rareDlg" style="max-width:620px;width:94vw;max-height:90vh">
+  <h2 id="rareTitle">Touches à associer dans le jeu</h2>
+  <div class="hint">Lance le jeu, ouvre ses commandes (clavier), choisis chaque action puis appuie sur le bouton du téléphone : le jeu retient la touche. Chaque bouton a sa propre touche, inutilisée par ton clavier, donc aucun conflit. Tu retrouves cette liste dans le menu de la page (clic droit sur son nom).</div>
+  <div id="rareList" style="margin-top:10px;overflow:auto;max-height:55vh"></div>
+  <div style="text-align:right;margin-top:14px"><button id="rareCopy">Copier la liste</button> <button id="rareClose" class="primary">OK</button></div>
+</dialog>
+
 <dialog id="pictoDlg" style="max-width:640px;width:94vw">
   <h2>Choisir un pictogramme</h2>
   <div class="hint">Voyants de tableau de bord, phares, stand, caméras… dessinés en couleur comme dans une vraie voiture.</div>
@@ -518,6 +541,7 @@ const el = (tag, attrs = {}, ...kids) => {
 };
 
 const state = {
+  wdgOpen: new Set(),   // widgets dépliés dans l'onglet WIDGETS
   cfg: null,            // configuration en cours d'édition
   layout: null,         // ce que le téléphone voit (icônes, cases calculées)
   page: null,           // id de la page affichée
@@ -588,7 +612,7 @@ const WIDGET_INFO = {
   volume: { name: 'Volume général', icon: '🎚', desc: 'Curseur du volume Windows avec bouton muet. Le casque 🎧 choisit la sortie son (casque, enceintes…).' },
   clock: { name: 'Horloge', icon: '🕒', desc: 'Heure et date.' },
   system: { name: 'Performances PC', icon: '📊', desc: 'Compte-tours du processeur (CPU), de la mémoire (RAM), de la carte graphique (GPU) et du disque, en pourcentage.' },
-  perfapp: { name: 'Appli active', icon: '🎮', desc: 'CPU, RAM, GPU et FPS de l\'appli au premier plan sur le PC (ton jeu par exemple). Les FPS (jeux DirectX) ne s\'affichent que si KeyraDeck est lancé en administrateur sur le PC.' },
+  perfapp: { name: 'Appli active', icon: '🎮', desc: 'CPU, RAM, GPU et FPS de l\'appli au premier plan sur le PC (ton jeu par exemple). Les FPS (DirectX, Vulkan, OpenGL) demandent une autorisation de Windows : touche « Activer les FPS » ci-dessous (une seule fois).' },
   weather: { name: 'Météo', icon: '⛅', desc: 'Température et conditions actuelles de la ville choisie (Open-Meteo).' },
   trackpad: { name: 'Trackpad', icon: '🖱', desc: 'Une surface comme le pavé tactile d\'un PC portable : glisse pour déplacer la souris, touche pour cliquer, 2 doigts pour défiler. Pas de clic droit.' },
   discord: { name: 'Salon vocal Discord', icon: '🎧', desc: 'Qui est dans ton salon vocal et qui parle, avec ton micro et ta sourdine. Discord doit être relié dans « Connexions ».' },
@@ -707,7 +731,14 @@ function renderLeft() {
     const info = WIDGET_INFO[type];
     const items = list.filter(m => !q || (info.name + ' ' + m.name).toLowerCase().includes(q));
     if (!items.length) continue;
-    pw.append(el('div', { class: 'grp' }, info.name), ...items.map(m => previewOnHover(cmdRow(`${m.w}×${m.h}`, m.name, 'application/x-pd-newwidget', type + '|' + m.id, () => addWidget(type, m), 'sz'), type, m)));
+    if (!pw.querySelector('.wgrp')) pw.append(el('div', { class: 'grp' }, 'Widgets'));
+    // Chaque widget tient sur une ligne ; un clic déplie ses tailles (toutes dépliées pendant une recherche).
+    const open = !!q || state.wdgOpen.has(type);
+    const head = el('div', { class: 'wgrp' + (open ? ' open' : ''), title: info.desc }, el('span', { class: 'wi' }, info.icon), el('span', { class: 'wn' }, info.name),
+      el('small', {}, list.length + (list.length > 1 ? ' tailles' : ' taille')), el('span', { class: 'chev' }, '›'));
+    head.addEventListener('click', () => { if (state.wdgOpen.has(type)) state.wdgOpen.delete(type); else state.wdgOpen.add(type); renderLeft(); });
+    pw.append(head);
+    if (open) pw.append(...items.map(m => previewOnHover(cmdRow(`${m.w}×${m.h}`, m.name, 'application/x-pd-newwidget', type + '|' + m.id, () => addWidget(type, m), 'sz inwg'), type, m)));
   }
   if (tab === 'app') renderApps();
   requestAnimationFrame(updArrows);
@@ -1085,7 +1116,7 @@ function changed(opts = {}) {
 }
 function stripForSave(cfg) {
   const copy = JSON.parse(JSON.stringify(cfg));
-  for (const p of copy.pages) delete p.generated;
+  for (const p of copy.pages) { delete p.generated; leaveLand(p); }
   return copy;
 }
 async function save() {
@@ -1147,9 +1178,11 @@ function iconFor(b) {
 const DEV = { strip: 26, navH: 34, gap: 0.14, cap: 140 };
 const devMetrics = (W, H) => { const small = Math.min(W, H); return { margin: small * 0.025, pad: small * 0.034, radius: small * 0.075 }; };
 const navHeight = () => 0; // plus de flèches : on change de page en glissant
-function deviceDims() {
+function deviceDims(land) {
   const d = state.info && state.info.device;
-  return d && d.w > 0 && d.h > 0 ? { w: d.w, h: d.h, known: true, name: d.name, cut: d.cut || 0, r: d.r || 0 } : { w: 412, h: 915, known: false, name: '', cut: 0, r: 0 };
+  const p = d && d.w > 0 && d.h > 0 ? { w: d.w, h: d.h, known: true, name: d.name, cut: d.cut || 0, r: d.r || 0 } : { w: 412, h: 915, known: false, name: '', cut: 0, r: 0 };
+  // Paysage : l'écran est couché, la caméra n'est plus en haut.
+  return land ? { ...p, w: p.h, h: p.w, cut: 0 } : p;
 }
 function keySizeFor(cols, rows, W, H) {
   const m = devMetrics(W, H);
@@ -1176,7 +1209,7 @@ function renderStage() {
   const dev = $('#device'); dev.replaceChildren();
   const { cols, rows } = pageGrid(page);
   const stage = $('#stage');
-  const phone = deviceDims();
+  const phone = deviceDims(!!page._port);
   // Le boîtier a les proportions de l'écran du téléphone ; scale = pixels de l'aperçu par dp du téléphone.
   const phoneEl = $('#phone');
   const totalH = phone.h + phone.cut;
@@ -1739,6 +1772,13 @@ function renderGridBar() {
   const root = isRoot(page);
   tools.append(el('button', { title: 'Renommer, dupliquer, exporter, déplacer, supprimer… (aussi au clic droit sur l\'onglet)',
     onclick: (e) => { const r = e.currentTarget.getBoundingClientRect(); pageMenu(page, r.left, r.top, true); } }, (root ? 'Page' : 'Dossier') + ' ⋯'));
+  if (root && !page.generated) {
+    const land = !!page._port;
+    tools.append(' ', el('span', { style: 'display:inline-flex;gap:4px', title: 'Chaque page a une disposition pour le téléphone debout et une pour le téléphone couché (utilisée si la rotation n\'est pas bloquée en portrait)' },
+      el('button', { class: land ? '' : 'primary', onclick: () => toggleLand(false) }, '📱 Portrait'),
+      el('button', { class: land ? 'primary' : '', onclick: () => toggleLand(true) }, '📱 Paysage')));
+    if (land) tools.append(' ', el('button', { onclick: regenLand, title: 'Refait la disposition paysage à partir du portrait' }, '↻ Refaire en auto'));
+  }
   if (page.generated) {
     tools.append(' ', el('button', { onclick: detachPage, title: 'Copie les raccourcis du menu Démarrer en boutons que tu peux modifier' }, '🔗 Détacher du menu Démarrer'));
   }
@@ -1785,7 +1825,7 @@ function adaptAll() {
   const d = deviceDims(); const rec = recommendGrid(d.w, d.h);
   pushUndo();
   let bad = false;
-  for (const p of state.cfg.pages) if (isRoot(p) && !p.generated) { if (!reflowPage(p, rec.cols, rec.rows)) bad = true; }
+  for (const p of state.cfg.pages) if (isRoot(p) && !p.generated && !p._port) { if (!reflowPage(p, rec.cols, rec.rows)) bad = true; }
   api('/api/adapted?key=' + encodeURIComponent(screenKey(d)), { method: 'POST' }).catch(() => { });
   state.info.adaptedTo = screenKey(d);
   if (bad) toast('Une page contient un widget trop large : elle garde sa grille.');
@@ -1803,6 +1843,74 @@ function checkAdapt() {
   }
   if (!state.info.adaptedTo && !state.dirty) { adaptAll(); toast(`Grille adaptée à ton téléphone (${rec.cols}×${rec.rows})`); return; }
   bar.append(el('button', { onclick: adaptAll, title: 'Remplit tout l\'écran du téléphone' }, `📱 Adapter la grille à ce téléphone (${rec.cols}×${rec.rows})`));
+}
+// ---- Disposition paysage : chaque page d'accueil peut avoir une seconde mise en page (grille, widgets, zone écran,
+// grilles séparées, place des boutons) que le téléphone utilise quand il est tenu en paysage. ----
+function layoutSnap(page) {
+  const { cols, rows } = pageGrid(page);
+  return clone({ columns: cols, rows, widgets: page.widgets || [], screen: page.screen || null, grids: page.grids || null,
+    places: page.buttons.map(b => ({ id: b.id, slot: b.slot, grid: b.grid })) });
+}
+function layoutApply(page, snap) {
+  const sn = clone(snap);
+  page.columns = sn.columns; page.rows = sn.rows; page.widgets = sn.widgets || [];
+  if (sn.screen) page.screen = sn.screen; else delete page.screen;
+  if (sn.grids && sn.grids.length) page.grids = sn.grids; else delete page.grids;
+  const m = new Map((sn.places || []).map(x => [x.id, x]));
+  for (const b of page.buttons) {
+    const x = m.get(b.id);
+    if (x && x.slot != null) b.slot = x.slot; else delete b.slot;
+    if (x && x.grid) b.grid = x.grid; else delete b.grid;
+  }
+}
+// Mise en page paysage automatique : on cherche la grille la plus large qui garde de grosses touches et où tout tient.
+function makeLandscape(page, portrait) {
+  const base = clone(page); delete base.land; delete base._port; delete base.generated;
+  if (portrait) layoutApply(base, portrait);
+  const d = deviceDims(true);
+  const minCols = Math.max(4, ...(base.widgets || []).map(w => w.w), ...blocks(base).map(g => g.w), base.screen ? base.screen.w : 0);
+  const cands = [];
+  for (let c = minCols; c <= 12; c++) for (let r = 2; r <= 8; r++) {
+    const key = keySizeFor(c, r, d.w, d.h);
+    if (key >= 52) cands.push({ c, r, key });
+  }
+  cands.sort((a, b) => b.key - a.key || b.c - a.c);
+  for (const k of cands) {
+    const t = clone(base);
+    if (reflowPage(t, k.c, k.r) && t.rows <= k.r) return layoutSnap(t);
+  }
+  const t = clone(base); const rec = recommendGrid(d.w, d.h);
+  reflowPage(t, Math.max(rec.cols, minCols), rec.rows);
+  return layoutSnap(t);
+}
+function enterLand(page) {
+  if (page._port) return;
+  const land = page.land || makeLandscape(page);
+  page._port = layoutSnap(page);
+  layoutApply(page, land);
+  delete page.land;
+}
+function leaveLand(page) {
+  if (!page._port) return;
+  const land = layoutSnap(page);
+  layoutApply(page, page._port);
+  page.land = land; delete page._port;
+}
+function portraitCopy(page) { if (!page._port) return page; const c = clone(page); leaveLand(c); return c; }
+function toggleLand(on) {
+  const page = currentPage();
+  pushUndo();
+  if (on) enterLand(page); else leaveLand(page);
+  state.selected = null;
+  renderAll();
+  state.dirty = true; clearTimeout(saveTimer); saveTimer = setTimeout(save, 500);
+}
+function regenLand() {
+  const page = currentPage(); if (!page._port) return;
+  pushUndo();
+  layoutApply(page, makeLandscape(page, page._port));
+  changed();
+  toast('Disposition paysage refaite automatiquement.');
 }
 async function addFolder() {
   const name = await askText('Nouveau dossier', 'Nouveau dossier', 'Un dossier s\'ouvre depuis un bouton « Dossier » et se referme avec la croix.');
@@ -1977,6 +2085,70 @@ const SIM_PRESETS = [
   return { ...p, group: 'sim', columns: 4, rows: row + 1, grids, widgets: SIM_TOP.widgets, buttons };
 });
 
+// ---- Touches réservées : une touche ou combinaison que rien d'autre n'utilise, différente pour chaque bouton ----
+// F13 à F24 n'existent sur aucun clavier : aucun jeu ni aucune appli ne s'en sert. Quand elles sont toutes prises, on passe
+// aux mêmes touches avec Ctrl, Maj ou Alt (84 combinaisons en tout). Le joueur n'a plus qu'à les associer dans le jeu :
+// dans les commandes du jeu, choisir l'action puis appuyer sur le bouton du téléphone.
+const RARE_MODS = ['', 'Ctrl+', 'Shift+', 'Alt+', 'Ctrl+Shift+', 'Ctrl+Alt+', 'Shift+Alt+'];
+const RARE_KEYS = RARE_MODS.flatMap(m => Array.from({ length: 12 }, (_, i) => m + 'F' + (13 + i)));
+const KEEP_GAME_KEYS = new Set(['esc', 'escape']); // Échap ouvre le menu de tous les jeux : on la garde
+const normKeys = (k) => String(k || '').toLowerCase().replace(/\s+/g, '').replace(/maj/g, 'shift').split('+').sort().join('+');
+const isRareKey = (k) => RARE_KEYS.some(r => normKeys(r) === normKeys(k));
+// Touches réservées déjà données à un bouton (toutes pages et dossiers), sauf ceux de [skip].
+function usedRareKeys(skip) {
+  const used = new Set();
+  for (const p of state.cfg.pages) for (const b of p.buttons)
+    if (!(skip && skip.has(b)) && b.action.type === 'keys' && isRareKey(b.action.keys)) used.add(normKeys(b.action.keys));
+  return used;
+}
+// Donne une touche réservée libre à chaque bouton « raccourci » de la liste (sauf Échap). Renvoie le nombre de boutons changés.
+function assignRareKeys(buttons, skip) {
+  const used = usedRareKeys(skip); let n = 0;
+  for (const b of buttons) {
+    const a = b.action;
+    if (a.type !== 'keys' || !a.keys || KEEP_GAME_KEYS.has(normKeys(a.keys)) || /,|wait:/i.test(a.keys)) continue;
+    if (isRareKey(a.keys) && !used.has(normKeys(a.keys))) { used.add(normKeys(a.keys)); continue; } // déjà unique
+    const free = RARE_KEYS.find(r => !used.has(normKeys(r)));
+    if (!free) break;
+    if (!a.gameKeys && !isRareKey(a.keys)) a.gameKeys = a.keys;
+    a.keys = free; a.keyMode = 'game'; used.add(normKeys(free)); n++;
+  }
+  return n;
+}
+function restoreGameKeys(buttons) {
+  let n = 0;
+  for (const b of buttons) if (b.action.type === 'keys' && b.action.gameKeys) { b.action.keys = b.action.gameKeys; delete b.action.gameKeys; n++; }
+  return n;
+}
+const rareButtons = (page) => page.buttons.filter(b => b.action.type === 'keys' && isRareKey(b.action.keys));
+const keyLabel = (k) => String(k).replace(/Shift/g, 'Maj');
+function convertPageToRare() {
+  const page = currentPage();
+  pushUndo();
+  const n = assignRareKeys(page.buttons, new Set(page.buttons));
+  changed({ immediate: true });
+  if (n || rareButtons(page).length) showRareList(page); else toast('Aucun bouton « raccourci » à changer sur cette page.');
+}
+function restorePageGameKeys() {
+  const page = currentPage();
+  pushUndo(); const n = restoreGameKeys(page.buttons); changed({ immediate: true });
+  toast(n ? `${n} bouton(s) remis sur les touches du jeu.` : 'Rien à remettre.');
+}
+// Liste des associations à faire dans le jeu : action, touche à appuyer, et touche d'origine du jeu.
+function showRareList(page) {
+  const list = rareButtons(page);
+  const text = list.map(b => `${b.label || 'Bouton'} : ${keyLabel(b.action.keys)}`).join('\n');
+  $('#rareTitle').textContent = `Touches à associer dans le jeu : ${page.name}`;
+  $('#rareList').replaceChildren(list.length
+    ? el('table', { class: 'raretab' }, el('tr', {}, el('th', {}, 'Bouton'), el('th', {}, 'Touche envoyée'), el('th', {}, 'Touche du jeu d\'origine')),
+      ...list.map(b => el('tr', {}, el('td', {}, b.label || 'Bouton'), el('td', {}, el('kbd', {}, keyLabel(b.action.keys))), el('td', { class: 'muted' }, b.action.gameKeys ? keyLabel(b.action.gameKeys) : '–'))))
+    : el('div', { class: 'hint' }, 'Aucun bouton de cette page n\'utilise de touche réservée.'));
+  $('#rareCopy').onclick = async () => { try { await navigator.clipboard.writeText(text); toast('Liste copiée.'); } catch { toast('Copie impossible.'); } };
+  $('#rareCopy').hidden = !list.length;
+  $('#rareDlg').showModal();
+}
+$('#rareClose').onclick = () => $('#rareDlg').close();
+
 function uniquePageName(name) {
   const names = new Set(state.cfg.pages.map(p => p.name));
   if (!names.has(name)) return name;
@@ -2011,9 +2183,14 @@ function insertRootPage({ name, autoProcesses, buttons, widgets, columns, rows, 
   state.cfg.pages.splice(at, 0, page);
   // Si la grille du téléphone est plus petite, les boutons en trop passent à la ligne.
   reflowPage(page, Math.max(page.columns, ...page.widgets.map(w => w.w), ...blocks(page).map(g => g.w), page.screen ? page.screen.w : 0), page.rows);
+  page.land = makeLandscape(page);
   state.page = page.id; state.selected = null;
   changed({ immediate: true });
   return page;
+}
+// Choix « touches réservées » pour les pages sim racing, retenu sur ce PC (coché par défaut).
+function rareChoice(v) {
+  try { if (v !== undefined) localStorage.setItem('kd.rareKeys', v ? '1' : '0'); return localStorage.getItem('kd.rareKeys') !== '0'; } catch { return v ?? true; }
 }
 async function addPreset(p) {
   $('#pageDlg').close();
@@ -2028,7 +2205,10 @@ async function addPreset(p) {
       buttons.splice(first, 0, ...scenes);
     }
   }
+  const rare = p.group === 'sim' && rareChoice();
+  if (rare) { buttons = JSON.parse(JSON.stringify(buttons)); assignRareKeys(buttons); }
   const page = insertRootPage({ name: p.name, autoProcesses: p.procs, buttons, widgets: p.widgets, columns: p.columns, rows: p.rows, screen: p.screen, grids: p.grids });
+  if (rare) { showRareList(page); return; }
   toast(p.procs ? `Page « ${page.name} » ajoutée : elle s'affiche toute seule quand l'appli est au premier plan.` : `Page « ${page.name} » ajoutée.`);
 }
 async function addEmptyPage() {
@@ -2044,6 +2224,8 @@ function addRootPage(group) {
   if (group === 'sim') {
     // Groupe « Sim racing » : une page par jeu, et un retour vers la galerie.
     presets = SIM_PRESETS;
+    list.append(el('label', { class: 'rareopt' }, el('input', { type: 'checkbox', checked: rareChoice(), onchange: (e) => rareChoice(e.target.checked) }),
+      el('span', {}, el('b', {}, 'Touches réservées KeyraDeck'), ' : chaque bouton envoie sa propre touche que rien d\'autre n\'utilise (F13 à F24, puis Ctrl / Maj / Alt + F13…). Tu les associes une fois dans le jeu, sans conflit avec ton clavier. Décoché : les touches d\'origine du jeu.')));
     list.append(card('←', 'Retour', 'Toutes les pages toutes prêtes.', null, () => addRootPage()));
     for (const p of presets) list.append(presetCard(p));
   } else {
@@ -2134,7 +2316,7 @@ $('#brandClose').onclick = () => $('#brandDlg').close();
 // ---- Partage d'une page en fichier ----
 const isSharedIcon = (ic) => !ic || /^(auto|app:|builtin:|glyph:|mdi:|brand:|text:)/i.test(ic);
 function exportPage() {
-  const page = currentPage();
+  const page = portraitCopy(currentPage());
   const buttons = page.buttons
     .filter(b => !['folder', 'page'].includes(b.action.type)) // les dossiers et pages liés ne voyagent pas avec la page
     .map(b => { const c = JSON.parse(JSON.stringify(b)); delete c.id; if (!isSharedIcon(c.icon)) c.icon = 'auto'; return c; });
@@ -2265,7 +2447,16 @@ function renderInspector() {
       el('select', { onchange: (e) => upd(() => { if (e.target.value) a.keyMode = e.target.value; else delete a.keyMode; }) },
         [['', 'Normal (applis, Windows)'], ['game', 'Mode jeu (touche maintenue, comme un vrai clavier)'], ['game-qwerty', 'Mode jeu, lettres à leur place QWERTY']]
           .map(([v, t]) => el('option', { value: v, selected: (a.keyMode || '') === v }, t))),
-      el('div', { class: 'hint' }, 'Si un jeu ne réagit pas, choisis « Mode jeu ». Tu peux aussi changer la touche dans les réglages du jeu : quand il attend une touche, appuie sur ce bouton du téléphone.'));
+      el('div', { class: 'hint' }, 'Si un jeu ne réagit pas, choisis « Mode jeu ». Tu peux aussi changer la touche dans les réglages du jeu : quand il attend une touche, appuie sur ce bouton du téléphone.'),
+      el('div', { style: 'margin-top:8px;display:flex;gap:6px;flex-wrap:wrap' },
+        el('button', { title: 'F13 à F24 (puis Ctrl / Maj / Alt + F13…) : une touche que rien d\'autre n\'utilise, à associer dans le jeu', onclick: () => upd(() => {
+          const skip = new Set([b]); const used = usedRareKeys(skip);
+          const free = RARE_KEYS.find(r => !used.has(normKeys(r))); if (!free) return;
+          if (!a.gameKeys && !isRareKey(a.keys)) a.gameKeys = a.keys;
+          a.keys = free; a.keyMode = 'game';
+        }) }, '🎯 Touche réservée unique'),
+        a.gameKeys ? el('button', { onclick: () => upd(() => { a.keys = a.gameKeys; delete a.gameKeys; }) }, `↩ Touche du jeu (${keyLabel(a.gameKeys)})`) : null),
+      isRareKey(a.keys) ? el('div', { class: 'hint' }, `Touche réservée ${keyLabel(a.keys)} : dans les commandes du jeu, choisis l'action puis appuie sur ce bouton du téléphone.`) : null);
   } else if (a.type === 'folder' || a.type === 'page') {
     const isPage = a.type === 'page';
     const choices = (isPage ? rootPages().filter(x => x.id !== f.page.id) : folderPages());
@@ -2317,6 +2508,12 @@ function renderWidgetInspector(box, fw) {
   box.append(el('h2', {}, 'Widget'), el('div', { style: 'font-size:18px;font-weight:600' }, info.icon + ' ' + info.name),
     el('div', { class: 'hint', style: 'margin:6px 0 12px' }, info.desc),
     w.type === 'discord' ? el('button', { style: 'margin-bottom:10px', onclick: openIntegrations }, 'Ouvrir « Connexions »') : '',
+    w.type === 'perfapp' ? el('button', { style: 'margin-bottom:10px', onclick: async (e) => {
+      const b = e.currentTarget; b.disabled = true; b.textContent = 'Réponds « Oui » dans la fenêtre de Windows…';
+      try { const r = await api('/api/fps/enable', { method: 'POST' }); toast(r.error || 'FPS activés : KeyraDeck redémarre'); }
+      catch (err) { toast('Erreur : ' + err.message); }
+      b.disabled = false; b.textContent = '⚡ Activer les FPS';
+    } }, '⚡ Activer les FPS') : '',
     el('label', {}, 'Modèle (taille fixe)'),
     el('div', { class: 'models' }, ...(WIDGET_MODELS[w.type] || []).map(m =>
       previewOnHover(el('button', { class: 'model' + (m.id === w.model ? ' on' : ''), onclick: () => pick(m) },
@@ -2978,6 +3175,9 @@ function pageMenu(p, x, y, fromBar) {
     pasteItem(on(() => pasteAt(null)), root ? ' dans cette page' : ' dans ce dossier'),
     root && !p.generated ? { icon: G.export, label: 'Exporter cette page…', onclick: on(exportPage) } : null,
     p.generated ? { icon: G.link, label: 'Détacher du menu Démarrer', onclick: on(detachPage) } : null,
+    !p.generated && p.buttons.some(b => b.action.type === 'keys') ? { icon: G.rename, label: 'Touches réservées (à associer dans le jeu)', onclick: on(convertPageToRare) } : null,
+    rareButtons(p).length ? { icon: G.open, label: 'Liste des touches à associer…', onclick: on(() => showRareList(p)) } : null,
+    p.buttons.some(b => b.action.gameKeys) ? { icon: G.undo, label: 'Remettre les touches du jeu', onclick: on(restorePageGameKeys) } : null,
     '-',
     root && roots.length > 1 ? { icon: G.back, label: 'Placer avant', disabled: i === 0, onclick: on(() => movePage(-1)) } : null,
     root && roots.length > 1 ? { icon: G.next, label: 'Placer après', disabled: i === roots.length - 1, onclick: on(() => movePage(1)) } : null,
@@ -3102,7 +3302,7 @@ async function renameButton(id) {
 }
 function duplicatePage(p) {
   const root = isRoot(p);
-  const copy = clone(p); delete copy.generated;
+  const copy = clone(p); delete copy.generated; leaveLand(copy);
   copy.id = uid(root ? 'page' : 'dossier');
   copy.name = uniquePageName(p.name + ' (copie)');
   delete copy.autoProcesses; // deux pages qui s'affichent pour la même appli se gêneraient
@@ -3111,6 +3311,12 @@ function duplicatePage(p) {
   for (const b of copy.buttons) { const id = uid('b'); pairs.push({ from: b.id, to: id }); b.id = id; }
   copy.widgets = (copy.widgets || []).map(w => ({ ...w, id: uid('w') }));
   remapBlocks(copy);
+  if (copy.land) { // la disposition paysage suit les nouveaux identifiants
+    const bm = new Map(pairs.map(x => [x.from, x.to])), gm = new Map();
+    copy.land.grids = (copy.land.grids || []).map(g => { const id = uid('grille'); gm.set(g.id, id); return { ...g, id }; });
+    copy.land.widgets = (copy.land.widgets || []).map(w => ({ ...w, id: uid('w') }));
+    copy.land.places = (copy.land.places || []).map(x => ({ ...x, id: bm.get(x.id) || x.id, grid: x.grid ? gm.get(x.grid) : undefined }));
+  }
   pushUndo();
   state.cfg.pages.splice(state.cfg.pages.indexOf(p) + 1, 0, copy);
   state.page = copy.id; state.selected = null;

@@ -448,20 +448,22 @@ private fun SystemWidget(widget: DeckWidget, vm: DeckViewModel) {
 private fun PerfAppWidget(widget: DeckWidget, vm: DeckViewModel) {
     val a = vm.appPerf
     val items = listOf(Triple("CPU", a?.cpu, 100), Triple("RAM", a?.ram, 100), Triple("GPU", a?.gpu, 100), Triple("FPS", a?.fps, 144))
+    val fpsNote = a?.fpsNote
+    val onFps: (() -> Unit)? = if (fpsNote == "admin") ({ vm.enableFps() }) else null
     val name = a?.name?.ifBlank { null } ?: "Aucune appli"
     BoxWithConstraints(Modifier.fillMaxSize()) {
         if (widget.model == "perfapp-2x2") {
             val fs = (maxHeight.value * 0.07f).coerceIn(9f, 12f)
             Column(Modifier.fillMaxSize()) {
                 Text("🎮 $name", color = Color(0xFFDDDDE4), fontSize = fs.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Box(Modifier.fillMaxWidth().weight(1f)) { GaugeGrid(items, 2) }
+                Box(Modifier.fillMaxWidth().weight(1f)) { GaugeGrid(items, 2, fpsNote, onFps) }
             }
         } else { // perfapp-4x1 : le nom dans une première colonne, puis les 4 compte-tours
             val cell = maxWidth / 4.6f
             Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
                 Text("🎮\n$name", color = Color(0xFFDDDDE4), fontSize = (cell.value * 0.15f).coerceAtLeast(8f).sp, lineHeight = (cell.value * 0.18f).coerceAtLeast(10f).sp,
                     maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(cell * 0.6f))
-                Box(Modifier.weight(1f).fillMaxHeight()) { GaugeGrid(items, 4) }
+                Box(Modifier.weight(1f).fillMaxHeight()) { GaugeGrid(items, 4, fpsNote, onFps) }
             }
         }
     }
@@ -469,13 +471,16 @@ private fun PerfAppWidget(widget: DeckWidget, vm: DeckViewModel) {
 
 /** Plusieurs compte-tours en grille ([cols] par ligne), aussi grands que la place le permet. */
 @Composable
-private fun GaugeGrid(items: List<Triple<String, Int?, Int>>, cols: Int) {
+private fun GaugeGrid(items: List<Triple<String, Int?, Int>>, cols: Int, fpsNote: String? = null, onFps: (() -> Unit)? = null) {
     BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         val rows = items.chunked(cols)
         val size = (min(maxWidth.value / cols, maxHeight.value / rows.size) * 0.96f).coerceAtLeast(16f)
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
             for (row in rows) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                for ((label, value, max) in row) Gauge(label, value, max, size)
+                for ((label, value, max) in row) {
+                    if (label == "FPS" && fpsNote != null) Gauge(label, value, max, size, if (fpsNote == "admin") "ACTIVER" else "ERREUR", onFps)
+                    else Gauge(label, value, max, size)
+                }
             }
         }
     }
@@ -488,11 +493,11 @@ private val GaugeRed = Color(0xFFE5484D)
  * le nom en petit en haut à gauche et la valeur au centre (en % sauf pour les FPS).
  */
 @Composable
-private fun Gauge(label: String, value: Int?, max: Int, sizeDp: Float) {
+private fun Gauge(label: String, value: Int?, max: Int, sizeDp: Float, note: String? = null, onClick: (() -> Unit)? = null) {
     val accent = LocalTheme.current.accent
     val f = if (value == null) 0f else (value.toFloat() / max).coerceIn(0f, 1f)
     val color = if (f >= 0.85f) GaugeRed else accent
-    Box(Modifier.size(sizeDp.dp)) {
+    Box(Modifier.size(sizeDp.dp).let { if (onClick != null) it.clickable { onClick() } else it }) {
         Canvas(Modifier.fillMaxSize()) {
             val c = size.minDimension / 2
             val sw = size.minDimension * 0.09f
@@ -512,7 +517,8 @@ private fun Gauge(label: String, value: Int?, max: Int, sizeDp: Float) {
             }
         }
         Text(label, color = Color(0xB3FFFFFF), fontSize = (sizeDp * 0.11f).coerceAtLeast(7f).sp, lineHeight = (sizeDp * 0.11f).coerceAtLeast(7f).sp, maxLines = 1, softWrap = false, modifier = Modifier.align(Alignment.TopStart))
-        Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.Bottom) {
+        if (note != null) Text(note, color = Color.White, fontSize = (sizeDp * 0.12f).sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, modifier = Modifier.align(Alignment.Center))
+        else Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.Bottom) {
             Text(value?.toString() ?: "—", color = Color.White, fontSize = (sizeDp * 0.21f).sp, fontWeight = FontWeight.Bold, maxLines = 1)
             if (value != null && max == 100) Text("%", color = Color(0xBFFFFFFF), fontSize = (sizeDp * 0.105f).sp, maxLines = 1, modifier = Modifier.padding(start = 1.dp, bottom = (sizeDp * 0.03f).dp))
         }
