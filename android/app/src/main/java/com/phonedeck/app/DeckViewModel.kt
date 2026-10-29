@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -154,7 +155,30 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
     val notifications = mutableStateListOf<Notif>()
     var banner by mutableStateOf<Notif?>(null)
     var showNotifs by mutableStateOf(false)
-    fun clearNotifs() { notifications.clear(); banner = null; showNotifs = false }
+    /** Liste des notifications ouverte dans la zone écran (widget Notifications posé sur une page avec zone écran). */
+    var notifsOnScreen by mutableStateOf(false)
+    /** Nombre de zones écran affichées qui montrent elles-mêmes le bandeau : il n'apparaît alors plus en haut. */
+    var notifScreens by mutableStateOf(0)
+    fun clearNotifs() {
+        notifications.clear(); banner = null; showNotifs = false; notifsOnScreen = false
+        send(JSONObject().put("type", "notifyClear"))
+    }
+    fun removeNotif(id: String) {
+        notifications.removeAll { it.id == id }
+        if (banner?.id == id) banner = null
+        send(JSONObject().put("type", "notifyClear").put("id", id))
+    }
+    /** Bouton cloche : la liste s'ouvre dans la zone écran s'il y en a une sur la page, sinon en fenêtre. */
+    fun openNotifs(onScreen: Boolean) {
+        banner = null
+        if (onScreen) notifsOnScreen = !notifsOnScreen else showNotifs = true
+    }
+    private fun addNotif(n: Notif, showBanner: Boolean) {
+        if (notifications.any { it.id == n.id }) return
+        notifications.add(0, n)
+        while (notifications.size > 50) notifications.removeAt(notifications.size - 1)
+        if (showBanner) banner = n
+    }
 
     var settings by mutableStateOf(
         AppSettings(
@@ -476,10 +500,21 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
             "toast" -> toast(json.optString("message"))
             "notify" -> {
                 val n = Notif(json.optString("id"), json.optString("app"), json.optString("title"), json.optString("text"))
+                post { addNotif(n, showBanner = true) }
+            }
+            // À la connexion : les notifications récentes du PC, sans bandeau (la plus récente en premier).
+            "notifyList" -> {
+                val items = json.optJSONArray("items") ?: JSONArray()
+                val list = (0 until items.length()).mapNotNull { items.optJSONObject(it) }
+                    .map { Notif(it.optString("id"), it.optString("app"), it.optString("title"), it.optString("text")) }
+                post { list.asReversed().forEach { addNotif(it, showBanner = false) } }
+            }
+            // Fermée sur le PC : elle disparaît aussi ici.
+            "notifyGone" -> {
+                val id = json.optString("id")
                 post {
-                    notifications.add(0, n)
-                    while (notifications.size > 50) notifications.removeAt(notifications.size - 1)
-                    banner = n
+                    notifications.removeAll { it.id == id }
+                    if (banner?.id == id) banner = null
                 }
             }
         }

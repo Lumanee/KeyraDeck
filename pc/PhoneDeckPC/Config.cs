@@ -18,6 +18,8 @@ public class DeckConfig
     public DeckFeedback Feedback { get; set; } = new();
     /// <summary>Rotation du téléphone : "auto" (suit le téléphone), "portrait" ou "landscape" (bloquée, les boutons ne bougent jamais).</summary>
     public string Orientation { get; set; } = "auto";
+    /// <summary>Montre sur le téléphone les notifications de Windows (Discord, mails, messageries…).</summary>
+    public bool WindowsNotifications { get; set; } = true;
     /// <summary>Cache le nom des boutons : l'icône prend toute la place.</summary>
     public bool HideLabels { get; set; }
     /// <summary>Ville du widget météo (Open-Meteo).</summary>

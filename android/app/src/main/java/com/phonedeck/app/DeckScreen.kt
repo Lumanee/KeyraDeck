@@ -328,7 +328,13 @@ fun KeyGrid(
         }
         for (w in widgets) {
             Box(Modifier.offset((key + gap) * (w.slot % cols), (key + gap) * (w.slot / cols))) {
-                DeckWidgetView(w, key * w.w + gap * (w.w - 1), key * w.h + gap * (w.h - 1), key, vm, framed = screen?.holds(w, cols) != true)
+                DeckWidgetView(w, key * w.w + gap * (w.w - 1), key * w.h + gap * (w.h - 1), key, vm, framed = screen?.holds(w, cols) != true, screenHere = screen != null)
+            }
+        }
+        // Widget Notifications sur une page avec zone écran : le bandeau et la liste s'affichent dans la zone.
+        if (screen != null && widgets.any { it.type == "notifications" }) {
+            Box(Modifier.offset((key + gap) * (screen.slot % cols), (key + gap) * (screen.slot / cols))) {
+                ScreenNotifications(vm, key * screen.w + gap * (screen.w - 1), key * screen.h + gap * (screen.h - 1), key)
             }
         }
         for (g in grids) {

@@ -81,9 +81,10 @@ fun ScreenPanel(width: Dp, height: Dp, unit: Dp, area: DeckScreenArea? = null, v
 /**
  * Un widget : même cadre que les touches, mais sur plusieurs cases. [unit] est la taille d'une touche.
  * [framed] = false quand il est posé sur la zone écran : pas de cadre à lui, il fait partie de l'écran.
+ * [screenHere] : la page a une zone écran (le widget Notifications y ouvre sa liste).
  */
 @Composable
-fun DeckWidgetView(widget: DeckWidget, width: Dp, height: Dp, unit: Dp, vm: DeckViewModel, framed: Boolean = true) {
+fun DeckWidgetView(widget: DeckWidget, width: Dp, height: Dp, unit: Dp, vm: DeckViewModel, framed: Boolean = true, screenHere: Boolean = false) {
     val theme = LocalTheme.current
     // Un widget est un petit écran tactile encastré dans le boîtier : verre sombre, sans capuchon de touche ni relief.
     val shape = RoundedCornerShape(unit * 0.12f)
@@ -109,6 +110,7 @@ fun DeckWidgetView(widget: DeckWidget, width: Dp, height: Dp, unit: Dp, vm: Deck
                 "weather" -> WeatherWidget(widget, vm)
                 "discord" -> DiscordWidget(widget, vm)
                 "trackpad" -> TrackpadWidget(vm)
+                "notifications" -> NotificationsWidget(widget, vm, screenHere)
                 else -> Text(widget.type, color = Color.Gray)
             }
         }
