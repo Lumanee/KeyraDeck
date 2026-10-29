@@ -13,7 +13,7 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 
 /** Une version plus récente est disponible sur GitHub. */
-data class UpdateInfo(val build: Int, val apkUrl: String)
+data class UpdateInfo(val build: Int, val apkUrl: String, val version: String? = null)
 
 /** Mise à jour automatique : compare avec la dernière version publiée, télécharge l'APK et lance l'installation. */
 object Updater {
@@ -35,6 +35,10 @@ object Updater {
         @Suppress("DEPRECATION")
         return if (Build.VERSION.SDK_INT >= 28) info.longVersionCode.toInt() else info.versionCode
     }
+
+    /** Version affichée (0.0.1, 0.0.2…). La mise à jour compare toujours le numéro de build. */
+    fun currentVersion(context: Context): String =
+        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: currentBuild(context).toString()
 
     /** Renvoie la mise à jour si elle est plus récente que l'appli installée, sinon null (ou en cas d'erreur réseau). */
     fun check(context: Context): UpdateInfo? {
@@ -59,7 +63,8 @@ object Updater {
                     urls[a.optString("name")] = a.optString("browser_download_url")
                 }
                 val url = APK_NAMES.firstNotNullOfOrNull { urls[it] }
-                if (url != null && build > currentBuild(context)) UpdateInfo(build, url) else null
+                val version = Regex("version:(\\S+)").find(json.optString("body"))?.groupValues?.get(1)
+                if (url != null && build > currentBuild(context)) UpdateInfo(build, url, version) else null
             }
         } catch (e: Exception) {
             null

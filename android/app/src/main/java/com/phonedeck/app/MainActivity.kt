@@ -216,7 +216,7 @@ private fun SettingsDialog(vm: DeckViewModel) {
                 )
                 Spacer(Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Version ${Updater.currentBuild(LocalContext.current)}", color = Color(0xFF8D8D99), fontSize = 12.sp, modifier = Modifier.weight(1f))
+                    Text("Version ${Updater.currentVersion(LocalContext.current)} (build ${Updater.currentBuild(LocalContext.current)})", color = Color(0xFF8D8D99), fontSize = 12.sp, modifier = Modifier.weight(1f))
                     TextButton(onClick = { vm.checkForUpdate(manual = true) }) { Text("Vérifier les mises à jour") }
                 }
                 TextButton(onClick = { vm.showSettings = false; vm.showUsbGuide = true }) { Text("Connexion par câble USB") }
@@ -251,7 +251,7 @@ private fun BoxScope.UpdateBanner(vm: DeckViewModel) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            if (progress != null) "Téléchargement… $progress %" else "Mise à jour disponible (version ${info.build})",
+            if (progress != null) "Téléchargement… $progress %" else "Mise à jour disponible (version ${info.version ?: info.build})",
             color = LocalTheme.current.onAccent,
         )
         if (progress == null) {
