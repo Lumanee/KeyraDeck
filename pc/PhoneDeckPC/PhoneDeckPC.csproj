@@ -37,6 +37,7 @@
   <ItemGroup>
     <EmbeddedResource Include="wwwroot/config.html" LogicalName="config.html" />
     <EmbeddedResource Include="app.ico" LogicalName="app.ico" />
+    <EmbeddedResource Include="Brands.json" LogicalName="Brands.json" />
   </ItemGroup>
 
 </Project>

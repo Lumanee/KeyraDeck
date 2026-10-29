@@ -75,6 +75,15 @@ public class IconService
             return Cached("mdi:" + name.ToLowerInvariant() + "#" + c.ToArgb() + sign, () => Picto(picto.Path, c, sign));
         }
 
+        // "brand:discord" ou "brand:steam#FFFFFF" : logo d'appli (Simple Icons), couleur de la marque par défaut.
+        if (choice.StartsWith("brand:", StringComparison.OrdinalIgnoreCase))
+        {
+            var (name, color) = SplitColor(choice[6..]);
+            if (!Brands.All.TryGetValue(name, out var brand)) return null;
+            var c = color ?? Readable(ParseColor(brand.Color) ?? Color.White);
+            return Cached("brand:" + name.ToLowerInvariant() + "#" + c.ToArgb(), () => Picto(brand.Path, c));
+        }
+
         // "text:DRS" ou "text:MAP#FFB300" : sigle en gras dans un cadre, comme sur un volant de course.
         if (choice.StartsWith("text:", StringComparison.OrdinalIgnoreCase))
         {
@@ -265,6 +274,9 @@ public class IconService
         if (hex == null || !System.Text.RegularExpressions.Regex.IsMatch(hex, "^#[0-9a-fA-F]{6}$")) return null;
         return Color.FromArgb(Convert.ToInt32(hex[1..], 16) | unchecked((int)0xFF000000));
     }
+
+    /// <summary>Couleur de marque trop sombre pour un fond noir (GitHub, X, Steam…) : blanc à la place.</summary>
+    private static Color Readable(Color c) => c.R * 0.299 + c.G * 0.587 + c.B * 0.114 < 60 ? Color.White : c;
 
     /// <summary>Dessine un pictogramme au trait (voir <see cref="Pictos"/>).</summary>
     private static string Picto(string pathData, Color color, char sign = ' ') => Draw(g =>
