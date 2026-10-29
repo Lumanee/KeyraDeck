@@ -30,8 +30,13 @@ data class DeckButton(
 /** Un widget posé sur plusieurs cases : media, nowplaying, volume, clock, system ou weather. */
 data class DeckWidget(val id: String, val type: String, val model: String, val slot: Int, val w: Int, val h: Int)
 
-/** Zone « écran » : rectangle de cases sans touches, où les widgets forment un seul écran. */
-data class DeckScreenArea(val slot: Int, val w: Int, val h: Int) {
+/**
+ * Zone « écran » : rectangle de cases sans touches, où les widgets forment un seul écran.
+ * [bg] : image ou vidéo de fond (nom du fichier sur le PC), [dim] : assombrissement du fond en %.
+ */
+data class DeckScreenArea(val slot: Int, val w: Int, val h: Int, val bg: String? = null, val dim: Int = 30) {
+    val video: Boolean get() = bg?.endsWith(".mp4") == true || bg?.endsWith(".webm") == true
+
     fun cells(cols: Int): List<Int> = (0 until h).flatMap { dy -> (0 until w).map { dx -> slot + dy * cols + dx } }
 
     /** Le widget est entièrement posé sur la zone écran. */
@@ -132,7 +137,13 @@ object Parser {
                 rows = p.optIntOrNull("rows"),
                 buttons = list,
                 widgets = widgets(p.optJSONArray("widgets")),
-                screen = p.optJSONObject("screen")?.let { DeckScreenArea(it.optInt("slot"), it.optInt("w", 1).coerceAtLeast(1), it.optInt("h", 1).coerceAtLeast(1)) },
+                screen = p.optJSONObject("screen")?.let {
+                    DeckScreenArea(
+                        it.optInt("slot"), it.optInt("w", 1).coerceAtLeast(1), it.optInt("h", 1).coerceAtLeast(1),
+                        bg = it.optString("bg").takeIf { b -> b.isNotEmpty() && b != "null" },
+                        dim = it.optInt("dim", 30).coerceIn(0, 80),
+                    )
+                },
             )
         }
         return DeckLayout(json.optString("pcName", "PC"), json.optString("home"), pages, theme(json.optJSONObject("theme")))

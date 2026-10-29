@@ -60,18 +60,22 @@ private val WidgetCap = Color(0xFF060608)
 
 /** La zone écran : une seule dalle de verre sombre, sans touches, sur laquelle les widgets se posent. */
 @Composable
-fun ScreenPanel(width: Dp, height: Dp, unit: Dp) {
+fun ScreenPanel(width: Dp, height: Dp, unit: Dp, area: DeckScreenArea? = null, vm: DeckViewModel? = null) {
     val theme = LocalTheme.current
     val shape = RoundedCornerShape(unit * 0.14f)
     val glass = Brush.verticalGradient(listOf(lerp(theme.key, Color.White, 0.08f), theme.key, lerp(theme.key, Color.Black, 0.65f)))
     val edge = Brush.verticalGradient(listOf(Color(0x66FFFFFF), Color(0x12FFFFFF), Color(0x29FFFFFF)))
+    // Image ou vidéo de fond choisie dans le configurateur (une fois reçue du PC).
+    val bg = area?.bg?.let { vm?.screenBgs?.get(it) }
     Box(
         Modifier
             .size(width, height)
             .clip(shape)
-            .background(glass)
-            .border(1.dp, edge, shape),
-    )
+            .background(glass),
+    ) {
+        if (bg != null && area != null) ScreenBackground(bg, area.video, area.dim)
+        Box(Modifier.fillMaxSize().border(1.dp, edge, shape))
+    }
 }
 
 /**
@@ -103,6 +107,7 @@ fun DeckWidgetView(widget: DeckWidget, width: Dp, height: Dp, unit: Dp, vm: Deck
                 "system" -> SystemWidget(widget, vm)
                 "weather" -> WeatherWidget(widget, vm)
                 "discord" -> DiscordWidget(widget, vm)
+                "trackpad" -> TrackpadWidget(vm)
                 else -> Text(widget.type, color = Color.Gray)
             }
         }

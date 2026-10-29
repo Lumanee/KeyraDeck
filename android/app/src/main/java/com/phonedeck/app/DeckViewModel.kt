@@ -11,6 +11,7 @@ import android.os.Looper
 import android.util.Base64
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
@@ -25,6 +26,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.net.URLEncoder
 import kotlin.math.abs
 import kotlin.math.max
@@ -94,6 +96,51 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         private set
     var nowPlayingArt by mutableStateOf<ImageBitmap?>(null)
         private set
+
+    /** Fonds des zones écran (images, vidéos) déjà reçus du PC, par nom de fichier. Gardés sur le téléphone. */
+    val screenBgs = mutableStateMapOf<String, File>()
+    private val screenBgAsked = mutableSetOf<String>()
+    private val screenBgDir = File(app.filesDir, "ecrans").apply { mkdirs() }
+
+    /** Demande au PC les fonds qui manquent et efface ceux qui ne servent plus. */
+    private fun syncScreenBgs(parsed: DeckLayout) {
+        val wanted = parsed.pages.values.mapNotNull { it.screen?.bg }.toSet()
+        screenBgDir.listFiles()?.forEach { if (it.name !in wanted && !it.name.endsWith(".part")) it.delete() }
+        screenBgs.keys.retainAll(wanted)
+        for (name in wanted) {
+            val file = File(screenBgDir, name)
+            if (file.exists()) screenBgs[name] = file
+            else if (screenBgAsked.add(name)) send(JSONObject().put("type", "getScreenBg").put("file", name))
+        }
+    }
+
+    override fun onFile(name: String, data: ByteArray) {
+        if (!Regex("^[a-f0-9]{16}\\.(png|jpg|gif|webp|mp4|webm)$").matches(name)) return
+        // Écrit à côté puis renommé : une vidéo à moitié écrite n'est jamais lue.
+        val file = File(screenBgDir, name)
+        val part = File(screenBgDir, "$name.part")
+        try {
+            part.writeBytes(data)
+            part.renameTo(file)
+        } catch (_: Exception) {
+            part.delete()
+            return
+        }
+        post { screenBgs[name] = file }
+    }
+
+    /**
+     * Rotation choisie dans le configurateur du PC ("auto", "portrait", "landscape"). Appliquée seulement quand elle
+     * change sur le PC : un réglage fait ensuite sur le téléphone reste en place.
+     */
+    private fun applyPcOrientation(value: String) {
+        val last = prefs.getString("pcOrientation", null)
+        if (value == last) return
+        prefs.edit().putString("pcOrientation", value).apply()
+        // Première fois (mise à jour de l'appli) avec le réglage par défaut : on garde celui du téléphone.
+        if (last == null && value == "auto") return
+        updateSettings(settings.copy(orientation = when (value) { "portrait" -> 1; "landscape" -> 2; else -> 0 }))
+    }
 
     /** Notifications reçues du PC : bandeau qui s'affiche quelques secondes, puis compteur dans la barre du boîtier. */
     val notifications = mutableStateListOf<Notif>()
@@ -345,6 +392,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
 
     override fun onOpen() = post {
         opened = true
+        screenBgAsked.clear()
         link = tryingLink
         status = Status.Connected
         sendScreen()
@@ -359,8 +407,11 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
             "layout" -> {
                 val parsed = Parser.layout(json)
                 val fb = json.optJSONObject("feedback")
+                val orientation = json.optString("orientation", "auto")
                 post {
                     applyPcFeedback(fb)
+                    applyPcOrientation(orientation)
+                    syncScreenBgs(parsed)
                     layout = parsed
                     // Si un dossier ouvert a disparu de la config, on le referme.
                     folderStack.removeAll { it !in parsed.pages }

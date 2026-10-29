@@ -5,6 +5,7 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import okio.ByteString
 import org.json.JSONObject
 import java.net.InetAddress
 import java.net.Socket
@@ -18,6 +19,8 @@ class DeckClient(private val listener: Listener) {
         fun onOpen()
         fun onMessage(json: JSONObject)
         fun onClosed(reason: String, canRetry: Boolean)
+        /** Fichier envoyé en binaire par le PC (fond de zone écran). */
+        fun onFile(name: String, data: ByteArray) {}
     }
 
     private val http = OkHttpClient.Builder()
@@ -48,6 +51,14 @@ class DeckClient(private val listener: Listener) {
                     listener.onMessage(JSONObject(text))
                 } catch (_: Exception) {
                 }
+            }
+
+            override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
+                if (webSocket !== socket) return
+                // Le nom du fichier, un saut de ligne, puis son contenu.
+                val cut = bytes.indexOf(ByteString.of('\n'.code.toByte()))
+                if (cut <= 0) return
+                listener.onFile(bytes.substring(0, cut).utf8(), bytes.substring(cut + 1).toByteArray())
             }
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {

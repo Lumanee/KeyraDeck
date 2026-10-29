@@ -16,6 +16,8 @@ public class DeckConfig
     public DeckTheme Theme { get; set; } = new();
     /// <summary>Vibration et son quand on touche une touche du téléphone.</summary>
     public DeckFeedback Feedback { get; set; } = new();
+    /// <summary>Rotation du téléphone : "auto" (suit le téléphone), "portrait" ou "landscape" (bloquée, les boutons ne bougent jamais).</summary>
+    public string Orientation { get; set; } = "auto";
     /// <summary>Cache le nom des boutons : l'icône prend toute la place.</summary>
     public bool HideLabels { get; set; }
     /// <summary>Ville du widget météo (Open-Meteo).</summary>
@@ -112,6 +114,10 @@ public class DeckScreenArea
     public int Slot { get; set; }
     public int W { get; set; } = 4;
     public int H { get; set; } = 2;
+    /// <summary>Image ou vidéo de fond (nom du fichier dans le dossier « ecrans »), null = verre sombre.</summary>
+    public string? Bg { get; set; }
+    /// <summary>Assombrissement du fond, de 0 à 80 %, pour que les widgets restent lisibles.</summary>
+    public int Dim { get; set; } = 30;
 }
 
 public class DeckButton
@@ -175,8 +181,18 @@ public class ConfigStore
     };
 
     public string DataDir { get; }
+
+    /// <summary>Chemin du fond de zone écran [name], ou null si le nom n'est pas valide ou si le fichier n'existe plus.</summary>
+    public string? ScreenBgPath(string? name)
+    {
+        if (name == null || !System.Text.RegularExpressions.Regex.IsMatch(name, @"^[a-f0-9]{16}\.(png|jpg|gif|webp|mp4|webm)$")) return null;
+        var path = Path.Combine(ScreensDir, name);
+        return File.Exists(path) ? path : null;
+    }
     public string ConfigPath { get; }
     public string IconsDir { get; }
+    /// <summary>Images et vidéos de fond des zones écran (nommées d'après leur contenu).</summary>
+    public string ScreensDir { get; }
     public DeckConfig Config { get; private set; } = new();
     public string? LastError { get; private set; }
 
@@ -214,6 +230,8 @@ public class ConfigStore
         ConfigPath = Path.Combine(DataDir, "config.json");
         IconsDir = Path.Combine(DataDir, "icons");
         Directory.CreateDirectory(IconsDir);
+        ScreensDir = Path.Combine(DataDir, "ecrans");
+        Directory.CreateDirectory(ScreensDir);
 
         Load();
         if (string.IsNullOrWhiteSpace(Config.Token))
