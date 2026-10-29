@@ -254,6 +254,9 @@ public class ConfigStore
     /// <summary>Déclenché quand config.json change (modifié à la main ou par le téléphone).</summary>
     public event Action? Changed;
 
+    /// <summary>Déclenché après chaque écriture de config.json (sauvegarde automatique dans Documents).</summary>
+    public event Action? Saved;
+
     /// <summary>Déclenché quand config.json est relu depuis le disque (les icônes peuvent avoir changé).</summary>
     public event Action? Reloaded;
 
@@ -339,6 +342,7 @@ public class ConfigStore
             _ignoreUntil = DateTime.UtcNow.AddSeconds(1);
             File.WriteAllText(ConfigPath, JsonSerializer.Serialize(Config, Json));
         }
+        Saved?.Invoke();
     }
 
     public void ReloadNow()
@@ -346,6 +350,7 @@ public class ConfigStore
         Load();
         Reloaded?.Invoke();
         Changed?.Invoke();
+        if (LastError == null) Saved?.Invoke();
     }
 
     /// <summary>Remplace toute la configuration (depuis le configurateur), l'enregistre et prévient le téléphone.</summary>

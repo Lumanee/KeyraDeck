@@ -482,6 +482,16 @@ public class DeckServer
         await OnConfigChangedAsync();
     }
 
+    /// <summary>Donne aux boutons d'une page importée les images rangées dans « icons ».</summary>
+    public async Task AssignIconsAsync(IEnumerable<(string ButtonId, string File)> pairs)
+    {
+        var any = false;
+        foreach (var (id, file) in pairs) { _store.Config.IconOverrides[id] = file; any = true; }
+        if (!any) return;
+        _store.Save();
+        await OnConfigChangedAsync();
+    }
+
     public async Task ResetIconAsync(string buttonId)
     {
         if (_store.Config.IconOverrides.Remove(buttonId))
