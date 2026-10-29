@@ -345,6 +345,13 @@ public class ConfigApi
                     return;
                 }
 
+                case "/api/notify/settings" when method == "POST":
+                    // Page « Notifications » de la confidentialité Windows, pour autoriser KeyraDeck à les lire.
+                    try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:privacy-notifications") { UseShellExecute = true }); }
+                    catch { }
+                    await Json(ctx, new { ok = true });
+                    return;
+
                 case "/api/update/check":
                     await Json(ctx, await _updater.CheckAsync());
                     return;

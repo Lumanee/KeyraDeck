@@ -35,6 +35,10 @@ public class DeckServer
     private string _lastArtKey = "";
     private readonly SemaphoreSlim _nowPlayingLock = new(1, 1);
     private readonly WeatherService _weather = new();
+    private readonly WindowsNotifications _winNotifs = new();
+    /// <summary>Dernières notifications envoyées : un téléphone qui (re)vient les reçoit sans bandeau.</summary>
+    private readonly List<object> _recentNotifs = new();
+    private readonly List<string> _recentNotifIds = new();
     private CancellationTokenSource? _stop;
     private WebApplication? _app;
     private string? _layoutJson;
@@ -61,7 +65,12 @@ public class DeckServer
         _audio = audio;
         _sta = sta;
         _store.Changed += () => _ = OnConfigChangedAsync();
+        _winNotifs.Added += n => _ = NotifyAsync(n.App, n.Title, n.Text, n.Id, n.Time);
+        _winNotifs.Removed += id => _ = NotifyGoneAsync(id);
     }
+
+    /// <summary>Lecture des notifications de Windows (état affiché dans le configurateur).</summary>
+    public WindowsNotifications WindowsNotifications => _winNotifs;
 
     public int Port => _store.Config.Port;
 
@@ -200,6 +209,9 @@ public class DeckServer
                 await client.SendRawAsync(StatesJson(ComputeStates()));
                 if (_autoPage != null) await client.SendAsync(new { type = "focus", page = _autoPage });
                 if (_needNowPlaying) await client.SendRawAsync(NowPlayingJson(_nowPlaying.Current, withArt: true));
+                List<object> recent;
+                lock (_recentNotifs) recent = _recentNotifs.ToList();
+                if (recent.Count > 0) await client.SendAsync(new { type = "notifyList", items = recent });
                 break;
 
             case "getScreenBg":
@@ -243,6 +255,11 @@ public class DeckServer
                     await Task.Run(() => KeySender.Send(key));
                 break;
             }
+
+            case "notifyClear":
+                // Effacées sur le téléphone : on ne les renvoie plus à la prochaine connexion (Windows les garde).
+                ForgetNotifs(root.TryGetProperty("id", out var nid) ? nid.GetString() : null);
+                break;
 
             case "nowPlaying":
             {
@@ -479,12 +496,44 @@ public class DeckServer
     }
 
     /// <summary>Envoie une notification à afficher sur le boîtier du téléphone (bandeau puis compteur).</summary>
-    public async Task NotifyAsync(string app, string title, string text)
+    public async Task NotifyAsync(string app, string title, string text, string? id = null, long? time = null)
     {
         List<Client> clients;
         lock (_clients) clients = _clients.ToList();
-        var json = JsonSerializer.Serialize(new { type = "notify", id = Guid.NewGuid().ToString("N"), app, title, text, time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }, Wire);
+        var item = new { id = id ?? Guid.NewGuid().ToString("N"), app, title, text, time = time ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() };
+        lock (_recentNotifs)
+        {
+            _recentNotifs.Insert(0, item);
+            _recentNotifIds.Insert(0, item.id);
+            while (_recentNotifs.Count > 30) { _recentNotifs.RemoveAt(30); _recentNotifIds.RemoveAt(30); }
+        }
+        var json = JsonSerializer.Serialize(new { type = "notify", item.id, item.app, item.title, item.text, item.time }, Wire);
         foreach (var c in clients) { try { await c.SendRawAsync(json); } catch { } }
+    }
+
+    /// <summary>La notification a été fermée dans Windows : elle disparaît aussi du téléphone.</summary>
+    private async Task NotifyGoneAsync(string id)
+    {
+        lock (_recentNotifs)
+        {
+            var i = _recentNotifIds.IndexOf(id);
+            if (i >= 0) { _recentNotifs.RemoveAt(i); _recentNotifIds.RemoveAt(i); }
+        }
+        List<Client> clients;
+        lock (_clients) clients = _clients.ToList();
+        var json = JsonSerializer.Serialize(new { type = "notifyGone", id }, Wire);
+        foreach (var c in clients) { try { await c.SendRawAsync(json); } catch { } }
+    }
+
+    /// <summary>Le téléphone a effacé ses notifications : un téléphone qui revient ne les revoit pas.</summary>
+    private void ForgetNotifs(string? id)
+    {
+        lock (_recentNotifs)
+        {
+            if (id == null) { _recentNotifs.Clear(); _recentNotifIds.Clear(); return; }
+            var i = _recentNotifIds.IndexOf(id);
+            if (i >= 0) { _recentNotifs.RemoveAt(i); _recentNotifIds.RemoveAt(i); }
+        }
     }
 
     /// <summary>Dernières valeurs des widgets (CPU, RAM, volume, météo) : le configurateur les affiche en direct.</summary>
@@ -518,6 +567,7 @@ public class DeckServer
             weather = weather == null ? null : new { temp = weather.Temp, code = weather.Code, wind = weather.Wind, humidity = weather.Humidity, city = weather.City },
             nowPlaying = !_needNowPlaying || _nowPlaying.Current is not { } np ? null
                 : new { title = np.Title, artist = np.Artist, app = np.App, playing = np.Playing, pos = np.Pos, dur = np.Dur, artKey = np.ArtKey },
+            notifs = NotifsLive(),
         };
         return JsonSerializer.Serialize(new
         {
@@ -533,6 +583,13 @@ public class DeckServer
             weather = weather == null ? null : new { temp = weather.Temp, code = weather.Code, wind = weather.Wind, humidity = weather.Humidity, city = weather.City },
             discord,
         }, Wire);
+    }
+
+    private object NotifsLive()
+    {
+        List<object> recent;
+        lock (_recentNotifs) recent = _recentNotifs.Take(5).ToList();
+        return new { enabled = _store.Config.WindowsNotifications, state = _winNotifs.State, status = _winNotifs.Status, count = recent.Count, items = recent };
     }
 
     // ---------- Morceau en cours ----------
@@ -592,6 +649,8 @@ public class DeckServer
             await BroadcastStatesAsync(force: false);
             await BroadcastNowPlayingAsync();
             await CheckForegroundAsync();
+            if (_store.Config.WindowsNotifications) await _winNotifs.PollAsync();
+            else if (_winNotifs.State != "off") _winNotifs.Stop();
         }
     }
 

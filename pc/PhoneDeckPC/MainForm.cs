@@ -65,6 +65,7 @@ public class MainForm : Form
     public MainForm(ConfigStore store, DeckServer server, bool minimized = false)
     {
         _store = store;
+        WindowsNotifications.Ui = SynchronizationContext.Current;
         Text = "KeyraDeck";
         Icon = AppIcon();
         StartPosition = FormStartPosition.CenterScreen;
