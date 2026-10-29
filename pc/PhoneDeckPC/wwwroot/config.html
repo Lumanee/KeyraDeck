@@ -206,6 +206,10 @@
   .picgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; margin-top: 12px; max-height: 55vh; overflow-y: auto; }
   .picgrid button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 2px; font-size: 10px; color: var(--muted); }
   .picgrid svg { width: 34px; height: 34px; }
+  .picgrid button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .brandcats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .brandcats button { padding: 4px 10px; font-size: 12px; border-radius: 999px; }
+  .brandcats button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
   /* Menu du clic droit, sobre comme G HUB */
   .ctx { position: fixed; z-index: 60; min-width: 230px; max-width: 320px; background: #141417; border: 1px solid #2c2c33; border-radius: 8px; padding: 5px 0; box-shadow: 0 14px 36px #000d; font-size: 13px; user-select: none; }
   .ctx .it { display: flex; align-items: center; gap: 10px; padding: 7px 14px 7px 10px; cursor: default; white-space: nowrap; }
@@ -473,6 +477,20 @@
     <select id="pictoColor"><option value="">Couleur du voyant</option><option value="#FFFFFF">Blanc</option><option value="#4CAF50">Vert</option><option value="#2196F3">Bleu</option><option value="#FFB300">Orange</option><option value="#E53935">Rouge</option></select></label></div>
   <div class="picgrid" id="pictoList"></div>
   <div style="text-align:right;margin-top:14px"><button id="pictoClose">Fermer</button></div>
+</dialog>
+
+<dialog id="brandDlg" style="max-width:680px;width:94vw">
+  <h2>Logo d'appli</h2>
+  <div class="hint">Les applis les plus utilisées sur PC : jeux, lanceurs, navigateurs, réseaux, musique, streaming… Les logos de Microsoft et d'Adobe ne sont pas fournis par leurs marques : pour ces applis, garde l'icône auto de l'appli installée.</div>
+  <input type="text" id="brandSearch" placeholder="Rechercher (ex. steam, musique, navigateur)" style="margin-top:10px;width:100%">
+  <div class="brandcats" id="brandCats"></div>
+  <div class="row" style="margin-top:10px;gap:8px;align-items:center">
+    <label style="margin:0;display:flex;gap:8px;align-items:center;color:var(--text)">Couleur
+      <select id="brandColor"><option value="">Couleur de la marque</option><option value="#FFFFFF">Blanc</option><option value="custom">Personnalisée…</option></select></label>
+    <input type="color" id="brandCustom" value="#FF4081" style="display:none;flex:none;width:44px;height:30px;padding:0;border:none;background:none">
+  </div>
+  <div class="picgrid" id="brandList"></div>
+  <div style="text-align:right;margin-top:14px"><button id="brandClose">Fermer</button></div>
 </dialog>
 
 <dialog id="askDlg" style="min-width:320px">
@@ -2044,8 +2062,55 @@ async function pickPicto(b) {
 }
 $('#pictoClose').onclick = () => $('#pictoDlg').close();
 
+// ---- Logos d'applis « brand: » (Simple Icons ; la liste et les tracés viennent de /api/brands) ----
+let BRANDS = null;
+// Ignore la casse et les accents : « reseau » trouve « réseau social ».
+const fold = (t) => String(t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+// Couleur trop sombre sur fond noir (GitHub, X…) : blanc, comme le dessin du PC.
+const readable = (hex) => { const n = parseInt(hex.slice(1), 16), l = ((n >> 16) & 255) * 0.299 + ((n >> 8) & 255) * 0.587 + (n & 255) * 0.114; return l < 60 ? '#FFFFFF' : hex; };
+async function pickBrand(b) {
+  if (!BRANDS) {
+    try { BRANDS = await api('/api/brands'); } catch (e) { toast('Erreur : ' + e.message); return; }
+    BRANDS.forEach(x => x.q = fold(x.t + ' ' + x.n + ' ' + x.w + ' ' + x.k.join(' ')));
+  }
+  const list = $('#brandList'), sel = $('#brandColor'), custom = $('#brandCustom'), search = $('#brandSearch');
+  const cats = [...new Set(BRANDS.flatMap(x => x.k))];
+  let cat = null;
+  const cur = /^brand:([^#|]+)(#[0-9a-f]{6})?/i.exec(b.icon || '');
+  const curColor = cur && cur[2] ? cur[2].toUpperCase() : '';
+  sel.value = !curColor ? '' : curColor === '#FFFFFF' ? '#FFFFFF' : 'custom';
+  if (sel.value === 'custom') custom.value = curColor;
+  // Sans recherche, on propose d'abord les logos qui correspondent au nom du bouton.
+  const label = fold(b.label || '').trim();
+  search.value = cur ? '' : (label && BRANDS.some(x => x.q.includes(label)) ? b.label : '');
+  const color = () => sel.value === 'custom' ? custom.value.toUpperCase() : sel.value;
+  const draw = () => {
+    custom.style.display = sel.value === 'custom' ? '' : 'none';
+    const words = fold(search.value).split(/\s+/).filter(Boolean);
+    const shown = BRANDS.filter(x => (!cat || x.k.includes(cat)) && words.every(w => x.q.includes(w)));
+    $('#brandCats').replaceChildren(...[null, ...cats].map(c => el('button', { class: c === cat ? 'on' : '', onclick: () => { cat = c; draw(); } }, c || 'Tout')));
+    list.replaceChildren(...(shown.length ? shown.map(x => {
+      const btn = el('button', { title: x.t, onclick: () => choose(x) });
+      btn.innerHTML = `<svg viewBox="0 0 24 24"><path fill="${color() || readable(x.c)}" d="${x.p}"/></svg>`;
+      btn.append(el('span', {}, x.t));
+      if (cur && cur[1].toLowerCase() === x.n) btn.style.outline = '2px solid var(--accent)';
+      return btn;
+    }) : [el('div', { class: 'hint', style: 'grid-column:1/-1' }, 'Aucun logo trouvé. Essaie un autre mot, ou garde l\'icône auto de l\'appli installée.')]));
+  };
+  const choose = async (x) => {
+    $('#brandDlg').close();
+    pushUndo(); b.icon = 'brand:' + x.n + color(); changed({ immediate: true });
+    await save();
+    try { await api('/api/icon?buttonId=' + encodeURIComponent(b.id), { method: 'DELETE' }); await refreshLayout(); renderInspector(); } catch { }
+  };
+  sel.onchange = draw; custom.oninput = draw; search.oninput = draw; draw();
+  $('#brandDlg').showModal();
+  search.focus();
+}
+$('#brandClose').onclick = () => $('#brandDlg').close();
+
 // ---- Partage d'une page en fichier ----
-const isSharedIcon = (ic) => !ic || /^(auto|app:|builtin:|glyph:|mdi:|text:)/i.test(ic);
+const isSharedIcon = (ic) => !ic || /^(auto|app:|builtin:|glyph:|mdi:|brand:|text:)/i.test(ic);
 function exportPage() {
   const page = currentPage();
   const buttons = page.buttons
@@ -2128,7 +2193,8 @@ function renderInspector() {
     el('div', {},
       el('button', { onclick: () => $('#fileIn').click() }, 'Choisir une image…'), ' ',
       el('button', { onclick: resetIcon }, 'Icône auto'), ' ',
-      el('button', { onclick: () => pickPicto(b) }, 'Pictogramme…'),
+      el('button', { onclick: () => pickPicto(b) }, 'Pictogramme…'), ' ',
+      el('button', { onclick: () => pickBrand(b) }, 'Logo d\'appli…'),
       el('input', { type: 'file', id: 'fileIn', accept: 'image/*', style: 'display:none', onchange: (e) => e.target.files[0] && uploadIcon(b.id, e.target.files[0]) }))));
 
   box.append(el('label', {}, 'Nom'), el('input', { type: 'text', value: b.label, oninput: (e) => { if (!inspector.typing) { pushUndo(); inspector.typing = true; } b.label = e.target.value; changed2(); }, onchange: () => inspector.typing = false }));

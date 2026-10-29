@@ -137,6 +137,13 @@ public class ConfigApi
                     await Json(ctx, Pictos.All.Select(p => new { name = p.Key, color = p.Value.Color, path = p.Value.Path }));
                     return;
 
+                case "/api/brands":
+                    // Logos d'applis « brand: » de la bibliothèque (dessinés en SVG par le configurateur).
+                    ctx.Response.Headers.CacheControl = "max-age=3600";
+                    ctx.Response.ContentType = "application/json; charset=utf-8";
+                    await ctx.Response.Body.WriteAsync(Brands.Json());
+                    return;
+
                 case "/api/appicon":
                 {
                     var target = ctx.Request.Query["path"].ToString();
