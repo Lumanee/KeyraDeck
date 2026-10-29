@@ -24,6 +24,8 @@ public class DeckConfig
     public bool HideLabels { get; set; }
     /// <summary>Ville du widget météo (Open-Meteo).</summary>
     public string WeatherCity { get; set; } = "";
+    /// <summary>Chaîne Twitch dont le widget « Chat Twitch » affiche le chat (pseudo ou lien twitch.tv/…).</summary>
+    public string TwitchChannel { get; set; } = "";
     /// <summary>Connexion de secours par câble USB (adb reverse), surveillée en permanence.</summary>
     public bool UsbEnabled { get; set; } = true;
     /// <summary>Ouvre KeyraDeck sur le téléphone quand on le branche au PC.</summary>
@@ -80,7 +82,7 @@ public class DeckFeedback
 public class DeckWidget
 {
     public string Id { get; set; } = "";
-    /// <summary>media | nowplaying | volume | clock | system | perfapp | weather | discord</summary>
+    /// <summary>media | nowplaying | volume | clock | system | perfapp | weather | discord | notifications | twitch</summary>
     public string Type { get; set; } = "clock";
     /// <summary>Modèle choisi (ex. "system-2x2") : chaque modèle a une taille et une présentation fixes.</summary>
     public string Model { get; set; } = "";
