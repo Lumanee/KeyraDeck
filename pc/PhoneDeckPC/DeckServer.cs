@@ -202,6 +202,19 @@ public class DeckServer
                 if (_needNowPlaying) await client.SendRawAsync(NowPlayingJson(_nowPlaying.Current, withArt: true));
                 break;
 
+            case "getScreenBg":
+            {
+                // Fond d'une zone écran : envoyé en binaire (une vidéo peut peser plusieurs Mo), sans bloquer la réception.
+                var name = root.GetProperty("file").GetString() ?? "";
+                var path = _store.ScreenBgPath(name);
+                if (path != null) _ = Task.Run(async () =>
+                {
+                    try { await client.SendFileAsync(name, await File.ReadAllBytesAsync(path)); }
+                    catch (Exception e) { Log?.Invoke("Fond d'écran non envoyé : " + e.Message); }
+                });
+                break;
+            }
+
             case "press":
                 await PressAsync(client, root.GetProperty("buttonId").GetString() ?? "");
                 break;
@@ -695,7 +708,12 @@ public class DeckServer
                 root = isRoot,
                 columns = cols,
                 rows,
-                screen = screen == null ? null : new { slot = screen.Slot, w = Math.Max(1, screen.W), h = Math.Max(1, screen.H) },
+                screen = screen == null ? null : new
+                {
+                    slot = screen.Slot, w = Math.Max(1, screen.W), h = Math.Max(1, screen.H),
+                    bg = _store.ScreenBgPath(screen.Bg) != null ? screen.Bg : null,
+                    dim = Math.Clamp(screen.Dim, 0, 80),
+                },
                 widgets = page.Widgets.Select(w => new { id = w.Id, type = w.Type, model = w.Model, slot = w.Slot, w = Math.Max(1, w.W), h = Math.Max(1, w.H) }).ToList(),
                 buttons = buttons.Select(b =>
                 {
@@ -748,6 +766,7 @@ public class DeckServer
             pcName = _store.PcName,
             theme = cfg.Theme,
             feedback = cfg.Feedback,
+            orientation = cfg.Orientation is "portrait" or "landscape" ? cfg.Orientation : "auto",
             home = cfg.Pages.FirstOrDefault()?.Id ?? "",
             pages,
         }, Wire);
@@ -820,6 +839,25 @@ public class DeckServer
         }
 
         public Task SendAsync(object payload) => SendRawAsync(JsonSerializer.Serialize(payload, Wire));
+
+        /// <summary>Un fichier en un seul message binaire : son nom, un saut de ligne, puis son contenu.</summary>
+        public async Task SendFileAsync(string name, byte[] data)
+        {
+            var head = Encoding.UTF8.GetBytes(name + "\n");
+            var bytes = new byte[head.Length + data.Length];
+            head.CopyTo(bytes, 0);
+            data.CopyTo(bytes, head.Length);
+            await _sendLock.WaitAsync();
+            try
+            {
+                if (Socket.State == WebSocketState.Open)
+                    await Socket.SendAsync(bytes, WebSocketMessageType.Binary, true, CancellationToken.None);
+            }
+            finally
+            {
+                _sendLock.Release();
+            }
+        }
 
         public async Task SendRawAsync(string json)
         {

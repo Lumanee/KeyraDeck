@@ -317,7 +317,7 @@ fun KeyGrid(
         }
         if (screen != null) {
             Box(Modifier.offset((key + gap) * (screen.slot % cols), (key + gap) * (screen.slot / cols))) {
-                ScreenPanel(key * screen.w + gap * (screen.w - 1), key * screen.h + gap * (screen.h - 1), key)
+                ScreenPanel(key * screen.w + gap * (screen.w - 1), key * screen.h + gap * (screen.h - 1), key, screen, vm)
             }
         }
         for (w in widgets) {

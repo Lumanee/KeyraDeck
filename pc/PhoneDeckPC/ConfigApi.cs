@@ -161,6 +161,40 @@ public class ConfigApi
                     return;
                 }
 
+                case "/api/screenbg" when method == "POST":
+                {
+                    // Fond de la zone écran : rangé sous un nom tiré de son contenu, le configurateur l'écrit dans la page.
+                    var ext = ScreenBgExtension(ctx.Request.ContentType)
+                        ?? throw new InvalidOperationException("Choisis une image (PNG, JPG, GIF, WebP) ou une vidéo (MP4, WebM)");
+                    var video = ext is ".mp4" or ".webm";
+                    using var ms = new MemoryStream();
+                    await ctx.Request.Body.CopyToAsync(ms);
+                    if (ms.Length == 0) throw new InvalidOperationException("Fichier vide");
+                    if (ms.Length > (video ? 25_000_000 : 10_000_000))
+                        throw new InvalidOperationException(video ? "Vidéo trop lourde (25 Mo maximum) : prends un extrait plus court" : "Image trop lourde (10 Mo maximum)");
+                    var bytes = ms.ToArray();
+                    var name = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes))[..16].ToLowerInvariant() + ext;
+                    var bgPath = Path.Combine(_store.ScreensDir, name);
+                    if (!File.Exists(bgPath)) await File.WriteAllBytesAsync(bgPath, bytes);
+                    await Json(ctx, new { file = name, video });
+                    return;
+                }
+
+                case "/api/screenbg":
+                {
+                    var name = ctx.Request.Query["file"].ToString();
+                    var bgPath = _store.ScreenBgPath(name);
+                    if (bgPath == null) { ctx.Response.StatusCode = 404; return; }
+                    ctx.Response.ContentType = Path.GetExtension(name) switch
+                    {
+                        ".jpg" => "image/jpeg", ".gif" => "image/gif", ".webp" => "image/webp",
+                        ".mp4" => "video/mp4", ".webm" => "video/webm", _ => "image/png",
+                    };
+                    ctx.Response.Headers.CacheControl = "max-age=86400";
+                    await ctx.Response.SendFileAsync(bgPath);
+                    return;
+                }
+
                 case "/api/icon" when method == "DELETE":
                     await _server.ResetIconAsync(ctx.Request.Query["buttonId"].ToString());
                     await Json(ctx, new { ok = true });
@@ -436,6 +470,17 @@ public class ConfigApi
         ctx.Response.ContentType = "application/json";
         return ctx.Response.WriteAsync(JsonSerializer.Serialize(value, Wire));
     }
+
+    private static string? ScreenBgExtension(string? contentType) => contentType switch
+    {
+        "image/png" => ".png",
+        "image/jpeg" => ".jpg",
+        "image/gif" => ".gif",
+        "image/webp" => ".webp",
+        "video/mp4" => ".mp4",
+        "video/webm" => ".webm",
+        _ => null,
+    };
 
     private static string ExtensionFor(string? contentType) => contentType switch
     {

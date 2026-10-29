@@ -119,8 +119,33 @@ fun PadScreen(vm: DeckViewModel) {
     }
 }
 
-/** Gestes du trackpad : 1 doigt = déplacer, tap = clic gauche, 2 doigts glissés = molette, tap à 2 doigts = clic droit. */
-private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.trackpad(vm: DeckViewModel) {
+/**
+ * Widget « Trackpad » posé sur la grille : une surface comme celle d'un PC portable.
+ * Toucher = clic gauche, glisser = déplacer la souris, 2 doigts = défiler. Pas de clic droit.
+ */
+@Composable
+fun TrackpadWidget(vm: DeckViewModel) {
+    val theme = LocalTheme.current
+    val shape = RoundedCornerShape(14.dp)
+    Box(
+        Modifier
+            .fillMaxSize()
+            .clip(shape)
+            .background(lerp(theme.key, Color.White, 0.05f))
+            .border(1.dp, Color(0x1FFFFFFF), shape)
+            // Consomme tous les gestes : glisser sur le trackpad ne change pas de page.
+            .pointerInput(Unit) { trackpad(vm, rightClick = false) },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text("Glisse pour déplacer · touche pour cliquer\n2 doigts : défiler", color = Color(0x55FFFFFF), fontSize = 11.sp, textAlign = TextAlign.Center)
+    }
+}
+
+/**
+ * Gestes du trackpad : 1 doigt = déplacer, tap = clic gauche, 2 doigts glissés = molette,
+ * tap à 2 doigts = clic droit (ou clic gauche si [rightClick] est faux).
+ */
+private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.trackpad(vm: DeckViewModel, rightClick: Boolean = true) {
     awaitEachGesture {
         val down = awaitFirstDown()
         val start = down.uptimeMillis
@@ -152,7 +177,7 @@ private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.trackpad
         } while (event.changes.any { it.pressed })
         vm.flushMouse()
         val duration = android.os.SystemClock.uptimeMillis() - start
-        if (travelled < 16f && duration < 300) vm.mouseClick(if (maxPointers >= 2) "right" else "left")
+        if (travelled < 16f && duration < 300) vm.mouseClick(if (maxPointers >= 2 && rightClick) "right" else "left")
     }
 }
 
