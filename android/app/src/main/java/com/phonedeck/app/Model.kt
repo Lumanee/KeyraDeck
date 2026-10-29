@@ -30,6 +30,18 @@ data class DeckButton(
 /** Un widget posé sur plusieurs cases : media, nowplaying, volume, clock, system ou weather. */
 data class DeckWidget(val id: String, val type: String, val model: String, val slot: Int, val w: Int, val h: Int)
 
+/** Zone « écran » : rectangle de cases sans touches, où les widgets forment un seul écran. */
+data class DeckScreenArea(val slot: Int, val w: Int, val h: Int) {
+    fun cells(cols: Int): List<Int> = (0 until h).flatMap { dy -> (0 until w).map { dx -> slot + dy * cols + dx } }
+
+    /** Le widget est entièrement posé sur la zone écran. */
+    fun holds(widget: DeckWidget, cols: Int): Boolean {
+        val c = slot % cols; val r = slot / cols
+        val wc = widget.slot % cols; val wr = widget.slot / cols
+        return wc >= c && wr >= r && wc + widget.w <= c + w && wr + widget.h <= r + h
+    }
+}
+
 /** columns / rows : taille de la grille, ou null pour un dossier mis en page automatiquement. */
 data class DeckPage(
     val id: String,
@@ -40,6 +52,7 @@ data class DeckPage(
     val rows: Int?,
     val buttons: List<DeckButton>,
     val widgets: List<DeckWidget> = emptyList(),
+    val screen: DeckScreenArea? = null,
 )
 
 /** Couleurs du boîtier, choisies dans le configurateur du PC. */
@@ -119,6 +132,7 @@ object Parser {
                 rows = p.optIntOrNull("rows"),
                 buttons = list,
                 widgets = widgets(p.optJSONArray("widgets")),
+                screen = p.optJSONObject("screen")?.let { DeckScreenArea(it.optInt("slot"), it.optInt("w", 1).coerceAtLeast(1), it.optInt("h", 1).coerceAtLeast(1)) },
             )
         }
         return DeckLayout(json.optString("pcName", "PC"), json.optString("home"), pages, theme(json.optJSONObject("theme")))

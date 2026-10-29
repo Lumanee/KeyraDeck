@@ -58,21 +58,39 @@ import kotlin.math.min
 
 private val WidgetCap = Color(0xFF060608)
 
-/** Un widget : même cadre que les touches, mais sur plusieurs cases. [unit] est la taille d'une touche. */
+/** La zone écran : une seule dalle de verre sombre, sans touches, sur laquelle les widgets se posent. */
 @Composable
-fun DeckWidgetView(widget: DeckWidget, width: Dp, height: Dp, unit: Dp, vm: DeckViewModel) {
+fun ScreenPanel(width: Dp, height: Dp, unit: Dp) {
     val theme = LocalTheme.current
-    // Un widget est un petit écran tactile encastré dans le boîtier : verre sombre, sans capuchon de touche ni relief.
-    val shape = RoundedCornerShape(unit * 0.12f)
-    // Verre fumé neutre (sans teinte d'accent) : reflet clair en haut, très sombre en bas, liseré comme une tranche de verre.
-    val glass = Brush.verticalGradient(listOf(lerp(theme.key, Color.White, 0.10f), theme.key, lerp(theme.key, Color.Black, 0.60f)))
+    val shape = RoundedCornerShape(unit * 0.14f)
+    val glass = Brush.verticalGradient(listOf(lerp(theme.key, Color.White, 0.08f), theme.key, lerp(theme.key, Color.Black, 0.65f)))
     val edge = Brush.verticalGradient(listOf(Color(0x66FFFFFF), Color(0x12FFFFFF), Color(0x29FFFFFF)))
     Box(
         Modifier
             .size(width, height)
             .clip(shape)
             .background(glass)
-            .border(1.dp, edge, shape)
+            .border(1.dp, edge, shape),
+    )
+}
+
+/**
+ * Un widget : même cadre que les touches, mais sur plusieurs cases. [unit] est la taille d'une touche.
+ * [framed] = false quand il est posé sur la zone écran : pas de cadre à lui, il fait partie de l'écran.
+ */
+@Composable
+fun DeckWidgetView(widget: DeckWidget, width: Dp, height: Dp, unit: Dp, vm: DeckViewModel, framed: Boolean = true) {
+    val theme = LocalTheme.current
+    // Un widget est un petit écran tactile encastré dans le boîtier : verre sombre, sans capuchon de touche ni relief.
+    val shape = RoundedCornerShape(unit * 0.12f)
+    // Verre fumé neutre (sans teinte d'accent) : reflet clair en haut, très sombre en bas, liseré comme une tranche de verre.
+    val glass = Brush.verticalGradient(listOf(lerp(theme.key, Color.White, 0.10f), theme.key, lerp(theme.key, Color.Black, 0.60f)))
+    val edge = Brush.verticalGradient(listOf(Color(0x66FFFFFF), Color(0x12FFFFFF), Color(0x29FFFFFF)))
+    val frame = if (framed) Modifier.clip(shape).background(glass).border(1.dp, edge, shape) else Modifier.clip(shape)
+    Box(
+        Modifier
+            .size(width, height)
+            .then(frame)
             .padding(unit * 0.08f),
         contentAlignment = Alignment.Center,
     ) {

@@ -167,6 +167,7 @@ fun DeckScreen(vm: DeckViewModel) {
                     rows = page.rows ?: 3,
                     buttons = page.buttons,
                     widgets = page.widgets,
+                    screen = page.screen,
                     pageIndex = index,
                     pageCount = roots.size,
                     onLongPress = { editing = it },
@@ -246,6 +247,7 @@ private fun Device(
     widgets: List<DeckWidget>,
     pageIndex: Int,
     pageCount: Int,
+    screen: DeckScreenArea? = null,
     onLongPress: (DeckButton) -> Unit,
 ) {
     val cols = columns.coerceIn(1, 12)
@@ -277,13 +279,16 @@ private fun Device(
         ) {
             StatusStrip(vm, pageIndex, 1, Modifier.fillMaxWidth().height(strip))
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                KeyGrid(vm, cols, rws, buttons, widgets, key, gap, vm.active, vm::press, onLongPress)
+                KeyGrid(vm, cols, rws, buttons, widgets, key, gap, vm.active, vm::press, onLongPress, screen)
             }
         }
     }
 }
 
-/** Les touches et les widgets d'une page, placés case par case (un widget couvre plusieurs cases). */
+/**
+ * Les touches et les widgets d'une page, placés case par case (un widget couvre plusieurs cases).
+ * La zone [screen] est un seul écran sans touches : les widgets posés dessus s'affichent sans cadre, comme sur un même écran.
+ */
 @Composable
 fun KeyGrid(
     vm: DeckViewModel,
@@ -296,8 +301,10 @@ fun KeyGrid(
     active: Set<String>,
     onPress: (DeckButton) -> Unit,
     onLongPress: (DeckButton) -> Unit,
+    screen: DeckScreenArea? = null,
 ) {
-    val covered = widgets.flatMap { w -> (0 until w.h).flatMap { dy -> (0 until w.w).map { dx -> w.slot + dy * cols + dx } } }.toSet()
+    val covered = widgets.flatMap { w -> (0 until w.h).flatMap { dy -> (0 until w.w).map { dx -> w.slot + dy * cols + dx } } }.toSet() +
+        screen?.cells(cols).orEmpty()
     val bySlot = buttons.associateBy { it.slot }
     Box(Modifier.size(key * cols + gap * (cols - 1), key * rows + gap * (rows - 1))) {
         for (slot in 0 until cols * rows) {
@@ -307,9 +314,14 @@ fun KeyGrid(
                 DeckKey(b, key, b != null && b.id in active, onPress, onLongPress)
             }
         }
+        if (screen != null) {
+            Box(Modifier.offset((key + gap) * (screen.slot % cols), (key + gap) * (screen.slot / cols))) {
+                ScreenPanel(key * screen.w + gap * (screen.w - 1), key * screen.h + gap * (screen.h - 1), key)
+            }
+        }
         for (w in widgets) {
             Box(Modifier.offset((key + gap) * (w.slot % cols), (key + gap) * (w.slot / cols))) {
-                DeckWidgetView(w, key * w.w + gap * (w.w - 1), key * w.h + gap * (w.h - 1), key, vm)
+                DeckWidgetView(w, key * w.w + gap * (w.w - 1), key * w.h + gap * (w.h - 1), key, vm, framed = screen?.holds(w, cols) != true)
             }
         }
     }
@@ -509,9 +521,10 @@ private fun FolderDialog(
             val count = maxOf(
                 (page.buttons.maxOfOrNull { it.slot } ?: -1) + 1,
                 page.widgets.maxOfOrNull { it.slot + (it.h - 1) * columns + 1 } ?: 0,
+                page.screen?.let { it.slot + (it.h - 1) * columns + 1 } ?: 0,
             )
             val rows = page.rows ?: ((count + columns - 1) / columns).coerceAtLeast(1)
-            KeyGrid(vm, columns, rows, page.buttons, page.widgets, 84.dp, 10.dp, active, onPress, onLongPress)
+            KeyGrid(vm, columns, rows, page.buttons, page.widgets, 84.dp, 10.dp, active, onPress, onLongPress, page.screen)
         }
     }
 }

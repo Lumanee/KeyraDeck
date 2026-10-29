@@ -667,11 +667,18 @@ public class DeckServer
                 for (int dy = 0; dy < Math.Max(1, w.H); dy++)
                     for (int dx = 0; dx < Math.Max(1, w.W); dx++)
                         blocked.Add(w.Slot + dy * cols + dx);
+            // Pas de bouton sur la zone écran : elle n'accueille que des widgets.
+            var screen = page.Screen;
+            if (screen != null)
+                for (int dy = 0; dy < Math.Max(1, screen.H); dy++)
+                    for (int dx = 0; dx < Math.Max(1, screen.W); dx++)
+                        blocked.Add(screen.Slot + dy * cols + dx);
             var slots = AssignSlots(buttons, blocked);
             // La grille grandit si des boutons ou widgets ne rentrent pas (plutôt que de les cacher).
             var lastCell = Math.Max(slots.Values.DefaultIfEmpty(-1).Max(), -1);
             var needed = lastCell < 0 ? 1 : lastCell / cols + 1;
             foreach (var w in page.Widgets) needed = Math.Max(needed, w.Slot / cols + Math.Max(1, w.H));
+            if (screen != null) needed = Math.Max(needed, screen.Slot / cols + Math.Max(1, screen.H));
             rows = Math.Max(rows ?? 1, needed);
             return new
             {
@@ -680,6 +687,7 @@ public class DeckServer
                 root = isRoot,
                 columns = cols,
                 rows,
+                screen = screen == null ? null : new { slot = screen.Slot, w = Math.Max(1, screen.W), h = Math.Max(1, screen.H) },
                 widgets = page.Widgets.Select(w => new { id = w.Id, type = w.Type, model = w.Model, slot = w.Slot, w = Math.Max(1, w.W), h = Math.Max(1, w.H) }).ToList(),
                 buttons = buttons.Select(b =>
                 {

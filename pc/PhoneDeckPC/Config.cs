@@ -101,6 +101,17 @@ public class DeckPage
     public int? Rows { get; set; }
     public List<DeckButton> Buttons { get; set; } = new();
     public List<DeckWidget> Widgets { get; set; } = new();
+    /// <summary>Zone « écran » : un rectangle de cases sans touches, sur lequel les widgets s'affichent comme sur un seul écran.</summary>
+    public DeckScreenArea? Screen { get; set; }
+}
+
+/// <summary>Rectangle de la zone écran, en cases (comme un widget).</summary>
+public class DeckScreenArea
+{
+    /// <summary>Case en haut à gauche (0 = première case).</summary>
+    public int Slot { get; set; }
+    public int W { get; set; } = 4;
+    public int H { get; set; } = 2;
 }
 
 public class DeckButton

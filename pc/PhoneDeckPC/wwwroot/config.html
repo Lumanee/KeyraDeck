@@ -290,6 +290,18 @@
   .key.empty .face::after { display: none; }
   .wdg { background: linear-gradient(color-mix(in srgb, var(--keyface), white 10%), var(--keyface) 45%, color-mix(in srgb, var(--keyface), black 60%));
          border: 1px solid #ffffff26; border-top-color: #ffffff59; box-shadow: inset 0 0 14px #000, 0 0 0 1px #000, 0 2px 4px #000a; }
+  /* Zone écran : une seule dalle de verre, sans touches ; les widgets posés dessus perdent leur cadre */
+  .scr { position: relative; background: linear-gradient(color-mix(in srgb, var(--keyface), white 8%), var(--keyface) 45%, color-mix(in srgb, var(--keyface), black 65%));
+         border: 1px solid #ffffff26; border-top-color: #ffffff59; box-shadow: inset 0 0 18px #000, 0 0 0 1px #000, 0 2px 4px #000a; cursor: grab; }
+  .scr::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background-image: linear-gradient(135deg, #ffffff10, #ffffff00 40%); pointer-events: none; }
+  .scr.selected { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .scr .scrhint { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 8px; color: #ffffff59; font-size: 12px; pointer-events: none; }
+  .key.scell { background: transparent; box-shadow: none; border-radius: 12%; }
+  .key.scell[draggable=true] { cursor: grab; }
+  .key.scell.over { outline-offset: -2px; transform: none; }
+  .wdg.inscr { background: transparent; border-color: transparent; box-shadow: none; }
+  .wdg.inscr .face { background-image: none; }
+  .wdg.inscr:hover { border-color: #ffffff1f; }
 
   /* ===== Thème Noir OLED : noir pur partout ===== */
   :root[data-oled] { --panel: #000; --panel2: #0b0b0d; --line: #1a1a1e; }
@@ -608,6 +620,8 @@ function renderLeft() {
     pc.append(el('div', { class: 'grp' }, g.group), ...items.map(([k, n, d]) => cmdRow(n, d, 'application/x-pd-cmd', k, () => (k === 'app' ? setLeftTab('app') : addFromPalette(k)))));
   }
   const pw = $('#paneWdg'); pw.replaceChildren();
+  if (!q || 'zone écran ecran'.includes(q)) pw.append(el('div', { class: 'grp' }, 'Écran'),
+    cmdRow('Zone écran', 'Une surface sans touches où tes widgets forment un seul écran', 'application/x-pd-newscreen', '1', () => addScreen()));
   for (const [type, list] of Object.entries(WIDGET_MODELS)) {
     const info = WIDGET_INFO[type];
     const items = list.filter(m => !q || (info.name + ' ' + m.name).toLowerCase().includes(q));
@@ -656,6 +670,67 @@ function normalizeWidgets() {
   return touched;
 }
 const widgetCells = (w, cols) => { const out = []; for (let dy = 0; dy < w.h; dy++) for (let dx = 0; dx < w.w; dx++) out.push(w.slot + dy * cols + dx); return out; };
+// ---- Zone écran : un rectangle de cases sans touches où les widgets forment un seul écran (une par page au plus) ----
+const SCREEN = 'screen'; // identifiant de sélection de la zone écran de la page affichée
+const screenCells = (page, cols) => page.screen ? widgetCells(page.screen, cols ?? pageGrid(page).cols) : [];
+const inScreen = (page, s) => screenCells(page).includes(s);
+// Widgets entièrement posés sur la zone écran.
+function screenWidgets(page) {
+  if (!page.screen) return [];
+  const { cols } = pageGrid(page), area = new Set(screenCells(page, cols));
+  return (page.widgets || []).filter(w => widgetCells(w, cols).every(c => area.has(c)));
+}
+// Pose, déplace ou redimensionne la zone écran. Les widgets posés dessus suivent quand elle bouge ;
+// les boutons qui se trouvent dessous sont rangés ailleurs. Renvoie un message si c'est impossible.
+function setScreen(page, slot, w, h) {
+  const { cols } = pageGrid(page);
+  if (w < 1 || h < 1) return 'Taille impossible';
+  if (slot < 0 || slot % cols + w > cols) return 'Pas assez de colonnes ici (' + cols + ' colonnes)';
+  const old = page.screen, inner = old ? screenWidgets(page) : [];
+  const moved = !!old && old.slot !== slot;
+  const area = new Set(widgetCells({ slot, w, h }, cols));
+  for (const o of (page.widgets || [])) {
+    if (inner.includes(o)) continue;
+    const cells = widgetCells(o, cols), n = cells.filter(c => area.has(c)).length;
+    if (n && (moved || n < cells.length)) return 'Un widget est sur le passage : déplace-le d\'abord';
+  }
+  if (moved) {
+    const dx = slot % cols - old.slot % cols, dy = Math.floor(slot / cols) - Math.floor(old.slot / cols);
+    for (const o of inner) o.slot += dy * cols + dx;
+  } else if (inner.some(o => widgetCells(o, cols).some(c => !area.has(c)))) return 'Un widget de l\'écran dépasserait : déplace-le ou réduis-le d\'abord';
+  page.screen = { slot, w, h };
+  let rows = Math.max(pageGrid(page).rows, Math.floor(slot / cols) + h);
+  for (const b of page.buttons.filter(b => area.has(b.slot)).sort((a, b) => a.slot - b.slot)) {
+    b.slot = -1; b.slot = firstFreeSlot(page); rows = Math.max(rows, Math.floor(b.slot / cols) + 1);
+  }
+  page.rows = rows;
+  return null;
+}
+// Ajoute une zone écran (toute la largeur, 2 lignes) à la case donnée ou à la première place libre.
+function addScreen(atSlot) {
+  const page = currentPage();
+  if (page.generated) { toast('Détache d\'abord cette page du menu Démarrer'); return; }
+  if (page.screen) { state.selected = SCREEN; renderStage(); renderInspector(); toast('Cette page a déjà une zone écran : règle sa taille à droite.'); return; }
+  const { cols, rows } = pageGrid(page);
+  const w = atSlot != null ? cols - atSlot % cols : cols, h = 2;
+  pushUndo();
+  let err = 'Pas de place';
+  // Sans case précise : sur les premières lignes vides, sinon en bas de la grille (qui s'agrandit).
+  const bandFree = (r) => widgetCells({ slot: r * cols, w, h }, cols).every(c => isFree(page, c));
+  const tries = atSlot != null ? [atSlot] : [[...Array(rows).keys()].find(bandFree) ?? rows].map(r => r * cols);
+  for (const s of tries) { err = setScreen(page, s, w, h); if (!err) break; }
+  if (err) { state.cfg = JSON.parse(state.undo.pop()); toast(err); renderAll(); return; }
+  state.selected = SCREEN;
+  changed({ immediate: true });
+  toast('Zone écran ajoutée : glisse des widgets dessus.');
+}
+function deleteScreen() {
+  const page = currentPage(); if (!page.screen) return;
+  pushUndo(); delete page.screen;
+  if (state.selected === SCREEN) state.selected = null;
+  changed();
+  toast('Zone écran retirée : ses widgets restent à leur place.');
+}
 const findButton = (id) => { for (const p of state.cfg.pages) { const b = p.buttons.find(b => b.id === id); if (b) return { page: p, button: b }; } return null; };
 
 // ---------- Thème et réglages ----------
@@ -780,7 +855,7 @@ async function loadAll() {
     for (const b of p.buttons) if (b.slot == null) { while (used.has(next)) next++; b.slot = next; used.add(next); }
   }
   if (!state.page || !pageById(state.page)) state.page = homeId();
-  if (state.selected && !findButton(state.selected) && !findWidget(state.selected)) state.selected = null;
+  if (state.selected && !findButton(state.selected) && !findWidget(state.selected) && !(state.selected === SCREEN && currentPage().screen)) state.selected = null;
   renderAll();
   checkAdapt();
   if (norm) changed();
@@ -853,7 +928,7 @@ function pageGrid(page) {
   const maxSlot = Math.max(-1, ...page.buttons.map(b => b.slot ?? -1), ...(page.generated || []).map(b => b.slot ?? -1));
   if (cols == null) cols = count <= 4 ? 2 : 3;
   if (rows == null) rows = Math.max(1, Math.ceil((maxSlot + 1) / cols));
-  const widgetRows = Math.max(0, ...(page.widgets || []).map(w => Math.floor(w.slot / cols) + w.h));
+  const widgetRows = Math.max(0, ...(page.widgets || []).map(w => Math.floor(w.slot / cols) + w.h), page.screen ? Math.floor(page.screen.slot / cols) + page.screen.h : 0);
   rows = Math.max(rows, Math.ceil((maxSlot + 1) / cols), widgetRows);
   return { cols, rows, auto: lp && lp.columns == null && page.columns == null && !isHome };
 }
@@ -932,10 +1007,32 @@ function renderStage() {
   const gen = new Map((page.generated || []).map(b => [b.slot, b]));
   const widgets = page.widgets || [];
   const covered = new Set(widgets.flatMap(w => widgetCells(w, cols)));
+  const scr = page.screen, scrCells = new Set(screenCells(page, cols)), inner = new Set(screenWidgets(page));
+  if (scr) {
+    // La dalle de l'écran, sous les widgets ; ses cases vides (transparentes, au-dessus) reçoivent les widgets qu'on dépose.
+    const d = el('div', { class: 'scr' + (state.selected === SCREEN ? ' selected' : '') + (state.findQ ? ' dim' : ''), 'data-id': SCREEN,
+      style: `grid-column:${scr.slot % cols + 1} / span ${scr.w};grid-row:${Math.floor(scr.slot / cols) + 1} / span ${scr.h};border-radius:${key * 0.14}px` });
+    if (!inner.size) d.append(el('div', { class: 'scrhint' }, 'Zone écran : glisse des widgets ici'));
+    grid.append(d);
+  }
   for (let s = 0; s < cols * rows; s++) {
     if (covered.has(s)) continue;
+    const pos = `grid-column:${s % cols + 1};grid-row:${Math.floor(s / cols) + 1}`;
+    if (scrCells.has(s)) {
+      const k = el('div', { class: 'key scell', 'data-slot': s, draggable: 'true', style: pos });
+      k.addEventListener('click', () => select(SCREEN));
+      k.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('application/x-pd-screen', String(s - scr.slot)); e.dataTransfer.effectAllowed = 'move'; select(SCREEN, true);
+      });
+      k.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); if (state.selected !== SCREEN) select(SCREEN); screenMenu(s, e.clientX, e.clientY); });
+      k.addEventListener('dragover', (e) => { const t = e.dataTransfer.types; if (t.includes('application/x-pd-widget') || t.includes('application/x-pd-newwidget') || t.includes('application/x-pd-screen')) { e.preventDefault(); k.classList.add('over'); } });
+      k.addEventListener('dragleave', () => k.classList.remove('over'));
+      k.addEventListener('drop', (e) => { k.classList.remove('over'); e.preventDefault(); onDropOnSlot(e, s, null); });
+      grid.append(k);
+      continue;
+    }
     const b = bySlot.get(s);
-    const k = el('div', { class: 'key' + (b ? '' : ' empty') + (b && b.id === state.selected ? ' selected' : '') + (state.findQ && !(b && matchButton(b, state.findQ)) && !(gen.has(s) && matchButton(gen.get(s), state.findQ)) ? ' dim' : ''), 'data-slot': s, 'data-id': b ? b.id : null, style: `--lbl:${Math.max(9, Math.min(15, key * 0.12))}px` });
+    const k = el('div', { class: 'key' + (b ? '' : ' empty') + (b && b.id === state.selected ? ' selected' : '') + (state.findQ && !(b && matchButton(b, state.findQ)) && !(gen.has(s) && matchButton(gen.get(s), state.findQ)) ? ' dim' : ''), 'data-slot': s, 'data-id': b ? b.id : null, style: `--lbl:${Math.max(9, Math.min(15, key * 0.12))}px;${pos}` });
     if (b) {
       const face = el('div', { class: 'face', style: b.color ? `background-color:${b.color}` : '' });
       const ic = iconFor(b);
@@ -967,7 +1064,7 @@ function renderStage() {
     }
     k.addEventListener('dragover', (e) => {
       const t = e.dataTransfer.types;
-      if (t.includes('application/x-pd-button') || t.includes('application/x-pd-app') || t.includes('application/x-pd-widget') || t.includes('application/x-pd-cmd') || t.includes('application/x-pd-newwidget') || t.includes('application/x-pd-folder')) { e.preventDefault(); k.classList.add('over'); }
+      if (['button', 'app', 'widget', 'cmd', 'newwidget', 'folder', 'screen', 'newscreen'].some(x => t.includes('application/x-pd-' + x))) { e.preventDefault(); k.classList.add('over'); }
       else if (t.includes('Files') && b) { e.preventDefault(); k.classList.add('fileover'); }
     });
     k.addEventListener('dragleave', () => k.classList.remove('over', 'fileover'));
@@ -977,7 +1074,7 @@ function renderStage() {
   for (const w of widgets) {
     const info = WIDGET_INFO[w.type] || { name: w.type, icon: '▫' };
     const c = w.slot % cols, r = Math.floor(w.slot / cols);
-    const d = el('div', { 'data-id': w.id, class: 'wdg' + (w.h === 1 ? ' one' : '') + (w.id === state.selected ? ' selected' : '') + (state.findQ ? ' dim' : ''), draggable: 'true', style: `grid-column:${c + 1} / span ${w.w};grid-row:${r + 1} / span ${w.h}` },
+    const d = el('div', { 'data-id': w.id, class: 'wdg' + (w.h === 1 ? ' one' : '') + (inner.has(w) ? ' inscr' : '') + (w.id === state.selected ? ' selected' : '') + (state.findQ ? ' dim' : ''), draggable: 'true', style: `grid-column:${c + 1} / span ${w.w};grid-row:${r + 1} / span ${w.h}` },
       el('div', { class: 'face' }));
     d.addEventListener('dragstart', (e) => { e.dataTransfer.setData('application/x-pd-widget', w.id); e.dataTransfer.effectAllowed = 'move'; select(w.id, true); });
     d.addEventListener('click', () => select(w.id));
@@ -1088,9 +1185,9 @@ function drawCallout(id) {
   stage.querySelectorAll('.callout, svg.cl').forEach(n => n.remove());
   if (!id) return;
   const target = stage.querySelector(`[data-id="${CSS.escape(id)}"]`); if (!target) return;
-  const fb = findButton(id), fw = findWidget(id);
-  const title = fb ? fb.button.label : fw ? (WIDGET_INFO[fw.widget.type] || {}).name : ''; if (!title) return;
-  const sub = fb ? actionSummary(fb.button) : (modelOf(fw.widget) || {}).name || '';
+  const fb = findButton(id), fw = findWidget(id), sc = id === SCREEN && currentPage().screen;
+  const title = fb ? fb.button.label : fw ? (WIDGET_INFO[fw.widget.type] || {}).name : sc ? 'Zone écran' : ''; if (!title) return;
+  const sub = fb ? actionSummary(fb.button) : fw ? (modelOf(fw.widget) || {}).name || '' : `${sc.w}×${sc.h} cases`;
   const sr = stage.getBoundingClientRect(), tr = target.getBoundingClientRect(), pr = $('#phone').getBoundingClientRect();
   const right = tr.left + tr.width / 2 > pr.left + pr.width / 2;
   const cardW = 170, space = right ? sr.right - pr.right : pr.left - sr.left;
@@ -1112,6 +1209,18 @@ async function onDropOnSlot(e, slot, existing) {
     if (!existing) { toast('Dépose l\'image sur un bouton existant'); return; }
     await uploadIcon(existing.id, dt.files[0]); return;
   }
+  const grab = dt.getData('application/x-pd-screen');
+  if (grab !== '') {
+    // On garde la case attrapée sous le pointeur : la zone se pose d'autant plus haut / à gauche.
+    const { cols } = pageGrid(page), off = +grab || 0, sc = page.screen; if (!sc) return;
+    const target = slot - (Math.floor(off / cols) * cols) - (off % cols);
+    if (target === sc.slot) return;
+    pushUndo();
+    const err = setScreen(page, target, sc.w, sc.h);
+    if (err) { state.cfg = JSON.parse(state.undo.pop()); toast(err); renderAll(); return; }
+    changed(); return;
+  }
+  if (dt.getData('application/x-pd-newscreen')) { addScreen(slot); return; }
   const movingWidget = dt.getData('application/x-pd-widget');
   if (movingWidget) {
     const fw = findWidget(movingWidget); if (!fw) return;
@@ -1120,6 +1229,7 @@ async function onDropOnSlot(e, slot, existing) {
     if (fw.page !== page) { fw.page.widgets.splice(fw.page.widgets.indexOf(fw.widget), 1); (page.widgets ||= []).push(fw.widget); }
     changed(); return;
   }
+  if (inScreen(page, slot) && !dt.types.includes('application/x-pd-newwidget')) { toast('La zone écran n\'accueille que des widgets.'); return; }
   const moving = dt.getData('application/x-pd-button');
   if (moving) {
     const found = findButton(moving);
@@ -1176,6 +1286,9 @@ function placeWidget(page, widget, slot, w, h) {
   for (const o of (page.widgets || [])) if (o !== widget) for (const c of widgetCells(o, cols)) taken.add(c);
   const mine = widgetCells({ slot, w, h }, cols);
   if (mine.some(c => taken.has(c))) return false;
+  // Sur la zone écran : entièrement dessus ou entièrement à côté, jamais à cheval.
+  const area = new Set(screenCells(page, cols)), n = mine.filter(c => area.has(c)).length;
+  if (n && n < mine.length) return false;
   widget.slot = slot; widget.w = w; widget.h = h;
   if (lastRow > rows) page.rows = lastRow;
   return true;
@@ -1203,6 +1316,7 @@ function firstFreeSlot(page, avoid) {
   const used = new Set(page.buttons.map(b => b.slot));
   const { cols, rows } = pageGrid(page);
   for (const w of (page.widgets || [])) for (const c of widgetCells(w, cols)) used.add(c);
+  for (const c of screenCells(page, cols)) used.add(c);
   if (avoid !== undefined) used.add(avoid);
   let s = 0; while (used.has(s)) s++;
   return s;
@@ -1214,6 +1328,7 @@ function addButton(b, slot) {
     toast('Ce dossier est rempli depuis le menu Démarrer : clique sur « Détacher » pour le modifier.'); return;
   }
   b.slot = slot ?? state.dropSlot ?? firstFreeSlot(page);
+  if (inScreen(page, b.slot)) b.slot = firstFreeSlot(page);
   const hit = page.buttons.find(x => x.slot === b.slot);
   if (hit) hit.slot = firstFreeSlot(page, b.slot);
   const { cols, rows } = pageGrid(page);
@@ -1252,7 +1367,11 @@ function renderGridBar() {
 // à la première place libre (la grille s'agrandit vers le bas si nécessaire). Renvoie false si un widget est trop large.
 function reflowPage(page, nc, nr) {
   const { cols } = pageGrid(page);
-  const items = [...(page.widgets || []), ...page.buttons.slice().sort((a, b) => a.slot - b.slot)];
+  // La zone écran se place comme un gros widget ; les widgets posés dessus la suivent ensuite.
+  const scr = page.screen, inner = screenWidgets(page);
+  const offsets = inner.map(w => [w, Math.floor(w.slot / cols) - Math.floor(scr.slot / cols), w.slot % cols - scr.slot % cols]);
+  if (scr && scr.w > nc) return false;
+  const items = [...(scr ? [scr] : []), ...(page.widgets || []).filter(w => !inner.includes(w)), ...page.buttons.slice().sort((a, b) => a.slot - b.slot)];
   if ((page.widgets || []).some(w => w.w > nc)) return false;
   const taken = new Set(); const pos = new Map(); const later = [];
   const free = (r, c, w, h) => { for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (taken.has((r + y) * nc + c + x)) return false; return true; };
@@ -1267,6 +1386,7 @@ function reflowPage(page, nc, nr) {
     for (let r = 0; !done; r++) for (let c = 0; c + w <= nc && !done; c++) if (free(r, c, w, h)) { take(it, r, c); rowsNeeded = Math.max(rowsNeeded, r + h); done = true; }
   }
   for (const [it, slot] of pos) it.slot = slot;
+  for (const [w, dy, dx] of offsets) w.slot = scr.slot + dy * nc + dx;
   for (const it of items) rowsNeeded = Math.max(rowsNeeded, Math.floor(it.slot / nc) + (it.h || 1));
   page.columns = nc; page.rows = rowsNeeded;
   return true;
@@ -1412,11 +1532,12 @@ function uniquePageName(name) {
   return `${name} ${i}`;
 }
 // Ajoute une page (après la dernière page, avant les dossiers) avec ses boutons rangés dans l'ordre, puis l'affiche.
-function insertRootPage({ name, autoProcesses, buttons, widgets, columns, rows }) {
+function insertRootPage({ name, autoProcesses, buttons, widgets, columns, rows, screen }) {
   const g = pageGrid(rootPages()[0]);
   const page = { id: uid('page'), name: uniquePageName(name || 'Page'), root: true, columns: columns || g.cols, rows: rows || g.rows, buttons: [], widgets: [] };
   if (autoProcesses && autoProcesses.length) page.autoProcesses = autoProcesses.slice();
   page.widgets = (widgets || []).filter(w => WIDGET_MODELS[w.type]).map(w => ({ ...w, id: uid('w') }));
+  if (screen) page.screen = { ...screen };
   let next = 0;
   page.buttons = buttons.map(b => {
     const copy = JSON.parse(JSON.stringify(b)); copy.id = uid('b');
@@ -1427,7 +1548,7 @@ function insertRootPage({ name, autoProcesses, buttons, widgets, columns, rows }
   const at = state.cfg.pages.indexOf(rootPages().pop()) + 1;
   state.cfg.pages.splice(at, 0, page);
   // Si la grille du téléphone est plus petite, les boutons en trop passent à la ligne.
-  reflowPage(page, Math.max(page.columns, ...page.widgets.map(w => w.w)), page.rows);
+  reflowPage(page, Math.max(page.columns, ...page.widgets.map(w => w.w), page.screen ? page.screen.w : 0), page.rows);
   state.page = page.id; state.selected = null;
   changed({ immediate: true });
   return page;
@@ -1472,7 +1593,7 @@ function exportPage() {
     .filter(b => !['folder', 'page'].includes(b.action.type)) // les dossiers et pages liés ne voyagent pas avec la page
     .map(b => { const c = JSON.parse(JSON.stringify(b)); delete c.id; if (!isSharedIcon(c.icon)) c.icon = 'auto'; return c; });
   const data = { keyradeck: 'page', version: 1, page: { name: page.name, autoProcesses: page.autoProcesses, columns: pageGrid(page).cols, rows: pageGrid(page).rows,
-    buttons, widgets: (page.widgets || []).map(w => { const c = { ...w }; delete c.id; return c; }) } };
+    buttons, widgets: (page.widgets || []).map(w => { const c = { ...w }; delete c.id; return c; }), screen: page.screen || undefined } };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = el('a', { href: URL.createObjectURL(blob), download: (page.name || 'page').replace(/[\\/:*?"<>|]/g, '_') + '.keyradeck.json' });
   document.body.append(a); a.click(); a.remove();
@@ -1490,7 +1611,8 @@ async function importPageFile(file) {
       .map(b => ({ ...b, icon: isSharedIcon(b.icon) ? b.icon : 'auto' }));
     const cols = Math.min(12, Math.max(1, +p.columns || 0)) || null, rows = Math.min(12, Math.max(1, +p.rows || 0)) || null;
     const page = insertRootPage({ name: String(p.name || 'Page importée'), autoProcesses: Array.isArray(p.autoProcesses) ? p.autoProcesses.map(String) : null,
-      buttons, widgets: Array.isArray(p.widgets) ? p.widgets : [], columns: cols, rows });
+      buttons, widgets: Array.isArray(p.widgets) ? p.widgets : [], columns: cols, rows,
+      screen: p.screen && +p.screen.w > 0 && +p.screen.h > 0 ? { slot: Math.max(0, +p.screen.slot || 0), w: +p.screen.w, h: +p.screen.h } : null });
     toast(`Page « ${page.name} » importée.`);
   } catch (e) { toast('Impossible d\'importer : ' + e.message); }
 }
@@ -1510,6 +1632,7 @@ function renderInspector() {
   if (state.selected && state.selected !== state.inspSel) setInspector(true);
   state.inspSel = state.selected;
   const box = $('#inspector'); box.replaceChildren();
+  if (state.selected === SCREEN && currentPage().screen) { renderScreenInspector(box, currentPage()); return; }
   const fw = state.selected && findWidget(state.selected);
   if (fw) { renderWidgetInspector(box, fw); return; }
   const f = state.selected && findButton(state.selected);
@@ -1633,7 +1756,7 @@ function renderWidgetInspector(box, fw) {
   };
   box.append(el('h2', {}, 'Widget'), el('div', { style: 'font-size:18px;font-weight:600' }, info.icon + ' ' + info.name),
     el('div', { class: 'hint', style: 'margin:6px 0 12px' }, info.desc),
-    w.type === 'discord' ? el('button', { style: 'margin-bottom:10px', onclick: openIntegrations }, 'Ouvrir « Connexions »') : null,
+    w.type === 'discord' ? el('button', { style: 'margin-bottom:10px', onclick: openIntegrations }, 'Ouvrir « Connexions »') : '',
     el('label', {}, 'Modèle (taille fixe)'),
     el('div', { class: 'models' }, ...(WIDGET_MODELS[w.type] || []).map(m =>
       el('button', { class: 'model' + (m.id === w.model ? ' on' : ''), onclick: () => pick(m) },
@@ -1642,6 +1765,26 @@ function renderWidgetInspector(box, fw) {
       el('input', { type: 'text', value: state.cfg.weatherCity || '', placeholder: 'ex. Lyon', oninput: (e) => { state.cfg.weatherCity = e.target.value; state.dirty = true; setSaved('Modifications…'); clearTimeout(saveTimer); saveTimer = setTimeout(save, 900); } }),
       el('div', { class: 'hint' }, 'Nécessite une connexion internet sur le PC.')] : []),
     el('div', { class: 'row', style: 'margin-top:18px' }, el('button', { class: 'danger', onclick: () => deleteWidget(w.id) }, '🗑 Supprimer')));
+}
+function renderScreenInspector(box, page) {
+  const sc = page.screen, { cols } = pageGrid(page);
+  const resize = (dw, dh) => {
+    pushUndo();
+    const err = setScreen(page, sc.slot, Math.min(cols - sc.slot % cols, sc.w + dw), sc.h + dh);
+    if (err) { state.cfg = JSON.parse(state.undo.pop()); toast(err); renderAll(); return; }
+    changed();
+  };
+  const stepper = (label, value, dec, inc, canDec, canInc) => el('div', { class: 'row', style: 'align-items:center;gap:10px;margin:6px 0' },
+    el('span', { style: 'flex:1' }, label),
+    el('button', { onclick: dec, disabled: !canDec, title: 'Réduire' }, '−'), el('b', { style: 'min-width:22px;text-align:center' }, String(value)), el('button', { onclick: inc, disabled: !canInc, title: 'Agrandir' }, '+'));
+  const n = screenWidgets(page).length;
+  box.append(el('h2', {}, 'Zone écran'),
+    el('div', { class: 'hint', style: 'margin:0 0 12px' }, 'Une surface sans touches : les widgets que tu poses dessus s\'affichent comme un seul écran sur le téléphone. Glisse la zone pour la déplacer (ses widgets suivent).'),
+    el('label', {}, 'Taille (en cases)'),
+    stepper('Largeur', sc.w, () => resize(-1, 0), () => resize(1, 0), sc.w > 1, sc.slot % cols + sc.w < cols),
+    stepper('Hauteur', sc.h, () => resize(0, -1), () => resize(0, 1), sc.h > 1, sc.h < 12),
+    el('div', { class: 'hint', style: 'margin-top:10px' }, n ? `${n} widget${n > 1 ? 's' : ''} sur l'écran.` : 'Aucun widget pour l\'instant : glisse-en un depuis l\'onglet WIDGETS.'),
+    el('div', { class: 'row', style: 'margin-top:18px' }, el('button', { class: 'danger', onclick: deleteScreen }, '🗑 Retirer la zone écran')));
 }
 function deleteWidget(id) {
   const fw = findWidget(id); if (!fw) return;
@@ -2141,6 +2284,17 @@ function widgetMenu(w, x, y) {
     { icon: G.del, label: 'Supprimer', kb: 'Suppr', danger: true, onclick: () => deleteWidget(w.id) },
   ], x, y);
 }
+function screenMenu(slot, x, y) {
+  const page = currentPage();
+  const wSub = Object.entries(WIDGET_MODELS).map(([type, list]) => ({ label: WIDGET_INFO[type].name, sub: list.map(m => ({ label: `${m.name}  (${m.w}×${m.h})`, onclick: () => addWidget(type, m, slot) })) }));
+  showMenu([
+    { header: 'Zone écran' },
+    state.clip && state.clip.kind === 'widget' ? pasteItem(() => pasteAt(slot), ' ici') : null,
+    page.generated ? null : { icon: G.widget, label: 'Ajouter un widget ici', sub: wSub },
+    '-',
+    { icon: G.del, label: 'Retirer la zone écran', danger: true, onclick: deleteScreen },
+  ], x, y);
+}
 function emptyMenu(slot, x, y) {
   const page = currentPage();
   const addSub = COMMANDS.flatMap((g, i) => [i ? '-' : null, { header: g.group }, ...g.items.map(([k, n, d]) => ({ label: n, onclick: () => addAt(k, slot) }))]);
@@ -2151,6 +2305,7 @@ function emptyMenu(slot, x, y) {
     '-',
     page.generated ? null : { icon: G.add, label: 'Ajouter un bouton', sub: addSub },
     page.generated ? null : { icon: G.widget, label: 'Ajouter un widget', sub: wSub },
+    page.generated || page.screen ? null : { icon: G.widget, label: 'Créer une zone écran ici', onclick: () => addScreen(slot) },
   ], x, y);
 }
 function pageMenu(p, x, y, fromBar) {
@@ -2189,9 +2344,10 @@ function stageMenu(x, y) {
 
 // ---------- Copier / coller / dupliquer / déplacer ----------
 
-function isFree(page, s) {
+// forWidget : un widget peut se poser sur la zone écran, un bouton non.
+function isFree(page, s, forWidget) {
   const { cols } = pageGrid(page);
-  return !page.buttons.some(b => b.slot === s) && !(page.widgets || []).some(w => widgetCells(w, cols).includes(s));
+  return !page.buttons.some(b => b.slot === s) && !(page.widgets || []).some(w => widgetCells(w, cols).includes(s)) && (forWidget || !inScreen(page, s));
 }
 function freeSlotAfter(page, from) {
   const { cols, rows } = pageGrid(page);
@@ -2200,7 +2356,8 @@ function freeSlotAfter(page, from) {
 }
 function areaFree(page, slot, w, h) {
   const { cols } = pageGrid(page);
-  return slot % cols + w <= cols && widgetCells({ slot, w, h }, cols).every(c => isFree(page, c));
+  const cells = widgetCells({ slot, w, h }, cols), area = new Set(screenCells(page, cols)), n = cells.filter(c => area.has(c)).length;
+  return slot % cols + w <= cols && cells.every(c => isFree(page, c, true)) && (!n || n === cells.length);
 }
 // Les images personnalisées sont rangées par id de bouton sur le PC : on les donne aussi aux copies.
 async function copyIcons(pairs) {
@@ -2376,7 +2533,7 @@ document.addEventListener('keydown', (e) => {
   if (ctrl && k === 'f') { e.preventDefault(); $('#findInput').focus(); $('#findInput').select(); return; }
   if (e.target.matches('input, textarea, select') || document.querySelector('dialog[open]')) return;
   const sel = state.selected;
-  if (e.key === 'Delete' && sel) { if (findWidget(sel)) deleteWidget(sel); else deleteButton(sel); }
+  if (e.key === 'Delete' && sel) { if (sel === SCREEN) deleteScreen(); else if (findWidget(sel)) deleteWidget(sel); else deleteButton(sel); }
   else if (ctrl && k === 'z') { e.preventDefault(); undo(); }
   else if (ctrl && (k === 'c' || k === 'x') && sel) { e.preventDefault(); copyItem(sel, k === 'x'); }
   else if (ctrl && k === 'v') { e.preventDefault(); const fb = sel && findButton(sel); pasteAt(fb && fb.page === currentPage() ? freeSlotAfter(fb.page, fb.button.slot) : null); }
