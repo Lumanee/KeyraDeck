@@ -1116,7 +1116,7 @@ function changed(opts = {}) {
 }
 function stripForSave(cfg) {
   const copy = JSON.parse(JSON.stringify(cfg));
-  for (const p of copy.pages) delete p.generated;
+  for (const p of copy.pages) { delete p.generated; leaveLand(p); }
   return copy;
 }
 async function save() {
@@ -1178,9 +1178,11 @@ function iconFor(b) {
 const DEV = { strip: 26, navH: 34, gap: 0.14, cap: 140 };
 const devMetrics = (W, H) => { const small = Math.min(W, H); return { margin: small * 0.025, pad: small * 0.034, radius: small * 0.075 }; };
 const navHeight = () => 0; // plus de flèches : on change de page en glissant
-function deviceDims() {
+function deviceDims(land) {
   const d = state.info && state.info.device;
-  return d && d.w > 0 && d.h > 0 ? { w: d.w, h: d.h, known: true, name: d.name, cut: d.cut || 0, r: d.r || 0 } : { w: 412, h: 915, known: false, name: '', cut: 0, r: 0 };
+  const p = d && d.w > 0 && d.h > 0 ? { w: d.w, h: d.h, known: true, name: d.name, cut: d.cut || 0, r: d.r || 0 } : { w: 412, h: 915, known: false, name: '', cut: 0, r: 0 };
+  // Paysage : l'écran est couché, la caméra n'est plus en haut.
+  return land ? { ...p, w: p.h, h: p.w, cut: 0 } : p;
 }
 function keySizeFor(cols, rows, W, H) {
   const m = devMetrics(W, H);
@@ -1207,7 +1209,7 @@ function renderStage() {
   const dev = $('#device'); dev.replaceChildren();
   const { cols, rows } = pageGrid(page);
   const stage = $('#stage');
-  const phone = deviceDims();
+  const phone = deviceDims(!!page._port);
   // Le boîtier a les proportions de l'écran du téléphone ; scale = pixels de l'aperçu par dp du téléphone.
   const phoneEl = $('#phone');
   const totalH = phone.h + phone.cut;
@@ -1770,6 +1772,13 @@ function renderGridBar() {
   const root = isRoot(page);
   tools.append(el('button', { title: 'Renommer, dupliquer, exporter, déplacer, supprimer… (aussi au clic droit sur l\'onglet)',
     onclick: (e) => { const r = e.currentTarget.getBoundingClientRect(); pageMenu(page, r.left, r.top, true); } }, (root ? 'Page' : 'Dossier') + ' ⋯'));
+  if (root && !page.generated) {
+    const land = !!page._port;
+    tools.append(' ', el('span', { style: 'display:inline-flex;gap:4px', title: 'Chaque page a une disposition pour le téléphone debout et une pour le téléphone couché (utilisée si la rotation n\'est pas bloquée en portrait)' },
+      el('button', { class: land ? '' : 'primary', onclick: () => toggleLand(false) }, '📱 Portrait'),
+      el('button', { class: land ? 'primary' : '', onclick: () => toggleLand(true) }, '📱 Paysage')));
+    if (land) tools.append(' ', el('button', { onclick: regenLand, title: 'Refait la disposition paysage à partir du portrait' }, '↻ Refaire en auto'));
+  }
   if (page.generated) {
     tools.append(' ', el('button', { onclick: detachPage, title: 'Copie les raccourcis du menu Démarrer en boutons que tu peux modifier' }, '🔗 Détacher du menu Démarrer'));
   }
@@ -1816,7 +1825,7 @@ function adaptAll() {
   const d = deviceDims(); const rec = recommendGrid(d.w, d.h);
   pushUndo();
   let bad = false;
-  for (const p of state.cfg.pages) if (isRoot(p) && !p.generated) { if (!reflowPage(p, rec.cols, rec.rows)) bad = true; }
+  for (const p of state.cfg.pages) if (isRoot(p) && !p.generated && !p._port) { if (!reflowPage(p, rec.cols, rec.rows)) bad = true; }
   api('/api/adapted?key=' + encodeURIComponent(screenKey(d)), { method: 'POST' }).catch(() => { });
   state.info.adaptedTo = screenKey(d);
   if (bad) toast('Une page contient un widget trop large : elle garde sa grille.');
@@ -1834,6 +1843,74 @@ function checkAdapt() {
   }
   if (!state.info.adaptedTo && !state.dirty) { adaptAll(); toast(`Grille adaptée à ton téléphone (${rec.cols}×${rec.rows})`); return; }
   bar.append(el('button', { onclick: adaptAll, title: 'Remplit tout l\'écran du téléphone' }, `📱 Adapter la grille à ce téléphone (${rec.cols}×${rec.rows})`));
+}
+// ---- Disposition paysage : chaque page d'accueil peut avoir une seconde mise en page (grille, widgets, zone écran,
+// grilles séparées, place des boutons) que le téléphone utilise quand il est tenu en paysage. ----
+function layoutSnap(page) {
+  const { cols, rows } = pageGrid(page);
+  return clone({ columns: cols, rows, widgets: page.widgets || [], screen: page.screen || null, grids: page.grids || null,
+    places: page.buttons.map(b => ({ id: b.id, slot: b.slot, grid: b.grid })) });
+}
+function layoutApply(page, snap) {
+  const sn = clone(snap);
+  page.columns = sn.columns; page.rows = sn.rows; page.widgets = sn.widgets || [];
+  if (sn.screen) page.screen = sn.screen; else delete page.screen;
+  if (sn.grids && sn.grids.length) page.grids = sn.grids; else delete page.grids;
+  const m = new Map((sn.places || []).map(x => [x.id, x]));
+  for (const b of page.buttons) {
+    const x = m.get(b.id);
+    if (x && x.slot != null) b.slot = x.slot; else delete b.slot;
+    if (x && x.grid) b.grid = x.grid; else delete b.grid;
+  }
+}
+// Mise en page paysage automatique : on cherche la grille la plus large qui garde de grosses touches et où tout tient.
+function makeLandscape(page, portrait) {
+  const base = clone(page); delete base.land; delete base._port; delete base.generated;
+  if (portrait) layoutApply(base, portrait);
+  const d = deviceDims(true);
+  const minCols = Math.max(4, ...(base.widgets || []).map(w => w.w), ...blocks(base).map(g => g.w), base.screen ? base.screen.w : 0);
+  const cands = [];
+  for (let c = minCols; c <= 12; c++) for (let r = 2; r <= 8; r++) {
+    const key = keySizeFor(c, r, d.w, d.h);
+    if (key >= 52) cands.push({ c, r, key });
+  }
+  cands.sort((a, b) => b.key - a.key || b.c - a.c);
+  for (const k of cands) {
+    const t = clone(base);
+    if (reflowPage(t, k.c, k.r) && t.rows <= k.r) return layoutSnap(t);
+  }
+  const t = clone(base); const rec = recommendGrid(d.w, d.h);
+  reflowPage(t, Math.max(rec.cols, minCols), rec.rows);
+  return layoutSnap(t);
+}
+function enterLand(page) {
+  if (page._port) return;
+  const land = page.land || makeLandscape(page);
+  page._port = layoutSnap(page);
+  layoutApply(page, land);
+  delete page.land;
+}
+function leaveLand(page) {
+  if (!page._port) return;
+  const land = layoutSnap(page);
+  layoutApply(page, page._port);
+  page.land = land; delete page._port;
+}
+function portraitCopy(page) { if (!page._port) return page; const c = clone(page); leaveLand(c); return c; }
+function toggleLand(on) {
+  const page = currentPage();
+  pushUndo();
+  if (on) enterLand(page); else leaveLand(page);
+  state.selected = null;
+  renderAll();
+  state.dirty = true; clearTimeout(saveTimer); saveTimer = setTimeout(save, 500);
+}
+function regenLand() {
+  const page = currentPage(); if (!page._port) return;
+  pushUndo();
+  layoutApply(page, makeLandscape(page, page._port));
+  changed();
+  toast('Disposition paysage refaite automatiquement.');
 }
 async function addFolder() {
   const name = await askText('Nouveau dossier', 'Nouveau dossier', 'Un dossier s\'ouvre depuis un bouton « Dossier » et se referme avec la croix.');
@@ -2106,6 +2183,7 @@ function insertRootPage({ name, autoProcesses, buttons, widgets, columns, rows, 
   state.cfg.pages.splice(at, 0, page);
   // Si la grille du téléphone est plus petite, les boutons en trop passent à la ligne.
   reflowPage(page, Math.max(page.columns, ...page.widgets.map(w => w.w), ...blocks(page).map(g => g.w), page.screen ? page.screen.w : 0), page.rows);
+  page.land = makeLandscape(page);
   state.page = page.id; state.selected = null;
   changed({ immediate: true });
   return page;
@@ -2238,7 +2316,7 @@ $('#brandClose').onclick = () => $('#brandDlg').close();
 // ---- Partage d'une page en fichier ----
 const isSharedIcon = (ic) => !ic || /^(auto|app:|builtin:|glyph:|mdi:|brand:|text:)/i.test(ic);
 function exportPage() {
-  const page = currentPage();
+  const page = portraitCopy(currentPage());
   const buttons = page.buttons
     .filter(b => !['folder', 'page'].includes(b.action.type)) // les dossiers et pages liés ne voyagent pas avec la page
     .map(b => { const c = JSON.parse(JSON.stringify(b)); delete c.id; if (!isSharedIcon(c.icon)) c.icon = 'auto'; return c; });
@@ -3224,7 +3302,7 @@ async function renameButton(id) {
 }
 function duplicatePage(p) {
   const root = isRoot(p);
-  const copy = clone(p); delete copy.generated;
+  const copy = clone(p); delete copy.generated; leaveLand(copy);
   copy.id = uid(root ? 'page' : 'dossier');
   copy.name = uniquePageName(p.name + ' (copie)');
   delete copy.autoProcesses; // deux pages qui s'affichent pour la même appli se gêneraient
@@ -3233,6 +3311,12 @@ function duplicatePage(p) {
   for (const b of copy.buttons) { const id = uid('b'); pairs.push({ from: b.id, to: id }); b.id = id; }
   copy.widgets = (copy.widgets || []).map(w => ({ ...w, id: uid('w') }));
   remapBlocks(copy);
+  if (copy.land) { // la disposition paysage suit les nouveaux identifiants
+    const bm = new Map(pairs.map(x => [x.from, x.to])), gm = new Map();
+    copy.land.grids = (copy.land.grids || []).map(g => { const id = uid('grille'); gm.set(g.id, id); return { ...g, id }; });
+    copy.land.widgets = (copy.land.widgets || []).map(w => ({ ...w, id: uid('w') }));
+    copy.land.places = (copy.land.places || []).map(x => ({ ...x, id: bm.get(x.id) || x.id, grid: x.grid ? gm.get(x.grid) : undefined }));
+  }
   pushUndo();
   state.cfg.pages.splice(state.cfg.pages.indexOf(p) + 1, 0, copy);
   state.page = copy.id; state.selected = null;

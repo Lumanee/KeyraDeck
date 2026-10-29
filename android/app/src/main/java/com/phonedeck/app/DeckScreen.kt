@@ -177,7 +177,8 @@ fun DeckScreen(vm: DeckViewModel) {
                     PadScreen(vm)
                     return@HorizontalPager
                 }
-                val page = roots.getOrNull(index - 1) ?: return@HorizontalPager
+                // Téléphone en paysage : la disposition paysage de la page si elle en a une.
+                val page = roots.getOrNull(index - 1)?.let { if (maxWidth > maxHeight) it.land ?: it else it } ?: return@HorizontalPager
                 Device(
                     vm = vm,
                     columns = page.columns ?: 5,

@@ -69,6 +69,8 @@ data class DeckPage(
     val widgets: List<DeckWidget> = emptyList(),
     val screen: DeckScreenArea? = null,
     val grids: List<DeckGridBlock> = emptyList(),
+    /** Disposition pour le téléphone tenu en paysage (null = on garde la disposition portrait). */
+    val land: DeckPage? = null,
 )
 
 /** Couleurs du boîtier, choisies dans le configurateur du PC. */
@@ -177,9 +179,33 @@ object Parser {
                     )
                 },
                 grids = grids(p.optJSONArray("grids")),
+                land = p.optJSONObject("land")?.let { landscape(p, id, list, it) },
             )
         }
         return DeckLayout(json.optString("pcName", "PC"), json.optString("home"), pages, theme(json.optJSONObject("theme")))
+    }
+
+    /** Variante paysage d'une page : mêmes boutons, repositionnés selon `places`. */
+    private fun landscape(p: JSONObject, id: String, list: List<DeckButton>, l: JSONObject): DeckPage {
+        val places = HashMap<String, JSONObject>()
+        l.optJSONArray("places")?.let { a -> for (i in 0 until a.length()) a.getJSONObject(i).let { places.putIfAbsent(it.optString("id"), it) } }
+        return DeckPage(
+            id = id,
+            name = p.optString("name"),
+            root = p.optBoolean("root", false),
+            columns = l.optIntOrNull("columns"),
+            rows = l.optIntOrNull("rows"),
+            buttons = list.map { b -> places[b.id]?.let { b.copy(slot = it.optInt("slot", b.slot), grid = it.optStringOrNull("grid")) } ?: b },
+            widgets = widgets(l.optJSONArray("widgets")),
+            screen = l.optJSONObject("screen")?.let {
+                DeckScreenArea(
+                    it.optInt("slot"), it.optInt("w", 1).coerceAtLeast(1), it.optInt("h", 1).coerceAtLeast(1),
+                    bg = it.optString("bg").takeIf { b -> b.isNotEmpty() && b != "null" },
+                    dim = it.optInt("dim", 30).coerceIn(0, 80),
+                )
+            },
+            grids = grids(l.optJSONArray("grids")),
+        )
     }
 
     private fun widgets(arr: JSONArray?): List<DeckWidget> {

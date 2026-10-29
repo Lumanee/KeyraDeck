@@ -851,61 +851,32 @@ public class DeckServer
             int? columns = page.Columns ?? (isRoot ? cfg.Columns : null);
             int? rows = page.Rows ?? (isRoot ? cfg.Rows : null);
             var cols = Math.Clamp(columns ?? (buttons.Count <= 4 ? 2 : 3), 1, 12);
-            var blocked = new HashSet<int>();
-            foreach (var w in page.Widgets)
-                for (int dy = 0; dy < Math.Max(1, w.H); dy++)
-                    for (int dx = 0; dx < Math.Max(1, w.W); dx++)
-                        blocked.Add(w.Slot + dy * cols + dx);
-            // Pas de bouton sur la zone écran : elle n'accueille que des widgets.
-            var screen = page.Screen;
-            if (screen != null)
-                for (int dy = 0; dy < Math.Max(1, screen.H); dy++)
-                    for (int dx = 0; dx < Math.Max(1, screen.W); dx++)
-                        blocked.Add(screen.Slot + dy * cols + dx);
-            // Grilles séparées : leurs cases ne reçoivent pas de bouton de la page, leurs boutons sont placés dans leur propre grille.
-            var grids = (page.Grids ?? new()).Where(g => !string.IsNullOrEmpty(g.Id)).GroupBy(g => g.Id).Select(g => g.First()).ToList();
-            foreach (var g in grids)
-                for (int dy = 0; dy < Math.Max(1, g.H); dy++)
-                    for (int dx = 0; dx < Math.Max(1, g.W); dx++)
-                        blocked.Add(g.Slot + dy * cols + dx);
-            var gridIds = grids.Select(g => g.Id).ToHashSet();
-            string? GridOf(DeckButton b) => b.Grid != null && gridIds.Contains(b.Grid) ? b.Grid : null;
-            var slots = AssignSlots(buttons.Where(b => GridOf(b) == null).ToList(), blocked);
-            var gridRows = new Dictionary<string, int>();
-            foreach (var g in grids)
+            var main = Arrange(cols, rows, buttons, page.Widgets, page.Screen, page.Grids, b => b.Slot, b => b.Grid);
+            object? land = null;
+            if (page.Land is { } l)
             {
-                var inner = AssignSlots(buttons.Where(b => GridOf(b) == g.Id).ToList());
-                foreach (var (id, s) in inner) slots[id] = s;
-                var gc = Math.Clamp(g.Columns, 1, 12);
-                var last = inner.Values.DefaultIfEmpty(-1).Max();
-                gridRows[g.Id] = Math.Clamp(Math.Max(g.Rows, last / gc + 1), 1, 24);
+                var lcols = Math.Clamp(l.Columns, 1, 12);
+                var places = new Dictionary<string, DeckPlace>();
+                foreach (var x in l.Places ?? new()) places.TryAdd(x.Id, x);
+                var la = Arrange(lcols, l.Rows, buttons, l.Widgets ?? new(), l.Screen, l.Grids,
+                    b => places.TryGetValue(b.Id, out var pl) ? pl.Slot : null, b => places.TryGetValue(b.Id, out var pl) ? pl.Grid : null);
+                land = new
+                {
+                    columns = la.Cols, rows = la.Rows, screen = la.Screen, widgets = la.Widgets, grids = la.Grids,
+                    places = buttons.Select(b => new { id = b.Id, slot = la.Slots[b.Id], grid = la.GridOf[b.Id] }).ToList(),
+                };
             }
-            // La grille grandit si des boutons ou widgets ne rentrent pas (plutôt que de les cacher).
-            var lastCell = Math.Max(buttons.Where(b => GridOf(b) == null).Select(b => slots[b.Id]).DefaultIfEmpty(-1).Max(), -1);
-            var needed = lastCell < 0 ? 1 : lastCell / cols + 1;
-            foreach (var w in page.Widgets) needed = Math.Max(needed, w.Slot / cols + Math.Max(1, w.H));
-            if (screen != null) needed = Math.Max(needed, screen.Slot / cols + Math.Max(1, screen.H));
-            foreach (var g in grids) needed = Math.Max(needed, g.Slot / cols + Math.Max(1, g.H));
-            rows = Math.Max(rows ?? 1, needed);
             return new
             {
                 id = page.Id,
                 name = page.Name,
                 root = isRoot,
-                columns = cols,
-                rows,
-                screen = screen == null ? null : new
-                {
-                    slot = screen.Slot, w = Math.Max(1, screen.W), h = Math.Max(1, screen.H),
-                    bg = _store.ScreenBgPath(screen.Bg) != null ? screen.Bg : null,
-                    dim = Math.Clamp(screen.Dim, 0, 80),
-                },
-                widgets = page.Widgets.Select(w => new { id = w.Id, type = w.Type, model = w.Model, slot = w.Slot, w = Math.Max(1, w.W), h = Math.Max(1, w.H) }).ToList(),
-                grids = grids.Count == 0 ? null : grids.Select(g => new
-                {
-                    id = g.Id, name = g.Name, slot = g.Slot, w = Math.Max(1, g.W), h = Math.Max(1, g.H),
-                    columns = Math.Clamp(g.Columns, 1, 12), rows = gridRows[g.Id],
-                }).ToList(),
+                columns = main.Cols,
+                rows = main.Rows,
+                screen = main.Screen,
+                widgets = main.Widgets,
+                grids = main.Grids,
+                land,
                 buttons = buttons.Select(b =>
                 {
                     lookup[b.Id] = b;
@@ -924,8 +895,8 @@ public class DeckServer
                         hideLabel = b.HideLabel ?? cfg.HideLabels,
                         color = b.Color,
                         icon = SafeIcon(b, Children),
-                        slot = slots[b.Id],
-                        grid = GridOf(b),
+                        slot = main.Slots[b.Id],
+                        grid = main.GridOf[b.Id],
                         kind,
                         page = kind is "folder" or "page" ? b.Action.Page : null,
                         // Comme un dossier Android : on referme après avoir lancé une appli,
@@ -967,14 +938,73 @@ public class DeckServer
         return (json, lookup);
     }
 
+    private sealed record Arranged(int Cols, int Rows, object? Screen, object Widgets, object? Grids,
+        Dictionary<string, int> Slots, Dictionary<string, string?> GridOf);
+
+    /// <summary>Calcule une disposition (portrait ou paysage) : cases réservées, boutons placés, grille agrandie si besoin.</summary>
+    private Arranged Arrange(int cols, int? rowsIn, List<DeckButton> buttons, List<DeckWidget> widgets, DeckScreenArea? screen,
+        List<DeckGridBlock>? gridsIn, Func<DeckButton, int?> slotOf, Func<DeckButton, string?> gridOfIn)
+    {
+        var blocked = new HashSet<int>();
+        foreach (var w in widgets)
+            for (int dy = 0; dy < Math.Max(1, w.H); dy++)
+                for (int dx = 0; dx < Math.Max(1, w.W); dx++)
+                    blocked.Add(w.Slot + dy * cols + dx);
+        // Pas de bouton sur la zone écran : elle n'accueille que des widgets.
+        if (screen != null)
+            for (int dy = 0; dy < Math.Max(1, screen.H); dy++)
+                for (int dx = 0; dx < Math.Max(1, screen.W); dx++)
+                    blocked.Add(screen.Slot + dy * cols + dx);
+        // Grilles séparées : leurs cases ne reçoivent pas de bouton de la page, leurs boutons sont placés dans leur propre grille.
+        var grids = (gridsIn ?? new()).Where(g => !string.IsNullOrEmpty(g.Id)).GroupBy(g => g.Id).Select(g => g.First()).ToList();
+        foreach (var g in grids)
+            for (int dy = 0; dy < Math.Max(1, g.H); dy++)
+                for (int dx = 0; dx < Math.Max(1, g.W); dx++)
+                    blocked.Add(g.Slot + dy * cols + dx);
+        var gridIds = grids.Select(g => g.Id).ToHashSet();
+        var gridOf = new Dictionary<string, string?>();
+        foreach (var b in buttons) { var g = gridOfIn(b); gridOf[b.Id] = g != null && gridIds.Contains(g) ? g : null; }
+        var slots = AssignSlots(buttons.Where(b => gridOf[b.Id] == null).ToList(), blocked, slotOf);
+        var gridRows = new Dictionary<string, int>();
+        foreach (var g in grids)
+        {
+            var inner = AssignSlots(buttons.Where(b => gridOf[b.Id] == g.Id).ToList(), null, slotOf);
+            foreach (var (id, s) in inner) slots[id] = s;
+            var gc = Math.Clamp(g.Columns, 1, 12);
+            var last = inner.Values.DefaultIfEmpty(-1).Max();
+            gridRows[g.Id] = Math.Clamp(Math.Max(g.Rows, last / gc + 1), 1, 24);
+        }
+        // La grille grandit si des boutons ou widgets ne rentrent pas (plutôt que de les cacher).
+        var lastCell = buttons.Where(b => gridOf[b.Id] == null).Select(b => slots[b.Id]).DefaultIfEmpty(-1).Max();
+        var needed = lastCell < 0 ? 1 : lastCell / cols + 1;
+        foreach (var w in widgets) needed = Math.Max(needed, w.Slot / cols + Math.Max(1, w.H));
+        if (screen != null) needed = Math.Max(needed, screen.Slot / cols + Math.Max(1, screen.H));
+        foreach (var g in grids) needed = Math.Max(needed, g.Slot / cols + Math.Max(1, g.H));
+        var rows = Math.Max(rowsIn ?? 1, needed);
+        return new Arranged(cols, rows,
+            screen == null ? null : new
+            {
+                slot = screen.Slot, w = Math.Max(1, screen.W), h = Math.Max(1, screen.H),
+                bg = _store.ScreenBgPath(screen.Bg) != null ? screen.Bg : null,
+                dim = Math.Clamp(screen.Dim, 0, 80),
+            },
+            widgets.Select(w => new { id = w.Id, type = w.Type, model = w.Model, slot = w.Slot, w = Math.Max(1, w.W), h = Math.Max(1, w.H) }).ToList(),
+            grids.Count == 0 ? null : grids.Select(g => new
+            {
+                id = g.Id, name = g.Name, slot = g.Slot, w = Math.Max(1, g.W), h = Math.Max(1, g.H),
+                columns = Math.Clamp(g.Columns, 1, 12), rows = gridRows[g.Id],
+            }).ToList(),
+            slots, gridOf);
+    }
+
     /// <summary>Place chaque bouton : ceux qui ont une case la gardent, les autres prennent les premières cases libres.</summary>
-    public static Dictionary<string, int> AssignSlots(List<DeckButton> buttons, HashSet<int>? blocked = null)
+    public static Dictionary<string, int> AssignSlots(List<DeckButton> buttons, HashSet<int>? blocked = null, Func<DeckButton, int?>? slotOf = null)
     {
         var result = new Dictionary<string, int>();
         var used = new HashSet<int>(blocked ?? new HashSet<int>());
         foreach (var b in buttons)
         {
-            if (b.Slot is int s && s >= 0 && used.Add(s)) result[b.Id] = s;
+            if ((slotOf != null ? slotOf(b) : b.Slot) is int s && s >= 0 && used.Add(s)) result[b.Id] = s;
         }
         int next = 0;
         foreach (var b in buttons)
