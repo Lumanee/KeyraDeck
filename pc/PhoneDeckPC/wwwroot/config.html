@@ -451,8 +451,9 @@
     <input type="checkbox" id="startWin" style="width:auto"> Lancer KeyraDeck au démarrage de Windows (discrètement, près de l'horloge)
   </label>
   <label>Sauvegarde</label>
-  <div class="hint">Toute ta configuration dans un seul fichier : pages, dossiers, boutons, widgets, thème et images. Pour changer de PC ou de téléphone, ou pour garder une copie de côté.</div>
-  <div class="row" style="margin-top:8px;justify-content:flex-start"><button id="backupBtn">Sauvegarder dans un fichier…</button><button id="restoreBtn">Restaurer une sauvegarde…</button></div>
+  <div class="hint">KeyraDeck garde une copie à chaque modification (portrait et paysage, images et fonds compris) dans <b>Documents\KeyraDeck\Sauvegardes</b> : les 40 dernières, puis une par jour pendant 2 mois. Tes pages exportées vont dans <b>Documents\KeyraDeck\Pages</b>.</div>
+  <div class="row" style="margin-top:8px;justify-content:flex-start;flex-wrap:wrap"><button id="restoreBtn">Revenir à une sauvegarde…</button><button id="bkNowBtn">Sauvegarder maintenant</button><button id="bkFolderBtn">Ouvrir le dossier</button></div>
+  <div class="row" style="margin-top:6px;justify-content:flex-start;flex-wrap:wrap"><button id="backupBtn">Tout dans un seul fichier (changer de PC)…</button><button id="restoreFileBtn">Restaurer depuis un fichier…</button></div>
   <input type="file" id="restoreFile" accept=".json,application/json" style="display:none">
   <label>Câble USB</label>
   <label style="display:flex;gap:8px;align-items:center;color:var(--text);cursor:pointer;margin-top:4px">
@@ -484,7 +485,7 @@
   <div class="hint">Choisis une page toute prête : les raccourcis sont déjà réglés. Tu pourras tout modifier ensuite.</div>
   <div class="pgrid" id="presetList"></div>
   <div class="hint pnotes" id="presetNotes"></div>
-  <input type="file" id="pageFile" accept=".json,application/json" style="display:none">
+  <input type="file" id="pageFile" accept=".keyradeck,.json,application/json" style="display:none">
   <div style="text-align:right;margin-top:14px"><button id="pageClose">Fermer</button></div>
 </dialog>
 
@@ -516,6 +517,13 @@
   </div>
   <div class="picgrid" id="brandList"></div>
   <div style="text-align:right;margin-top:14px"><button id="brandClose">Fermer</button></div>
+</dialog>
+
+<dialog id="bkDlg" style="max-width:620px;width:94vw;max-height:90vh">
+  <h2>Revenir à une sauvegarde</h2>
+  <div class="hint">Une copie est faite à chaque modification. Choisis le moment où ta configuration te plaisait : elle remplace l'actuelle (qui est gardée elle aussi, « avant restauration »).</div>
+  <div id="bkList" style="margin-top:10px;overflow:auto;max-height:55vh"></div>
+  <div style="text-align:right;margin-top:14px;display:flex;gap:8px;justify-content:flex-end"><button id="bkFolder">Ouvrir le dossier</button><button id="bkFile">Depuis un fichier…</button><button id="bkClose" class="primary">Fermer</button></div>
 </dialog>
 
 <dialog id="askDlg" style="min-width:320px">
@@ -2286,16 +2294,27 @@ function remapBlocks(page) {
   page.grids = (page.grids || []).map(g => { const id = uid('grille'); ids.set(g.id, id); return { ...g, id }; });
   if (!page.grids.length) delete page.grids;
   for (const b of page.buttons) { if (b.grid && ids.has(b.grid)) b.grid = ids.get(b.grid); else delete b.grid; }
+  return ids;
 }
-function insertRootPage({ name, autoProcesses, buttons, widgets, columns, rows, screen, grids }) {
+// Mise en page paysage venue d'un fichier : ses ids sont ceux du fichier, on les remplace par ceux de la nouvelle page.
+// Si un bouton n'y a pas sa place, on la refait en auto.
+function remapLand(land, bIds, wIds, gIds) {
+  const grids = (land.grids || []).map(g => { const id = gIds.get(g.id) || uid('grille'); gIds.set(g.id, id); return { ...g, id }; });
+  const places = land.places.filter(x => bIds.has(x.id)).map(x => ({ id: bIds.get(x.id), slot: x.slot, grid: x.grid && gIds.has(x.grid) ? gIds.get(x.grid) : undefined }));
+  if (places.length !== bIds.size || places.some(x => x.slot == null)) return null;
+  return { columns: land.columns, rows: land.rows, screen: land.screen || null, grids: grids.length ? grids : null, places,
+    widgets: land.widgets.map(w => ({ ...w, id: wIds.get(w.id) || uid('w') })) };
+}
+function insertRootPage({ name, autoProcesses, buttons, widgets, columns, rows, screen, grids, land }) {
   const g = pageGrid(rootPages()[0]);
   const page = { id: uid('page'), name: uniquePageName(name || 'Page'), root: true, columns: columns || g.cols, rows: rows || g.rows, buttons: [], widgets: [] };
   if (autoProcesses && autoProcesses.length) page.autoProcesses = autoProcesses.slice();
-  page.widgets = (widgets || []).filter(w => WIDGET_MODELS[w.type]).map(w => ({ ...w, id: uid('w') }));
+  const wIds = new Map(), bIds = new Map();
+  page.widgets = (widgets || []).filter(w => WIDGET_MODELS[w.type]).map(w => { const id = uid('w'); if (w.id) wIds.set(w.id, id); return { ...w, id }; });
   if (screen) page.screen = { ...screen };
   if (grids && grids.length) page.grids = grids.map(g => ({ ...g }));
-  page.buttons = buttons.map(b => { const copy = JSON.parse(JSON.stringify(b)); copy.id = uid('b'); return copy; });
-  remapBlocks(page);
+  page.buttons = buttons.map(b => { const copy = JSON.parse(JSON.stringify(b)); copy.id = uid('b'); if (b.id) bIds.set(b.id, copy.id); return copy; });
+  const gIds = remapBlocks(page);
   // Les boutons sans case prennent les suivantes, dans la grille de la page ou dans leur grille séparée.
   for (const list of [mainButtons(page), ...blocks(page).map(g => blockButtons(page, g))]) {
     const used = new Set(list.filter(b => b.slot != null).map(b => b.slot));
@@ -2307,7 +2326,9 @@ function insertRootPage({ name, autoProcesses, buttons, widgets, columns, rows, 
   state.cfg.pages.splice(at, 0, page);
   // Si la grille du téléphone est plus petite, les boutons en trop passent à la ligne.
   reflowPage(page, Math.max(page.columns, ...page.widgets.map(w => w.w), ...blocks(page).map(g => g.w), page.screen ? page.screen.w : 0), page.rows);
-  page.land = makeLandscape(page);
+  const fromFile = land && bIds.size === page.buttons.length ? remapLand(land, bIds, wIds, gIds) : null;
+  page.land = fromFile || makeLandscape(page);
+  insertRootPage.landKept = !!fromFile;
   state.page = page.id; state.selected = null;
   changed({ immediate: true });
   return page;
@@ -2357,7 +2378,16 @@ function addRootPage(group) {
     list.append(card('＋', 'Page vide', 'Tu la remplis toi-même.', null, addEmptyPage));
     list.append(card('🏁', 'Sim racing', 'Une page par jeu : Assetto Corsa, ACC, EVO, F1, Automobilista 2, camion (ETS2 / ATS), Bus Simulator.', `${SIM_PRESETS.length} jeux · vraies icônes de tableau de bord`, () => addRootPage('sim')));
     for (const p of presets) list.append(presetCard(p));
-    list.append(card('📂', 'Importer un fichier…', 'Une page exportée depuis KeyraDeck (fichier .keyradeck.json).', null, () => $('#pageFile').click()));
+    list.append(card('📂', 'Importer un fichier…', 'Une page partagée (fichier .keyradeck), d\'un ami ou de la communauté.', null, () => $('#pageFile').click()));
+    // Pages rangées dans Documents\KeyraDeck\Pages (exportées ici ou téléchargées) : un clic pour les ajouter.
+    const mine = el('div', { class: 'pgrid', style: 'grid-column:1/-1;margin:0' });
+    list.append(el('div', { class: 'hint', style: 'grid-column:1/-1;margin-top:6px' }, el('b', {}, 'Mes pages'), ' (Documents\\KeyraDeck\\Pages) · ',
+      el('a', { href: '#', style: 'color:var(--accent)', onclick: (e) => { e.preventDefault(); openFolder('pages'); } }, 'ouvrir le dossier')), mine);
+    api('/api/pages').then(r => {
+      mine.replaceChildren(...(r.items.length ? r.items.map(x => card('📄', x.name, `${x.buttons} boutons` + (x.land ? ' · portrait + paysage' : ''), x.file,
+        () => importPageFrom('/api/page/import?file=' + encodeURIComponent(x.file))))
+        : [el('div', { class: 'hint', style: 'grid-column:1/-1' }, 'Aucune page pour l\'instant. « Exporter cette page » (clic droit sur un onglet) en range une ici ; dépose aussi ici les pages .keyradeck de la communauté.')]));
+    }).catch(() => mine.replaceChildren());
   }
   const notes = presets.filter(p => p.note);
   $('#presetNotes').replaceChildren(...(group === 'sim' ? [el('div', {}, el('b', {}, 'À savoir : '), SIM_CHECK)] : []), ...notes.map(p => el('div', {}, el('b', {}, p.name + ' : '), p.note)));
@@ -2439,37 +2469,71 @@ $('#brandClose').onclick = () => $('#brandDlg').close();
 
 // ---- Partage d'une page en fichier ----
 const isSharedIcon = (ic) => !ic || /^(auto|app:|builtin:|glyph:|mdi:|brand:|text:)/i.test(ic);
-function exportPage() {
+// Format partageable (fichier .keyradeck = zip : page.json + images/) : la page en portrait ET en paysage, ses images personnalisées
+// et son fond d'écran. Les boutons y ont des ids courts (k1, k2…) que la mise en page paysage utilise.
+async function exportPage() {
+  await save();
   const page = portraitCopy(currentPage());
-  const buttons = page.buttons
-    .filter(b => !['folder', 'page'].includes(b.action.type)) // les dossiers et pages liés ne voyagent pas avec la page
-    .map(b => { const c = JSON.parse(JSON.stringify(b)); delete c.id; if (!isSharedIcon(c.icon)) c.icon = 'auto'; return c; });
-  const data = { keyradeck: 'page', version: 1, page: { name: page.name, autoProcesses: page.autoProcesses, columns: pageGrid(page).cols, rows: pageGrid(page).rows,
-    buttons, widgets: (page.widgets || []).map(w => { const c = { ...w }; delete c.id; return c; }),
-    screen: page.screen ? { slot: page.screen.slot, w: page.screen.w, h: page.screen.h } : undefined, // le fond reste sur ce PC
-    grids: blocks(page).length ? blocks(page).map(g => ({ ...g })) : undefined } };
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const a = el('a', { href: URL.createObjectURL(blob), download: (page.name || 'page').replace(/[\\/:*?"<>|]/g, '_') + '.keyradeck.json' });
-  document.body.append(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-  toast('Page exportée dans le dossier Téléchargements.');
+  const kept = page.buttons.filter(b => !['folder', 'page'].includes(b.action.type)); // les dossiers et pages liés ne voyagent pas avec la page
+  const bIds = new Map(kept.map((b, i) => [b.id, 'k' + (i + 1)]));
+  const wIds = new Map((page.widgets || []).map((w, i) => [w.id, 'w' + (i + 1)]));
+  const buttons = kept.map(b => { const c = clone(b); c._src = b.id; c.id = bIds.get(b.id); if (!isSharedIcon(c.icon)) c.icon = 'auto'; return c; });
+  const scr = (x) => x ? { slot: x.slot, w: x.w, h: x.h, dim: x.dim, bg: x.bg || undefined } : undefined;
+  let land;
+  if (page.land) {
+    const L = clone(page.land);
+    land = { columns: L.columns, rows: L.rows, screen: scr(L.screen), grids: L.grids && L.grids.length ? L.grids : undefined,
+      widgets: (L.widgets || []).map((w, i) => ({ ...w, id: wIds.get(w.id) || 'lw' + (i + 1) })),
+      places: (L.places || []).filter(x => bIds.has(x.id)).map(x => ({ ...x, id: bIds.get(x.id) })) };
+  }
+  const data = { name: page.name, autoProcesses: page.autoProcesses, columns: pageGrid(page).cols, rows: pageGrid(page).rows,
+    buttons, widgets: (page.widgets || []).map(w => ({ ...w, id: wIds.get(w.id) })), screen: scr(page.screen),
+    grids: blocks(page).length ? blocks(page).map(g => ({ ...g })) : undefined, land };
+  try {
+    const r = await api('/api/page/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    const open = await askDialog({ title: 'Page exportée', okLabel: 'Ouvrir le dossier',
+      message: `Enregistrée dans ${r.path}. Ce fichier contient la page en portrait et en paysage, ses images et son fond : partage-le tel quel.` });
+    if (open) openFolder('pages');
+  } catch (e) { toast('Impossible d\'exporter : ' + e.message); }
 }
+function openFolder(what) { api('/api/openfolder?what=' + what, { method: 'POST' }).catch(e => toast('Erreur : ' + e.message)); }
 async function importPageFile(file) {
   $('#pageDlg').close();
-  try {
-    const text = await file.text(), data = JSON.parse(text);
+  if (/\.json$/i.test(file.name)) {
+    const text = await file.text(); let data = null; try { data = JSON.parse(text); } catch { }
     if (data && data.keyradeck === 'backup') { restoreBackup(text, data); return; }
-    const p = data && data.keyradeck === 'page' && data.page;
+  }
+  importPageFrom('/api/page/import', { method: 'POST', body: await file.arrayBuffer() });
+}
+// Le PC lit le fichier (et range ses images), on ajoute la page.
+async function importPageFrom(url, opts = { method: 'POST' }) {
+  $('#pageDlg').close();
+  try {
+    const { page: p } = await api(url, opts);
     if (!p || !Array.isArray(p.buttons)) throw new Error('ce n\'est pas une page KeyraDeck');
-    const buttons = p.buttons.filter(b => b && b.action && typeof b.action.type === 'string' && !['folder', 'page'].includes(b.action.type))
-      .map(b => ({ ...b, icon: isSharedIcon(b.icon) ? b.icon : 'auto' }));
-    const cols = Math.min(12, Math.max(1, +p.columns || 0)) || null, rows = Math.min(12, Math.max(1, +p.rows || 0)) || null;
+    const src = p.buttons.filter(b => b && b.action && typeof b.action.type === 'string' && !['folder', 'page'].includes(b.action.type));
+    const images = src.map(b => b.image);
+    const buttons = src.map(b => { const c = { ...b, icon: isSharedIcon(b.icon) ? b.icon : 'auto' }; delete c.image; return c; });
+    const n = (v, lo, hi, def) => { v = Math.round(+v); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : def; };
+    const scr = (x) => x && +x.w > 0 && +x.h > 0 ? Object.assign({ slot: n(x.slot, 0, 143, 0), w: n(x.w, 1, 12, 1), h: n(x.h, 1, 12, 1) },
+      x.dim != null ? { dim: n(x.dim, 0, 80, 30) } : {}, /^[a-f0-9]{16}\.(png|jpg|gif|webp|mp4|webm)$/.test(x.bg || '') ? { bg: x.bg } : {}) : null;
+    const grid = (g) => ({ id: String(g.id), name: g.name ? String(g.name).slice(0, 30) : undefined, slot: n(g.slot, 0, 143, 0), w: n(g.w, 1, 12, 1), h: n(g.h, 1, 12, 1),
+      columns: n(g.columns, 1, 12, 1), rows: n(g.rows, 1, 12, 1) });
+    const grids = (a) => (Array.isArray(a) ? a : []).filter(g => g && g.id && +g.w > 0 && +g.h > 0).map(grid);
+    const L = p.land && typeof p.land === 'object' ? p.land : null;
+    const land = L && { columns: n(L.columns, 1, 12, 8), rows: n(L.rows, 1, 12, 3), screen: scr(L.screen), grids: grids(L.grids),
+      widgets: Array.isArray(L.widgets) ? L.widgets.filter(w => w && WIDGET_MODELS[w.type]) : [],
+      places: (Array.isArray(L.places) ? L.places : []).filter(x => x && x.id).map(x => ({ id: String(x.id), slot: x.slot == null ? undefined : n(x.slot, 0, 143, 0), grid: x.grid ? String(x.grid) : undefined })) };
     const page = insertRootPage({ name: String(p.name || 'Page importée'), autoProcesses: Array.isArray(p.autoProcesses) ? p.autoProcesses.map(String) : null,
-      buttons, widgets: Array.isArray(p.widgets) ? p.widgets : [], columns: cols, rows,
-      screen: p.screen && +p.screen.w > 0 && +p.screen.h > 0 ? { slot: Math.max(0, +p.screen.slot || 0), w: +p.screen.w, h: +p.screen.h } : null,
-      grids: (Array.isArray(p.grids) ? p.grids : []).filter(g => g && g.id && +g.w > 0 && +g.h > 0).map(g => ({ id: String(g.id), name: g.name ? String(g.name).slice(0, 30) : undefined,
-        slot: Math.max(0, +g.slot || 0), w: Math.min(12, +g.w), h: Math.min(12, +g.h), columns: Math.min(12, Math.max(1, +g.columns || 1)), rows: Math.min(12, Math.max(1, +g.rows || 1)) })) });
-    toast(`Page « ${page.name} » importée.`);
+      buttons, widgets: Array.isArray(p.widgets) ? p.widgets : [], columns: p.columns ? n(p.columns, 1, 12, null) : null, rows: p.rows ? n(p.rows, 1, 12, null) : null,
+      screen: scr(p.screen), grids: grids(p.grids), land });
+    const pairs = page.buttons.map((b, i) => ({ buttonId: b.id, file: images[i] })).filter(x => x.file);
+    if (pairs.length) {
+      await save();
+      await api('/api/icon/assign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pairs) });
+      await refreshLayout(); renderAll();
+    }
+    toast(`Page « ${page.name} » importée` + (insertRootPage.landKept ? ' (portrait + paysage).' : '.'));
   } catch (e) { toast('Impossible d\'importer : ' + e.message); }
 }
 
@@ -3320,8 +3384,8 @@ function stageMenu(x, y) {
     { icon: G.page, label: 'Nouvelle page…', onclick: addRootPage },
     { icon: G.folder, label: 'Nouveau dossier…', onclick: addFolder },
     '-',
-    { icon: G.save, label: 'Sauvegarder toute la configuration…', onclick: downloadBackup },
-    { icon: G.restore, label: 'Restaurer une sauvegarde…', onclick: () => $('#restoreFile').click() },
+    { icon: G.restore, label: 'Revenir à une sauvegarde…', onclick: openBackups },
+    { icon: G.save, label: 'Sauvegarder maintenant', onclick: backupNow },
   ], x, y);
 }
 
@@ -3501,7 +3565,39 @@ async function downloadBackup() {
   document.body.append(a); a.click(); a.remove();
   toast('Sauvegarde enregistrée dans le dossier Téléchargements.');
 }
-async function restoreBackup(text, data) {
+async function backupNow() {
+  await save();
+  try { const r = await api('/api/backups/now', { method: 'POST' }); toast('Sauvegardé dans Documents\\KeyraDeck\\Sauvegardes ✓'); return r; }
+  catch (e) { toast('Impossible de sauvegarder : ' + e.message); }
+}
+const BK_TAGS = { manuelle: 'sauvegarde manuelle', 'avant restauration': 'avant une restauration' };
+async function openBackups() {
+  await save();
+  const box = $('#bkList');
+  box.replaceChildren(el('div', { class: 'hint' }, 'Chargement…'));
+  if (!$('#bkDlg').open) $('#bkDlg').showModal();
+  let r;
+  try { r = await api('/api/backups'); } catch (e) { box.replaceChildren(el('div', { class: 'hint' }, 'Erreur : ' + e.message)); return; }
+  const today = new Date().toDateString(), yesterday = new Date(Date.now() - 864e5).toDateString();
+  const when = (d) => { d = new Date(d); const t = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', 'h');
+    return d.toDateString() === today ? `Aujourd'hui à ${t}` : d.toDateString() === yesterday ? `Hier à ${t}` : d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) + ` à ${t}`; };
+  box.replaceChildren(r.items.length
+    ? el('table', { class: 'raretab' }, ...r.items.map((x, i) => el('tr', {},
+        el('td', {}, el('b', {}, when(x.date)), i === 0 && !x.tag ? el('span', { class: 'muted' }, ' · la plus récente') : null, x.tag ? el('span', { class: 'muted' }, ' · ' + (BK_TAGS[x.tag] || x.tag)) : null),
+        el('td', { class: 'muted' }, `${x.pages} page(s)` + (x.folders ? `, ${x.folders} dossier(s)` : '')),
+        el('td', { style: 'text-align:right' }, el('button', { onclick: () => restoreSaved(x.file) }, 'Restaurer')))))
+    : el('div', { class: 'hint' }, 'Pas encore de sauvegarde : la première est faite quelques secondes après ta prochaine modification.'));
+}
+async function restoreSaved(file) {
+  try {
+    const text = await api('/api/backups/read?file=' + encodeURIComponent(file));
+    await restoreBackup(JSON.stringify(text), text, file);
+  } catch (e) { toast('Impossible de lire la sauvegarde : ' + e.message); }
+}
+$('#bkClose').onclick = () => $('#bkDlg').close();
+$('#bkFolder').onclick = () => openFolder('backups');
+$('#bkFile').onclick = () => $('#restoreFile').click();
+async function restoreBackup(text, data, file) {
   $('#pageDlg').close();
   if (data && data.keyradeck === 'page') { importPageFile(new File([text], 'page.json')); return; }
   if (!data || data.keyradeck !== 'backup' || !data.config || !Array.isArray(data.config.pages)) { toast('Ce fichier n\'est pas une sauvegarde KeyraDeck.'); return; }
@@ -3509,13 +3605,14 @@ async function restoreBackup(text, data) {
   const when = data.date ? new Date(data.date).toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' }) : '';
   const ok = await askDialog({ title: 'Restaurer cette sauvegarde ?', okLabel: 'Restaurer', danger: true,
     message: (when ? `Sauvegarde du ${when} : ` : '') + `${n} page(s), ${d} dossier(s), ${Object.keys(data.icons || {}).length} image(s). ` +
-      'Elle remplace toute ta configuration actuelle. Une copie de l\'ancienne est gardée dans le dossier de config (sous-dossier « sauvegardes »).' });
+      'Elle remplace toute ta configuration actuelle. L\'actuelle est d\'abord sauvegardée (« avant restauration ») : tu peux y revenir.' });
   if (!ok) return;
   clearTimeout(saveTimer); state.dirty = false;
   try {
-    await api('/api/restore', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: text });
+    if (file) await api('/api/backups/restore?file=' + encodeURIComponent(file), { method: 'POST' });
+    else await api('/api/restore', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: text });
     state.undo = []; state.page = null; state.selected = null; state.clip = null;
-    $('#setDlg').close();
+    $('#setDlg').close(); $('#bkDlg').close();
     await loadAll();
     toast('Sauvegarde restaurée ✓');
   } catch (e) { toast('Impossible de restaurer : ' + e.message); }
@@ -3566,7 +3663,10 @@ $('#findInput').onkeydown = (e) => {
   else if (e.key === 'Escape') { e.preventDefault(); clearFind(); e.target.blur(); }
 };
 $('#backupBtn').onclick = downloadBackup;
-$('#restoreBtn').onclick = () => $('#restoreFile').click();
+$('#restoreBtn').onclick = openBackups;
+$('#restoreFileBtn').onclick = () => $('#restoreFile').click();
+$('#bkNowBtn').onclick = backupNow;
+$('#bkFolderBtn').onclick = () => openFolder('backups');
 $('#restoreFile').onchange = async (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) { const text = await f.text(); let data = null; try { data = JSON.parse(text); } catch { } restoreBackup(text, data); } };
 $('#undoBtn').onclick = undo;
 $('#folderBtn').onclick = () => api('/api/openfolder', { method: 'POST' });

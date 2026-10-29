@@ -21,6 +21,7 @@ public class ConfigApi
     private readonly Integrations _int;
     private readonly Dictionary<string, byte[]?> _appIcons = new();
     private readonly Updater _updater = new();
+    private readonly Backups _backups;
 
     /// <summary>Demande à la fenêtre de se fermer (après le téléchargement d'une mise à jour).</summary>
     public Action? ExitRequested { get; set; }
@@ -35,6 +36,21 @@ public class ConfigApi
         _catalog = catalog;
         _sta = sta;
         _server = server;
+        _backups = new Backups(store);
+    }
+
+    /// <summary>Fichiers envoyés par le configurateur (sauvegarde ou page avec vidéo de fond) : plus que les 30 Mo par défaut.</summary>
+    private static void AllowLargeBody(HttpContext ctx)
+    {
+        var f = ctx.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();
+        if (f != null && !f.IsReadOnly) f.MaxRequestBodySize = 200_000_000;
+    }
+
+    private static async Task<byte[]> ReadBody(HttpContext ctx)
+    {
+        using var ms = new MemoryStream();
+        await ctx.Request.Body.CopyToAsync(ms);
+        return ms.ToArray();
     }
 
     public async Task HandleAsync(HttpContext ctx)
@@ -229,15 +245,78 @@ public class ConfigApi
                     var name = $"KeyraDeck-sauvegarde-{DateTime.Now:yyyy-MM-dd}.keyradeck-backup.json";
                     ctx.Response.ContentType = "application/json; charset=utf-8";
                     ctx.Response.Headers.ContentDisposition = $"attachment; filename=\"{name}\"";
-                    await ctx.Response.WriteAsync(JsonSerializer.Serialize(BuildBackup(), ConfigStore.Json));
+                    await ctx.Response.WriteAsync(JsonSerializer.Serialize(_backups.BuildPortable(), ConfigStore.Json));
                     return;
                 }
 
                 case "/api/restore" when method == "POST":
                 {
-                    using var doc = await JsonDocument.ParseAsync(ctx.Request.Body);
+                    AllowLargeBody(ctx);
+                    using var doc = JsonDocument.Parse(await ReadBody(ctx));
                     var count = Restore(doc.RootElement);
                     await Json(ctx, new { ok = true, pages = count });
+                    return;
+                }
+
+                case "/api/backups":
+                    await Json(ctx, new { folder = _backups.BackupsDir, items = _backups.List() });
+                    return;
+
+                case "/api/backups/read":
+                    ctx.Response.ContentType = "application/json; charset=utf-8";
+                    await ctx.Response.WriteAsync(_backups.Read(ctx.Request.Query["file"].ToString()));
+                    return;
+
+                case "/api/backups/now" when method == "POST":
+                    await Json(ctx, new { ok = true, file = _backups.Snapshot(Backups.Manual), folder = _backups.BackupsDir });
+                    return;
+
+                case "/api/backups/restore" when method == "POST":
+                {
+                    using var doc = JsonDocument.Parse(_backups.Read(ctx.Request.Query["file"].ToString()));
+                    var count = Restore(doc.RootElement);
+                    await Json(ctx, new { ok = true, pages = count });
+                    return;
+                }
+
+                case "/api/pages":
+                    await Json(ctx, new { folder = _backups.PagesDir, items = _backups.ListPages() });
+                    return;
+
+                case "/api/page/export" when method == "POST":
+                {
+                    AllowLargeBody(ctx);
+                    var node = System.Text.Json.Nodes.JsonNode.Parse(await ReadBody(ctx)) as System.Text.Json.Nodes.JsonObject
+                        ?? throw new InvalidOperationException("Page vide");
+                    var saved = _backups.ExportPage(node);
+                    await Json(ctx, new { ok = true, path = saved, folder = _backups.PagesDir });
+                    return;
+                }
+
+                case "/api/page/import" when method == "POST":
+                {
+                    AllowLargeBody(ctx);
+                    var file = ctx.Request.Query["file"].ToString();
+                    var bytes = string.IsNullOrEmpty(file) ? await ReadBody(ctx) : _backups.ReadPageFile(file);
+                    if (bytes.Length == 0) throw new InvalidOperationException("Fichier vide");
+                    var page = _backups.ImportPage(bytes);
+                    ctx.Response.ContentType = "application/json";
+                    await ctx.Response.WriteAsync(new System.Text.Json.Nodes.JsonObject { ["page"] = page }.ToJsonString(Wire));
+                    return;
+                }
+
+                case "/api/icon/assign" when method == "POST":
+                {
+                    // Images des boutons d'une page importée (déjà rangées dans « icons » par /api/page/import).
+                    using var doc = await JsonDocument.ParseAsync(ctx.Request.Body);
+                    var pairs = doc.RootElement.EnumerateArray()
+                        .Select(e => (e.GetProperty("buttonId").GetString() ?? "", e.GetProperty("file").GetString() ?? ""))
+                        .Where(p => p.Item1.Length > 0 && System.Text.RegularExpressions.Regex.IsMatch(p.Item2, @"^icons/imp-[a-f0-9]{16}\.(png|jpg|jpeg|gif|bmp|ico)$")
+                            && File.Exists(Path.Combine(_store.DataDir, p.Item2)))
+                        .Select(p => (p.Item1, Path.Combine("icons", p.Item2["icons/".Length..])))
+                        .ToList();
+                    await _server.AssignIconsAsync(pairs);
+                    await Json(ctx, new { ok = true });
                     return;
                 }
 
@@ -398,9 +477,18 @@ public class ConfigApi
                     return;
 
                 case "/api/openfolder" when method == "POST":
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_store.DataDir) { UseShellExecute = true });
+                {
+                    var dir = ctx.Request.Query["what"].ToString() switch
+                    {
+                        "backups" => _backups.BackupsDir,
+                        "pages" => _backups.PagesDir,
+                        _ => _store.DataDir,
+                    };
+                    Directory.CreateDirectory(dir);
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(dir) { UseShellExecute = true });
                     await Json(ctx, new { ok = true });
                     return;
+                }
             }
             ctx.Response.StatusCode = 404;
         }
@@ -430,32 +518,9 @@ public class ConfigApi
     private static readonly string[] IconExtensions = { ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico" };
 
     /// <summary>
-    /// Sauvegarde complète : pages, dossiers, boutons, widgets, thème et images personnalisées (incluses dans le fichier).
-    /// Sans le code d'appairage ni le téléphone : ils appartiennent à ce PC.
+    /// Restaure une sauvegarde (fichier unique avec images incluses, ou sauvegarde automatique dont les images sont dans
+    /// « Documents\KeyraDeck\Sauvegardes\Images »). Renvoie le nombre de pages et dossiers.
     /// </summary>
-    private object BuildBackup()
-    {
-        var cfg = JsonSerializer.Deserialize<DeckConfig>(JsonSerializer.Serialize(_store.Config, ConfigStore.Json), ConfigStore.Json)!;
-        cfg.Token = "";
-        cfg.PcName = null;
-        cfg.Device = null;
-        cfg.AdaptedTo = null;
-        cfg.IconOverrides = new();
-        var icons = new Dictionary<string, object>();
-        foreach (var (id, rel) in _store.Config.IconOverrides)
-        {
-            try
-            {
-                var path = Path.IsPathRooted(rel) ? rel : Path.Combine(_store.DataDir, rel);
-                if (!File.Exists(path)) continue;
-                icons[id] = new { ext = Path.GetExtension(path).ToLowerInvariant(), data = Convert.ToBase64String(File.ReadAllBytes(path)) };
-            }
-            catch { /* image illisible : le bouton reprendra son icône auto */ }
-        }
-        return new { keyradeck = "backup", version = 1, build = Updater.CurrentBuild, appVersion = Updater.CurrentVersion, date = DateTime.Now, config = cfg, icons };
-    }
-
-    /// <summary>Restaure une sauvegarde faite par <see cref="BuildBackup"/>. Renvoie le nombre de pages et dossiers.</summary>
     private int Restore(JsonElement root)
     {
         if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("keyradeck", out var kind) || kind.GetString() != "backup"
@@ -476,18 +541,37 @@ public class ConfigApi
                 if (!ids.Contains(icon.Name)) continue;
                 var ext = icon.Value.TryGetProperty("ext", out var e) ? (e.GetString() ?? "").ToLowerInvariant() : "";
                 if (!IconExtensions.Contains(ext)) ext = ".png";
-                if (!icon.Value.TryGetProperty("data", out var d) || d.GetString() is not { Length: > 0 } b64) continue;
-                byte[] bytes;
-                try { bytes = Convert.FromBase64String(b64); } catch { continue; }
-                if (bytes.Length > 10_000_000) continue;
+                var bytes = Bytes(icon.Value);
+                if (bytes == null || bytes.Length > 10_000_000) continue;
                 var safe = string.Concat(icon.Name.Select(c => char.IsLetterOrDigit(c) || c == '-' ? c : '_'));
                 var file = $"restaure-{safe}-{stamp}{ext}";
                 File.WriteAllBytes(Path.Combine(_store.IconsDir, file), bytes);
                 overrides[icon.Name] = Path.Combine("icons", file);
             }
         }
+        // Fonds des zones écran : remis dans « ecrans » s'ils n'y sont plus.
+        if (root.TryGetProperty("screens", out var screens) && screens.ValueKind == JsonValueKind.Object)
+            foreach (var bg in screens.EnumerateObject())
+            {
+                if (!System.Text.RegularExpressions.Regex.IsMatch(bg.Name, @"^[a-f0-9]{16}\.(png|jpg|gif|webp|mp4|webm)$") || _store.ScreenBgPath(bg.Name) != null) continue;
+                var bytes = Bytes(bg.Value);
+                if (bytes != null) File.WriteAllBytes(Path.Combine(_store.ScreensDir, bg.Name), bytes);
+            }
+        try { _backups.Snapshot(Backups.BeforeRestore); } catch { /* la restauration passe avant la copie de sécurité */ }
         _store.Restore(cfg, overrides);
         return cfg.Pages.Count;
+    }
+
+    /// <summary>Octets d'une image de sauvegarde : incluse (« data ») ou rangée dans le dossier des sauvegardes (« file »).</summary>
+    private byte[]? Bytes(JsonElement e)
+    {
+        if (e.ValueKind != JsonValueKind.Object) return null;
+        if (e.TryGetProperty("data", out var d) && d.GetString() is { Length: > 0 } b64)
+        {
+            try { return Convert.FromBase64String(b64); } catch { return null; }
+        }
+        if (e.TryGetProperty("file", out var f)) return _backups.ReadImage(f.GetString());
+        return null;
     }
 
     /// <summary>Seulement le PC lui-même, et seulement sous le nom « localhost » (protection contre les sites malveillants).</summary>
