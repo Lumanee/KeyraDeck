@@ -105,6 +105,9 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         private set
     var nowPlayingArt by mutableStateOf<ImageBitmap?>(null)
         private set
+    /** Voiture du joueur dans le jeu de course, envoyée par le PC environ 30 fois par seconde. */
+    var telemetry by mutableStateOf<RaceTelemetry?>(null)
+        private set
 
     /** Fonds des zones écran (images, vidéos) déjà reçus du PC, par nom de fichier. Gardés sur le téléphone. */
     val screenBgs = mutableStateMapOf<String, File>()
@@ -539,6 +542,13 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
                     if (artKey.isEmpty()) nowPlayingArt = null
                     else if (art != null) nowPlayingArt = art
                 }
+            }
+            "telemetry" -> {
+                val t = if (json.isNull("game")) null else RaceTelemetry(
+                    json.optString("game"), json.optInt("speed"), json.optInt("gear"), json.optInt("rpm"), json.optInt("maxRpm"),
+                    json.optInt("thr"), json.optInt("brk"), json.optInt("rev"), json.optBoolean("demo"),
+                )
+                post { telemetry = t }
             }
             "focus" -> post { focus = FocusRequest(json.optString("page"), (focus?.count ?: 0) + 1) }
             "toast" -> toast(json.optString("message"))

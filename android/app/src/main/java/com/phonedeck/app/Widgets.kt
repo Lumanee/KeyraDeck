@@ -112,6 +112,7 @@ fun DeckWidgetView(widget: DeckWidget, width: Dp, height: Dp, unit: Dp, vm: Deck
                 "trackpad" -> TrackpadWidget(vm)
                 "notifications" -> NotificationsWidget(widget, vm, screenHere)
                 "twitch" -> TwitchChatWidget(widget, vm)
+                "telemetry" -> RaceWidget(widget, vm)
                 else -> Text(widget.type, color = Color.Gray)
             }
         }

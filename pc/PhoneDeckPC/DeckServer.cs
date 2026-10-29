@@ -28,7 +28,7 @@ public class DeckServer
     private string _lastStates = "";
     private string? _autoPage;
     private readonly SystemStats _systemStats = new();
-    private bool _needVolume, _needSystem, _needPerfApp, _needWeather, _needDiscord, _needNowPlaying, _needTwitch;
+    private bool _needVolume, _needSystem, _needPerfApp, _needWeather, _needDiscord, _needNowPlaying, _needTwitch, _needTelemetry;
     private int _statesQueued;
     private readonly NowPlaying _nowPlaying = new();
     private string _lastNowPlaying = "";
@@ -37,6 +37,8 @@ public class DeckServer
     private readonly WeatherService _weather = new();
     private readonly WindowsNotifications _winNotifs = new();
     private readonly TwitchChat _twitch = new();
+    private readonly Telemetry _telemetry = new();
+    private string _lastTelemetry = "";
     /// <summary>Dernières notifications envoyées : un téléphone qui (re)vient les reçoit sans bandeau.</summary>
     private readonly List<object> _recentNotifs = new();
     private readonly List<string> _recentNotifIds = new();
@@ -110,6 +112,7 @@ public class DeckServer
         await _app.StartAsync();
         _stop = new CancellationTokenSource();
         _ = Task.Run(() => StateLoopAsync(_stop.Token));
+        _ = Task.Run(() => TelemetryLoopAsync(_stop.Token));
         Log?.Invoke($"Serveur prêt sur le port {Port}");
     }
 
@@ -216,6 +219,7 @@ public class DeckServer
                 List<object> recent;
                 lock (_recentNotifs) recent = _recentNotifs.ToList();
                 if (recent.Count > 0) await client.SendAsync(new { type = "notifyList", items = recent });
+                if (_needTelemetry) { _lastTelemetry = ""; } // le nouveau téléphone reçoit tout de suite la voiture
                 if (_needTwitch) await client.SendAsync(new { type = "twitchList", channel = _twitch.Channel, state = _twitch.State, status = _twitch.Status, items = _twitch.Recent(50) });
                 break;
 
@@ -677,6 +681,7 @@ public class DeckServer
                 : new { title = np.Title, artist = np.Artist, app = np.App, playing = np.Playing, pos = np.Pos, dur = np.Dur, artKey = np.ArtKey },
             notifs = NotifsLive(),
             twitch = !_needTwitch ? null : new { channel = _twitch.Channel, state = _twitch.State, status = _twitch.Status, items = _twitch.Recent(12) },
+            telemetry = !_needTelemetry ? null : TelemetryLive(),
         };
         return JsonSerializer.Serialize(new
         {
@@ -692,6 +697,45 @@ public class DeckServer
             weather = weather == null ? null : new { temp = weather.Temp, code = weather.Code, wind = weather.Wind, humidity = weather.Humidity, city = weather.City },
             discord,
         }, Wire);
+    }
+
+    private object TelemetryLive()
+    {
+        var t = _telemetry.Current();
+        return new { game = t?.Game, speed = t?.Speed, gear = t?.Gear, rpm = t?.Rpm, maxRpm = t?.MaxRpm, thr = t?.Throttle, brk = t?.Brake, rev = t?.Rev, demo = t?.Demo, status = _telemetry.Status };
+    }
+
+    // ---------- Télémétrie des jeux de course ----------
+
+    /// <summary>
+    /// 30 fois par seconde, la voiture du joueur part vers les téléphones (seulement si elle a changé).
+    /// Un téléphone encore occupé à recevoir le message précédent saute celui-ci : jamais de retard qui s'accumule.
+    /// </summary>
+    private async Task TelemetryLoopAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            try { await Task.Delay(_needTelemetry ? 33 : 500, ct); } catch { return; }
+            if (!_needTelemetry) continue;
+            try
+            {
+                List<Client> clients;
+                lock (_clients) clients = _clients.ToList();
+                if (clients.Count == 0) continue;
+                var t = _telemetry.Current();
+                var json = JsonSerializer.Serialize(t == null
+                    ? new { type = "telemetry", game = (string?)null, speed = 0, gear = 0, rpm = 0, maxRpm = 0, thr = 0, brk = 0, rev = 0, demo = false }
+                    : new { type = "telemetry", game = (string?)t.Game, speed = t.Speed, gear = t.Gear, rpm = t.Rpm, maxRpm = t.MaxRpm, thr = t.Throttle, brk = t.Brake, rev = t.Rev, demo = t.Demo }, Wire);
+                if (json == _lastTelemetry) continue;
+                _lastTelemetry = json;
+                foreach (var c in clients)
+                {
+                    if (Interlocked.Exchange(ref c.TelemetryBusy, 1) == 1) continue;
+                    _ = c.SendRawAsync(json).ContinueWith(_ => Interlocked.Exchange(ref c.TelemetryBusy, 0));
+                }
+            }
+            catch { }
+        }
     }
 
     private object NotifsLive()
@@ -924,6 +968,9 @@ public class DeckServer
         _lastNowPlaying = ""; // un nouveau widget reçoit tout de suite le morceau en cours
         _needTwitch = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "twitch"));
         _twitch.Watch(_needTwitch ? cfg.TwitchChannel : null);
+        _needTelemetry = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "telemetry"));
+        _telemetry.Watch(_needTelemetry, cfg.TelemetryF1Port is > 0 and < 65536 ? cfg.TelemetryF1Port : 20777, cfg.TelemetryDemo);
+        _lastTelemetry = "";
         _lastArtKey = "";
         var json = JsonSerializer.Serialize(new
         {
@@ -1055,6 +1102,8 @@ public class DeckServer
         /// <summary>Connecté par le câble USB plutôt que par le Wi-Fi.</summary>
         public bool Usb { get; init; }
         private readonly SemaphoreSlim _sendLock = new(1, 1);
+        /// <summary>1 tant qu'un message de télémétrie part vers ce téléphone.</summary>
+        public int TelemetryBusy;
 
         public Client(WebSocket socket, string name)
         {

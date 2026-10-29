@@ -126,6 +126,15 @@ data class DiscordVoice(
 /** Charge de l'appli au premier plan sur le PC (widget « Appli active ») ; fps = null si le PC ne peut pas les mesurer. */
 data class AppPerf(val name: String, val cpu: Int, val ram: Int, val gpu: Int, val fps: Int?, val fpsNote: String? = null)
 
+/**
+ * Télémétrie du jeu de course en cours (widget « Télémétrie course »). [gear] : -1 = marche arrière, 0 = point mort.
+ * [rev] : LED de régime allumées, en % (100 = passer le rapport). [game] = null : aucun jeu n'envoie rien.
+ */
+data class RaceTelemetry(
+    val game: String?, val speed: Int, val gear: Int, val rpm: Int, val maxRpm: Int,
+    val throttle: Int, val brake: Int, val rev: Int, val demo: Boolean,
+)
+
 data class NowPlayingInfo(val title: String, val artist: String, val app: String, val playing: Boolean, val pos: Int, val dur: Int, val at: Long)
 
 data class Notif(val id: String, val app: String, val title: String, val text: String)
