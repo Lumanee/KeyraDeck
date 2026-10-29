@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Windows.UI.Notifications;
 using Windows.UI.Notifications.Management;
 
@@ -45,6 +47,55 @@ public sealed class WindowsNotifications
     {
         lock (_known) return _known.Values.OrderByDescending(n => n.Time).ToList();
     }
+
+    /// <summary>Efface la notification dans Windows aussi (glissée sur le téléphone). Ne lève jamais d'erreur.</summary>
+    public void Dismiss(string id)
+    {
+        if (!id.StartsWith('w') || !uint.TryParse(id[1..], out var raw)) return;
+        lock (_known) _known.Remove(id);
+        try { UserNotificationListener.Current.RemoveNotification(raw); }
+        catch { /* accès refusé ou Windows trop ancien : elle reste dans Windows */ }
+    }
+
+    /// <summary>
+    /// Met la fenêtre de l'appli (« Discord », « WhatsApp »…) au premier plan, pour y taper une réponse.
+    /// Windows ne laisse pas une autre appli utiliser le champ « Répondre » d'une notification : on passe donc par la fenêtre.
+    /// Renvoie false si l'appli n'a pas de fenêtre ouverte (fermée, ou cachée près de l'horloge).
+    /// </summary>
+    public static bool FocusApp(string app)
+    {
+        static string Norm(string t) => new(t.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+        var name = Norm(app);
+        if (name.Length == 0) return false;
+        var self = Environment.ProcessId;
+        IntPtr best = IntPtr.Zero;
+        foreach (var p in Process.GetProcesses())
+        {
+            try
+            {
+                if (p.Id == self || p.MainWindowHandle == IntPtr.Zero) continue;
+                if (Norm(p.ProcessName) == name) { best = p.MainWindowHandle; break; }
+                if (best == IntPtr.Zero && (Norm(p.ProcessName).StartsWith(name) || p.MainWindowTitle.Contains(app, StringComparison.OrdinalIgnoreCase)))
+                    best = p.MainWindowHandle;
+            }
+            catch { }
+            finally { p.Dispose(); }
+        }
+        if (best == IntPtr.Zero) return false;
+        if (IsIconic(best)) ShowWindow(best, 9 /* SW_RESTORE */);
+        // Windows refuse le premier plan à une appli en arrière-plan, sauf juste après une touche : on touche Alt.
+        keybd_event(0x12, 0, 0, UIntPtr.Zero);
+        keybd_event(0x12, 0, 2, UIntPtr.Zero);
+        SetForegroundWindow(best);
+        Thread.Sleep(350);
+        return GetForegroundWindow() == best;
+    }
+
+    [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr hWnd, int cmd);
+    [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
 
     public void Stop()
     {

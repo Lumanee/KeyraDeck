@@ -1,5 +1,18 @@
 package com.phonedeck.app
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -48,17 +61,8 @@ fun NotificationOverlay(vm: DeckViewModel) {
     // Une zone écran affichée montre déjà le bandeau elle-même.
     if (banner != null && vm.notifScreens == 0) {
         Box(Modifier.fillMaxWidth().statusBarsPadding().padding(12.dp), contentAlignment = Alignment.TopCenter) {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xF2202026))
-                    .clickable { vm.banner = null; vm.showNotifs = true }
-                    .padding(12.dp),
-            ) {
-                if (banner.app.isNotBlank()) Text(banner.app, color = LocalTheme.current.accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                if (banner.title.isNotBlank()) Text(banner.title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (banner.text.isNotBlank()) Text(banner.text, color = Color(0xFFDDDDE6), fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            SwipeAway(banner.id, onDismiss = { vm.dismissNotif(banner.id) }) {
+                NotifCard(banner, LocalTheme.current.accent) { vm.banner = null; vm.showNotifs = true }
             }
         }
     }
@@ -68,12 +72,11 @@ fun NotificationOverlay(vm: DeckViewModel) {
             title = { Text("Notifications") },
             text = {
                 if (vm.notifications.isEmpty()) Text("Aucune notification", color = Color(0xFFBBBBC4))
-                else LazyColumn(Modifier.heightIn(max = 380.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(vm.notifications.toList(), key = { it.id }) { n ->
-                        Column(Modifier.fillMaxWidth().clickable { vm.removeNotif(n.id) }) {
-                            if (n.app.isNotBlank()) Text(n.app, color = LocalTheme.current.accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            if (n.title.isNotBlank()) Text(n.title, fontWeight = FontWeight.SemiBold)
-                            if (n.text.isNotBlank()) Text(n.text, color = Color(0xFFBBBBC4), fontSize = 13.sp)
+                else Column {
+                    Text("Glisse vers la droite pour effacer, touche pour répondre.", color = Color(0xFF8E8E98), fontSize = 11.sp)
+                    LazyColumn(Modifier.heightIn(max = 380.dp).padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(vm.notifications.toList(), key = { it.id }) { n ->
+                            SwipeAway(n.id, onDismiss = { vm.dismissNotif(n.id) }) { NotifCard(n, LocalTheme.current.accent) { vm.replyTo = n } }
                         }
                     }
                 }
@@ -82,6 +85,72 @@ fun NotificationOverlay(vm: DeckViewModel) {
             dismissButton = { TextButton(onClick = { vm.clearNotifs() }) { Text("Tout effacer") } },
         )
     }
+    vm.replyTo?.let { ReplyDialog(vm, it) }
+}
+
+/**
+ * Répondre à une notification. Windows ne laisse pas une autre appli utiliser le champ « Répondre » d'une notification :
+ * le PC ouvre la fenêtre de l'appli et y tape le texte, dans la conversation ouverte à ce moment-là.
+ */
+@Composable
+private fun ReplyDialog(vm: DeckViewModel, n: Notif) {
+    var text by remember(n.id) { mutableStateOf("") }
+    val app = n.app.ifBlank { "l'appli" }
+    AlertDialog(
+        onDismissRequest = { vm.replyTo = null },
+        title = { Text("Répondre") },
+        text = {
+            Column {
+                if (n.title.isNotBlank()) Text(n.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (n.text.isNotBlank()) Text(n.text, color = Color(0xFFBBBBC4), fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                OutlinedTextField(
+                    value = text, onValueChange = { text = it.take(1000) },
+                    placeholder = { Text("Ta réponse") },
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                )
+                Text("KeyraDeck ouvre $app sur le PC et tape ta réponse dans la conversation ouverte. Vérifie que c'est la bonne.",
+                    color = Color(0xFF8E8E98), fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
+            }
+        },
+        confirmButton = { TextButton(enabled = text.isNotBlank(), onClick = { vm.replyNotif(n, text, pressEnter = true) }) { Text("Envoyer") } },
+        dismissButton = {
+            Row {
+                TextButton(enabled = text.isNotBlank(), onClick = { vm.replyNotif(n, text, pressEnter = false) }) { Text("Écrire seulement") }
+                TextButton(onClick = { vm.replyTo = null }) { Text("Annuler") }
+            }
+        },
+    )
+}
+
+/** Glisser vers la droite pour effacer : la carte suit le doigt, part si on va assez loin, sinon revient. */
+@Composable
+fun SwipeAway(key: String, onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    val offset = remember(key) { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+    var width by remember { mutableStateOf(1f) }
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .onSizeChanged { width = it.width.toFloat().coerceAtLeast(1f) }
+            .graphicsLayer {
+                translationX = offset.value
+                alpha = 1f - (offset.value / width).coerceIn(0f, 1f) * 0.8f
+            }
+            .pointerInput(key) {
+                detectHorizontalDragGestures(
+                    onDragEnd = {
+                        scope.launch {
+                            if (offset.value > width * 0.35f) { offset.animateTo(width, tween(150)); onDismiss() }
+                            else offset.animateTo(0f, tween(150))
+                        }
+                    },
+                    onDragCancel = { scope.launch { offset.animateTo(0f) } },
+                ) { change, dx ->
+                    change.consume()
+                    scope.launch { offset.snapTo((offset.value + dx).coerceAtLeast(0f)) }
+                }
+            },
+    ) { content() }
 }
 
 /** Petite pastille « 🔔 3 » dans la barre du boîtier. */
@@ -128,13 +197,15 @@ fun ScreenNotifications(vm: DeckViewModel, width: Dp, height: Dp, unit: Dp) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Aucune notification", color = Color(0xFFBBBBC4), fontSize = 13.sp) }
             } else {
                 LazyColumn(Modifier.fillMaxSize().padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(vm.notifications.toList(), key = { it.id }) { n -> NotifCard(n, accent) { vm.removeNotif(n.id) } }
+                    items(vm.notifications.toList(), key = { it.id }) { n ->
+                        SwipeAway(n.id, onDismiss = { vm.dismissNotif(n.id) }) { NotifCard(n, accent) { vm.replyTo = n } }
+                    }
                 }
             }
         }
     } else if (banner != null) {
         Box(Modifier.size(width, height).padding(8.dp), contentAlignment = Alignment.TopCenter) {
-            NotifCard(banner, accent) { vm.openNotifs(onScreen = true) }
+            SwipeAway(banner.id, onDismiss = { vm.dismissNotif(banner.id) }) { NotifCard(banner, accent) { vm.openNotifs(onScreen = true) } }
         }
     }
 }

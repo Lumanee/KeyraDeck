@@ -163,10 +163,20 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         notifications.clear(); banner = null; showNotifs = false; notifsOnScreen = false
         send(JSONObject().put("type", "notifyClear"))
     }
-    fun removeNotif(id: String) {
+    /** Notification glissée : effacée ici, et dans Windows aussi. */
+    fun dismissNotif(id: String) {
         notifications.removeAll { it.id == id }
         if (banner?.id == id) banner = null
-        send(JSONObject().put("type", "notifyClear").put("id", id))
+        if (replyTo?.id == id) replyTo = null
+        send(JSONObject().put("type", "notifyDismiss").put("id", id))
+    }
+    /** Notification à laquelle on est en train de répondre. */
+    var replyTo by mutableStateOf<Notif?>(null)
+    /** Le PC ouvre la fenêtre de l'appli et y tape [text] ; [pressEnter] = appuie aussi sur Entrée pour l'envoyer. */
+    fun replyNotif(n: Notif, text: String, pressEnter: Boolean) {
+        replyTo = null
+        if (!send(JSONObject().put("type", "notifyReply").put("id", n.id).put("app", n.app).put("text", text.trim()).put("send", pressEnter)))
+            toast("Pas connecté au PC")
     }
     /** Bouton cloche : la liste s'ouvre dans la zone écran s'il y en a une sur la page, sinon en fenêtre. */
     fun openNotifs(onScreen: Boolean) {
