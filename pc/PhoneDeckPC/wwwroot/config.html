@@ -619,6 +619,7 @@ const WIDGET_INFO = {
   trackpad: { name: 'Trackpad', icon: '🖱', desc: 'Une surface comme le pavé tactile d\'un PC portable : glisse pour déplacer la souris, touche pour cliquer, 2 doigts pour défiler. Pas de clic droit.' },
   discord: { name: 'Salon vocal Discord', icon: '🎧', desc: 'Qui est dans ton salon vocal et qui parle, avec ton micro et ta sourdine. Discord doit être relié dans « Connexions ».' },
   notifications: { name: 'Notifications', icon: '🔔', desc: 'Les notifications de Windows (Discord, mails, messageries…). La cloche 1×1 montre le nombre ; touche-la pour lire la liste. Si la page a une zone écran, les messages et la liste s\'affichent dans la zone écran.' },
+  telemetry: { name: 'Télémétrie course', icon: '🏎', desc: 'Comme SimHub : rapport, vitesse, LED de régime, compte-tours, pédales et courbes accélérateur / frein, en direct depuis le jeu. Assetto Corsa et ACC : rien à régler. F1 (21 à 25) : dans le jeu, Réglages > Télémétrie > UDP activé, port 20777. Parfait posé dans une zone écran.' },
   twitch: { name: 'Chat Twitch', icon: '💬', desc: 'Le chat d\'une chaîne Twitch en direct (pseudos en couleur, emotes), pour suivre ce qui se passe pendant un live. Lecture seule, sans compte : choisis juste la chaîne. Parfait posé dans une zone écran.' },
 };
 // Chaque modèle a une taille FIXE (en cases) : le contenu est dessiné pour cette taille et ne disparaît jamais.
@@ -680,6 +681,15 @@ const WIDGET_MODELS = {
     { id: 'notifications-2x1', name: 'Dernier message', w: 2, h: 1 },
     { id: 'notifications-3x2', name: '2 derniers messages', w: 3, h: 2 },
     { id: 'notifications-4x2', name: '3 derniers messages', w: 4, h: 2 },
+  ],
+  telemetry: [
+    { id: 'telemetry-1x1', name: 'Rapport', w: 1, h: 1 },
+    { id: 'telemetry-2x1', name: 'Rapport + vitesse', w: 2, h: 1 },
+    { id: 'telemetry-1x2', name: 'Pédales', w: 1, h: 2 },
+    { id: 'telemetry-4x1', name: 'LED de régime', w: 4, h: 1 },
+    { id: 'telemetry-2x2', name: 'Compte-tours', w: 2, h: 2 },
+    { id: 'telemetry-4x2', name: 'Courbes pédales', w: 4, h: 2 },
+    { id: 'telemetry-4x3', name: 'Tableau de bord', w: 4, h: 3 },
   ],
   twitch: [
     { id: 'twitch-2x2', name: 'Petit', w: 2, h: 2 },
@@ -1569,7 +1579,52 @@ function paintWidget(d, w) {
     html = `<div style="width:100%;display:flex;align-items:center;gap:5px;font-size:${fs}px;opacity:.85"><span style="width:7px;height:7px;border-radius:50%;background:${dot}"></span><span style="flex:1;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">💬 ${x.channel ? esc(x.channel) : 'Chat Twitch'}</span></div>`
       + `<div style="flex:1;min-height:0;width:100%;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;padding-top:3px">${rows || `<span style="opacity:.6;font-size:${fs}px;margin:auto;text-align:center">${empty}</span>`}</div>`;
   }
+  if (w.type === 'telemetry') html = paintTelemetry(w, live.telemetry, W - 12, H - 12);
   d.innerHTML = `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;overflow:hidden">${html}</div>`;
+}
+// ---- Télémétrie course (mêmes dispositions que sur le téléphone ; l'aperçu se met à jour une fois par seconde) ----
+const telHist = [];
+function telSample(t) { telHist.push(t && t.game ? [t.thr || 0, t.brk || 0] : [0, 0]); if (telHist.length > 40) telHist.shift(); }
+function paintTelemetry(w, t, W, H) {
+  const m = w.model || '', acc = 'var(--tacc)';
+  if (!t || !t.game) {
+    const st = t && t.status ? `<br><span style="color:var(--bad)">${t.status.replace(/[&<>]/g, '')}</span>` : '';
+    return `<span style="opacity:.7;font-size:${Math.max(8, Math.min(12, Math.min(W, H) * .13))}px;text-align:center">🏁${w.w > 1 ? ' En attente<br>du jeu de course' : ''}${st}</span>`;
+  }
+  const gear = t.gear < 0 ? 'R' : t.gear === 0 ? 'N' : t.gear, lim = t.rev >= 100;
+  const demo = t.demo ? `<span style="position:absolute;top:0;right:0;font-size:8px;font-weight:700;opacity:.6">DÉMO</span>` : '';
+  const gearBox = (w2, h2) => `<div style="width:${w2}px;height:${h2}px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:${lim ? '#3B82F6' : 'transparent'};font-weight:700;font-size:${Math.min(w2 * .8, h2 * .72)}px;line-height:1;color:${lim ? '#fff' : t.gear <= 0 ? '#bbb' : acc}">${gear}</div>`;
+  const speedBox = (w2, h2) => { const f = Math.min(w2 * .36, h2 * .48); return `<div style="width:${w2}px;text-align:center;line-height:1"><b style="font-size:${f}px;font-variant-numeric:tabular-nums">${t.speed}</b><br><span style="font-size:${Math.max(8, f * .3)}px;opacity:.7">km/h</span></div>`; };
+  const leds = (w2, h2) => {
+    const n = 15, lit = Math.min(n, Math.floor(t.rev / 100 * n + .001)), d = Math.min(w2 / n * .82, h2 * .9);
+    return `<div style="width:${w2}px;height:${h2}px;display:flex;align-items:center;justify-content:space-between">${Array.from({ length: n }, (_, i) => {
+      const c = lim ? '#3B82F6' : i >= lit ? '#15151a' : i < 5 ? '#22C55E' : i < 10 ? '#EF4444' : '#3B82F6';
+      return `<span style="width:${d}px;height:${d}px;border-radius:50%;background:${c};box-shadow:${c === '#15151a' ? 'none' : '0 0 6px ' + c};border:1px solid #ffffff33"></span>`; }).join('')}</div>`;
+  };
+  const pedals = (w2, h2) => [[t.brk, '#EF4444'], [t.thr, '#22C55E']].map(([v, c]) => `<div style="width:${(w2 - 4) / 2}px;height:${h2}px;background:#0a0a0d;border-radius:5px;position:relative;overflow:hidden"><div style="position:absolute;left:0;right:0;bottom:0;height:${v}%;background:${c}"></div></div>`).join('');
+  const pedalBox = (w2, h2) => `<div style="display:flex;gap:4px;width:${w2}px;height:${h2}px">${pedals(w2, h2)}</div>`;
+  const trace = (w2, h2) => {
+    const n = telHist.length, line = (k, c) => n < 2 ? '' : `<polyline fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round" points="${telHist.map((p, i) => `${w2 - (n - 1 - i) * w2 / 39},${2 + (h2 - 4) * (1 - p[k] / 100)}`).join(' ')}"/>`;
+    return `<svg width="${w2}" height="${h2}" style="display:block;background:#0a0a0d;border-radius:6px">${[1, 2, 3].map(k => `<line x1="0" x2="${w2}" y1="${h2 * k / 4}" y2="${h2 * k / 4}" stroke="#ffffff22"/>`).join('')}${line(0, '#22C55E')}${line(1, '#EF4444')}</svg>`;
+  };
+  let html;
+  if (m === 'telemetry-1x1') html = gearBox(W, H);
+  else if (m === 'telemetry-2x1') html = `<div style="display:flex;align-items:center">${gearBox(W * .43, H)}${speedBox(W * .57, H)}</div>`;
+  else if (m === 'telemetry-4x1') html = leds(W, H);
+  else if (m === 'telemetry-1x2') html = pedalBox(W, H);
+  else if (m === 'telemetry-2x2') {
+    const s = Math.min(W, H), f = t.maxRpm > 0 ? Math.min(1, t.rpm / t.maxRpm) : 0, r = s * .4, sw = s * .07, c = s / 2;
+    const pt = (a) => [c + r * Math.cos(a * Math.PI / 180), c + r * Math.sin(a * Math.PI / 180)];
+    const [x0, y0] = pt(135), [x1, y1] = pt(45), arc = `M${x0} ${y0} A${r} ${r} 0 1 1 ${x1} ${y1}`;
+    const col = lim ? '#3B82F6' : f >= .88 ? '#EF4444' : acc;
+    html = `<div style="position:relative;width:${s}px;height:${s}px"><svg width="${s}" height="${s}" style="display:block"><path d="${arc}" fill="none" stroke="#0a0a0d" stroke-width="${sw}" stroke-linecap="round"/><path d="${arc}" pathLength="100" fill="none" stroke="#EF444459" stroke-width="${sw}" stroke-dasharray="0 88 12 100"/>${f > 0 ? `<path d="${arc}" pathLength="100" fill="none" stroke="${col}" stroke-width="${sw}" stroke-linecap="round" stroke-dasharray="${f * 100} 200"/>` : ''}</svg>`
+      + `<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05"><b style="font-size:${s * .34}px;color:${lim ? '#3B82F6' : '#fff'}">${gear}</b><span style="font-size:${Math.max(8, s * .09)}px;opacity:.75">${t.speed} km/h</span><span style="font-size:${Math.max(7, s * .07)}px;opacity:.5">${t.rpm} tr/min</span></div></div>`;
+  } else if (m === 'telemetry-4x2') html = `<div style="display:flex;gap:6px">${trace(W - 42, H)}${pedalBox(36, H)}</div>`;
+  else { // telemetry-4x3 : tableau de bord
+    const mid = H * .46, bot = H - H * .14 - mid - 8, third = W / 3, fr = Math.min(third * .24, mid * .36);
+    html = `<div style="display:flex;flex-direction:column;gap:4px">${leds(W, H * .14)}<div style="display:flex;align-items:center;height:${mid}px">${speedBox(third, mid)}${gearBox(third, mid)}<div style="width:${third}px;text-align:center;line-height:1"><b style="font-size:${fr}px;font-variant-numeric:tabular-nums">${t.rpm}</b><br><span style="font-size:${Math.max(8, fr * .4)}px;opacity:.7">tr/min</span></div></div><div style="display:flex;gap:6px">${trace(W - 36, bot)}${pedalBox(30, bot)}</div></div>`;
+  }
+  return `<div style="position:relative;display:flex;align-items:center;justify-content:center;width:100%;height:100%">${html}${demo}</div>`;
 }
 // ---- Aperçu d'un widget au survol (galerie et choix du modèle) : en vraie taille, avec les valeurs en direct ----
 let wprevTimer = null;
@@ -1600,6 +1655,7 @@ function showWidgetPreview(node, type, m) {
 function hideWidgetPreview() { clearInterval(wprevTimer); wprevTimer = null; const p = document.getElementById('wprev'); if (p) p.remove(); }
 function paintWidgets() {
   if (!state.cfg) return;
+  telSample(state.info && state.info.live && state.info.live.telemetry);
   document.querySelectorAll('#device .wdg').forEach(d => {
     const fw = findWidget(d.dataset.id); const face = d.querySelector('.face');
     if (fw && face) paintWidget(face, fw.widget);
@@ -2645,10 +2701,29 @@ function renderWidgetInspector(box, fw) {
     ...(w.type === 'weather' ? [el('label', { style: 'margin-top:14px' }, 'Ville'),
       el('input', { type: 'text', value: state.cfg.weatherCity || '', placeholder: 'ex. Lyon', oninput: (e) => { state.cfg.weatherCity = e.target.value; state.dirty = true; setSaved('Modifications…'); clearTimeout(saveTimer); saveTimer = setTimeout(save, 900); } }),
       el('div', { class: 'hint' }, 'Nécessite une connexion internet sur le PC.')] : []),
+    ...(w.type === 'telemetry' ? telemetryInspector() : []),
     ...(w.type === 'twitch' ? [el('label', { style: 'margin-top:14px' }, 'Chaîne Twitch'),
       el('input', { type: 'text', value: state.cfg.twitchChannel || '', placeholder: 'ex. zerator ou twitch.tv/zerator', oninput: (e) => { state.cfg.twitchChannel = e.target.value; state.dirty = true; setSaved('Modifications…'); clearTimeout(saveTimer); saveTimer = setTimeout(save, 900); } }),
       el('div', { class: 'hint' }, 'Le pseudo de la chaîne (la tienne pendant ton live, ou une autre). Lecture seule, sans compte ni mot de passe. Nécessite internet sur le PC.')] : []),
     el('div', { class: 'row', style: 'margin-top:18px' }, el('button', { class: 'danger', onclick: () => deleteWidget(w.id) }, '🗑 Supprimer')));
+}
+// Réglages communs à tous les widgets de télémétrie : jeux pris en charge, port F1, voiture de démonstration.
+function telemetryInspector() {
+  const t = (state.info && state.info.live && state.info.live.telemetry) || {};
+  const later = () => { state.dirty = true; setSaved('Modifications…'); clearTimeout(saveTimer); saveTimer = setTimeout(save, 900); };
+  return [
+    el('label', { style: 'margin-top:14px' }, 'Jeu détecté'),
+    el('div', { class: 'hint', style: 'margin:0 0 6px' }, t.game ? (t.demo ? '🚗 Aucun jeu : voiture de démonstration' : '✅ ' + t.game) : '⏳ Aucun jeu ne donne de données pour l\'instant'),
+    t.status ? el('div', { class: 'hint', style: 'color:var(--bad);margin:0 0 6px' }, t.status) : '',
+    el('div', { class: 'hint', style: 'margin:0 0 6px' }, 'Assetto Corsa, Assetto Corsa Competizione : rien à régler, lance une session en piste. Assetto Corsa EVO : à essayer (pas de documentation officielle).'),
+    el('div', { class: 'hint', style: 'margin:0 0 6px' }, 'F1 21, 22, 23, 24, 25 : dans le jeu, Réglages > Télémétrie : Télémétrie UDP « Activée », IP 127.0.0.1, port ci-dessous, format UDP = l\'année du jeu. Si SimHub est ouvert, il prend déjà ce port : dans SimHub, active le renvoi UDP vers un autre port et mets ce port ici.'),
+    el('label', { style: 'margin-top:8px' }, 'Port UDP des jeux F1'),
+    el('input', { type: 'number', min: 1024, max: 65535, value: state.cfg.telemetryF1Port || 20777, oninput: (e) => { const v = parseInt(e.target.value, 10); if (v >= 1024 && v <= 65535) { state.cfg.telemetryF1Port = v; later(); } } }),
+    el('label', { style: 'display:flex;gap:8px;align-items:center;color:var(--text);margin-top:12px;cursor:pointer' },
+      el('input', { type: 'checkbox', checked: state.cfg.telemetryDemo !== false, style: 'width:auto', onchange: (e) => { state.cfg.telemetryDemo = e.target.checked; later(); } }),
+      'Voiture de démonstration quand aucun jeu ne tourne'),
+    el('div', { class: 'hint' }, 'Pour voir les widgets bouger sans lancer de jeu. Dès qu\'un jeu envoie ses données, c\'est lui qui s\'affiche.'),
+  ];
 }
 function renderScreenInspector(box, page) {
   const sc = page.screen, { cols } = pageGrid(page);

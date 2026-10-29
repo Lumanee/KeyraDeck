@@ -26,6 +26,10 @@ public class DeckConfig
     public string WeatherCity { get; set; } = "";
     /// <summary>Chaîne Twitch dont le widget « Chat Twitch » affiche le chat (pseudo ou lien twitch.tv/…).</summary>
     public string TwitchChannel { get; set; } = "";
+    /// <summary>Port UDP où les jeux F1 envoient leur télémétrie (réglage « Port UDP » du jeu).</summary>
+    public int TelemetryF1Port { get; set; } = 20777;
+    /// <summary>Widgets de télémétrie : une voiture fictive roule quand aucun jeu n'envoie rien (pour essayer sans jeu).</summary>
+    public bool TelemetryDemo { get; set; } = true;
     /// <summary>Connexion de secours par câble USB (adb reverse), surveillée en permanence.</summary>
     public bool UsbEnabled { get; set; } = true;
     /// <summary>Ouvre KeyraDeck sur le téléphone quand on le branche au PC.</summary>
@@ -82,7 +86,7 @@ public class DeckFeedback
 public class DeckWidget
 {
     public string Id { get; set; } = "";
-    /// <summary>media | nowplaying | volume | clock | system | perfapp | weather | discord | notifications | twitch</summary>
+    /// <summary>media | nowplaying | volume | clock | system | perfapp | weather | discord | notifications | twitch | telemetry</summary>
     public string Type { get; set; } = "clock";
     /// <summary>Modèle choisi (ex. "system-2x2") : chaque modèle a une taille et une présentation fixes.</summary>
     public string Model { get; set; } = "";
