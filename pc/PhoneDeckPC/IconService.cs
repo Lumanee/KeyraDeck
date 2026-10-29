@@ -105,6 +105,8 @@ public class IconService
                     {
                         "deafen" => Cached("builtin:headphones", () => Builtin("headphones")),
                         "leave" => Cached("glyph:E711", () => Glyph('\uE711')),
+                        "screen" => Cached("glyph:E7F4", () => Glyph('\uE7F4')),
+                        "panel" => Cached("builtin:discord", () => Builtin("discord")),
                         _ => Cached("builtin:mic", () => Builtin("mic")),
                     };
                 case "ha":

@@ -580,6 +580,7 @@ const WIDGET_MODELS = {
     { id: 'weather-2x2', name: 'Détaillée', w: 2, h: 2 },
   ],
   discord: [
+    { id: 'discord-1x1', name: 'Qui parle', w: 1, h: 1 },
     { id: 'discord-2x1', name: '3 personnes', w: 2, h: 1 },
     { id: 'discord-2x2', name: '4 personnes', w: 2, h: 2 },
     { id: 'discord-3x2', name: '6 personnes', w: 3, h: 2 },
@@ -592,11 +593,11 @@ const COMMANDS = [
   { group: 'Système', items: [['mixer', 'Mélangeur de volume', 'Un curseur par appli'], ['micmute', 'Micro Windows', 'Couper / rétablir'], ['mastermute', 'Son Windows', 'Couper / rétablir']] },
   { group: 'OBS Studio', items: [['obs:stream', 'Live', 'Lancer / arrêter le live'], ['obs:record', 'Enregistrer', 'Lancer / arrêter'], ['obs:pause', 'Pause enregistrement', 'Mettre en pause'], ['obs:scene', 'Scène', 'Passer à une scène'],
     ['obs:mute', 'Couper une source', 'Micro, son du bureau…'], ['obs:replay', 'Replay', 'Garder les dernières secondes'], ['obs:virtualcam', 'Caméra virtuelle', 'Activer / couper']] },
-  { group: 'Discord', items: [['discord:mute', 'Micro Discord', 'Couper / rétablir (état réel)'], ['discord:deafen', 'Sourdine Discord', 'Ne plus rien entendre'], ['discord:leave', 'Quitter le vocal', 'Raccrocher']] },
+  { group: 'Discord', items: [['discord:panel', 'Bouton Discord', 'Ouvre micro, sourdine, partage, raccrocher'], ['discord:mute', 'Micro Discord', 'Couper / rétablir (état réel)'], ['discord:deafen', 'Sourdine Discord', 'Ne plus rien entendre'], ['discord:screen', 'Partager l\'écran', 'Montre l\'appel pour lancer le partage'], ['discord:leave', 'Quitter le vocal', 'Raccrocher']] },
   { group: 'Maison', items: [['ha', 'Appareil Home Assistant', 'Lampe, prise, scène…']] },
 ];
 const OBS_CMDS = { stream: 'Live', record: 'Enregistrer', pause: 'Pause enreg.', replay: 'Replay', virtualcam: 'Caméra virtuelle', scene: 'Scène', mute: 'Couper une source' };
-const DISCORD_CMDS = { mute: 'Micro Discord', deafen: 'Sourdine Discord', leave: 'Quitter le vocal' };
+const DISCORD_CMDS = { panel: 'Discord', mute: 'Micro Discord', deafen: 'Sourdine Discord', screen: 'Partager l\'écran', leave: 'Quitter le vocal' };
 function cmdRow(name, desc, mime, payload, onclick, cls) {
   const r = el('div', { class: 'cmd' + (cls ? ' ' + cls : ''), draggable: 'true', title: name + ' : ' + desc }, el('span', { class: 'cn' }, name), el('span', { class: 'cd' }, desc));
   r.addEventListener('dragstart', (e) => { e.dataTransfer.setData(mime, payload); e.dataTransfer.effectAllowed = 'copy'; });
@@ -1142,7 +1143,13 @@ function paintWidget(d, w) {
     const x = live.discord;
     const fs = Math.max(9, Math.min(12, W * .075));
     if (!x || !x.connected) html = `<span style="opacity:.7;font-size:${fs}px;text-align:center">Discord<br>${esc(x ? x.status : 'à relier dans « Connexions »')}</span>`;
-    else {
+    else if (m === 'discord-1x1') {
+      // Seulement la personne qui parle (le téléphone garde la dernière en gris quand plus personne ne parle).
+      const talk = x.members.filter(p => p.speaking);
+      const p = talk[0], face = Math.min(W, H) * .58;
+      html = !p ? `<span style="opacity:.7;font-size:${fs}px;text-align:center">${x.channel || x.inCall ? '🔊<br>Personne<br>ne parle' : 'Pas en<br>vocal'}</span>`
+        : `<div style="position:relative;width:${face}px;height:${face}px;border-radius:50%;background:#5865F2;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:${face * .45}px;box-shadow:0 0 0 3px #23A55A">${esc((p.name || '?').trim().charAt(0).toUpperCase())}${talk.length > 1 ? `<span style="position:absolute;top:-2px;right:-6px;font-size:${face * .22}px;background:#23A55A;border-radius:9px;padding:0 3px">+${talk.length - 1}</span>` : ''}</div><span style="font-size:${fs}px;max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#23A55A">${esc(p.name)}</span>`;
+    } else {
       const max = m === 'discord-2x1' ? 3 : m === 'discord-3x2' ? 6 : 4;
       const face = Math.max(14, Math.min(W / (m === 'discord-2x2' ? 2 : 3) * .55, H * (m === 'discord-2x1' ? .45 : .28)));
       const faces = x.members.slice(0, max).map(p => `<div style="display:flex;flex-direction:column;align-items:center;width:${100 / (m === 'discord-2x2' ? 2 : 3)}%"><div style="width:${face}px;height:${face}px;border-radius:50%;background:#5865F2;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:${face * .45}px;${p.speaking ? 'box-shadow:0 0 0 3px #23A55A' : ''}">${esc((p.name || '?').trim().charAt(0).toUpperCase())}</div><span style="font-size:${fs * .85}px;max-width:100%;overflow:hidden;white-space:nowrap;color:${p.speaking ? '#23A55A' : '#ddd'}">${esc(p.name)}</span></div>`).join('');
@@ -1506,7 +1513,7 @@ const PAGE_PRESETS = [
   { id: 'discord', name: 'Discord', emoji: '🎧', desc: 'Micro, sourdine et qui parle dans ton salon vocal.',
     note: 'Relie Discord dans « Connexions » (en haut) pour voir le vrai état du micro et qui parle.',
     procs: ['discord'], widgets: [{ type: 'discord', model: 'discord-3x2', slot: 0, w: 3, h: 2 }], buttons: [
-    DSC('Micro', 'mute', 'builtin:mic'), DSC('Sourdine', 'deafen', 'builtin:headphones'), DSC('Raccrocher', 'leave'), OPEN('Discord', 'Discord', 'app:Discord|builtin:discord', 'https://discord.com/app'),
+    DSC('Micro', 'mute', 'builtin:mic'), DSC('Sourdine', 'deafen', 'builtin:headphones'), DSC('Raccrocher', 'leave'), DSC('Discord', 'panel', 'builtin:discord'), DSC('Partager', 'screen'), OPEN('Discord', 'Discord', 'app:Discord|builtin:discord', 'https://discord.com/app'),
   ] },
   { id: 'jeu', name: 'Jeu', emoji: '🎮', desc: 'Captures Xbox Game Bar, micro Discord, volume et lanceurs.',
     note: 'Micro et sourdine Discord : relie Discord dans « Connexions » pour voir leur vrai état.', buttons: [
@@ -1943,7 +1950,7 @@ async function addFromPalette(kind) {
     integrationReminder('obs');
   } else if (kind.startsWith('discord:')) {
     const command = kind.slice(8);
-    pushUndo(); addButton({ id: uid('discord'), label: DISCORD_CMDS[command], icon: command === 'deafen' ? 'builtin:headphones' : command === 'mute' ? 'builtin:mic' : 'auto', action: { type: 'discord', command } }, drop);
+    pushUndo(); addButton({ id: uid('discord'), label: DISCORD_CMDS[command], icon: command === 'deafen' ? 'builtin:headphones' : command === 'mute' ? 'builtin:mic' : command === 'panel' ? 'builtin:discord' : 'auto', action: { type: 'discord', command } }, drop);
     integrationReminder('discord');
   } else if (kind === 'ha') {
     pushUndo(); addButton({ id: uid('maison'), label: 'Lampe', icon: 'auto', action: { type: 'ha', command: 'toggle', target: '' } }, drop);
@@ -2174,7 +2181,9 @@ function integrationInspector(box, b, upd) {
   } else if (a.type === 'discord') {
     box.append(el('label', {}, 'Commande Discord'),
       el('select', { onchange: (e) => upd(() => { const old = DISCORD_CMDS[a.command]; a.command = e.target.value; if (!b.label || b.label === old) b.label = DISCORD_CMDS[a.command]; }) },
-        Object.entries(DISCORD_CMDS).map(([k, t]) => el('option', { value: k, selected: a.command === k }, t))));
+        Object.entries(DISCORD_CMDS).map(([k, t]) => el('option', { value: k, selected: a.command === k }, t))),
+      a.command === 'panel' ? el('div', { class: 'hint' }, 'Sur le téléphone, ce bouton ouvre juste au-dessus (ou en dessous) : micro et sourdine avec leur vrai état, partage d\'écran et raccrocher.') : '',
+      a.command === 'screen' ? el('div', { class: 'hint' }, 'Discord ne laisse aucune appli lancer le partage toute seule : le bouton met ton appel au premier plan sur le PC, il ne reste qu\'à cliquer sur « Partager ton écran ».') : '');
   } else if (a.type === 'ha') {
     const sel = el('select', { onchange: (e) => upd(() => {
       const ent = (integ.ha || []).find(x => x.id === e.target.value);

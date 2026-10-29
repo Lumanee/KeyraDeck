@@ -292,9 +292,9 @@ public class DeckServer
 
             case "discord":
             {
-                // Micro / sourdine touchés sur le widget « Salon vocal ».
+                // Micro / sourdine touchés sur le widget « Salon vocal », ou le menu d'un bouton Discord.
                 var cmd = root.GetProperty("command").GetString() ?? "";
-                if (cmd is "mute" or "deafen")
+                if (cmd is "mute" or "deafen" or "screen" or "leave")
                 {
                     var error = await _int.Discord.RunAsync(cmd);
                     if (error != null) await client.SendAsync(new { type = "toast", message = error });
@@ -403,6 +403,7 @@ public class DeckServer
             "micmute" => await Task.Run(() => { _audio.ToggleMic(); return (string?)null; }),
             "mastermute" => await Task.Run(() => { _audio.ToggleMaster(); return (string?)null; }),
             "obs" => await _int.Obs.RunAsync(action.Command ?? "", action.Target),
+            "discord" when string.Equals(action.Command, "panel", StringComparison.OrdinalIgnoreCase) => null, // menu ouvert sur le téléphone
             "discord" => await _int.Discord.RunAsync(action.Command ?? ""),
             "ha" => await _int.HomeAssistant.RunAsync(action.Command, action.Target),
             _ => null,
@@ -488,6 +489,7 @@ public class DeckServer
             connected = dc.Connected,
             status = dc.Status,
             channel = dc.ChannelName,
+            inCall = dc.InCall,
             muted = dc.Muted,
             deafened = dc.Deafened,
             members = dc.Members().Take(12).Select(m => new { name = m.Name, speaking = m.Speaking, muted = m.Muted, deafened = m.Deafened }).ToList(),
@@ -697,6 +699,7 @@ public class DeckServer
                         "folder" => "folder",
                         "mixer" => "mixer",
                         "page" => "page",
+                        "discord" when string.Equals(b.Action.Command, "panel", StringComparison.OrdinalIgnoreCase) => "discordPanel",
                         _ => "action",
                     };
                     return new
@@ -723,7 +726,9 @@ public class DeckServer
         _needVolume = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "volume"));
         _needSystem = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "system"));
         _needWeather = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "weather"));
-        _needDiscord = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "discord"));
+        // Les boutons Discord aussi : le menu d'un bouton montre le vrai état du micro et de la sourdine.
+        _needDiscord = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "discord"))
+                    || lookup.Values.Any(b => b.Action.Type.Equals("discord", StringComparison.OrdinalIgnoreCase));
         _int.HomeAssistant.Watch(lookup.Values.Where(b => b.Action.Type.Equals("ha", StringComparison.OrdinalIgnoreCase)).Select(b => b.Action.Target ?? ""));
         _needNowPlaying = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "nowplaying"));
         _lastNowPlaying = ""; // un nouveau widget reçoit tout de suite le morceau en cours

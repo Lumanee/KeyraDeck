@@ -29,6 +29,7 @@ public class DiscordClient
     private CancellationTokenSource? _run;
     private NamedPipeClientStream? _pipe;
     private string? _channelId;
+    private string? _guildId;
     private volatile bool _authorizeRequested;
 
     public bool Connected { get; private set; }
@@ -36,6 +37,8 @@ public class DiscordClient
     public bool Muted { get; private set; }
     public bool Deafened { get; private set; }
     public string ChannelName { get; private set; } = "";
+    /// <summary>On est dans un salon vocal ou un appel (même privé, sans nom de salon).</summary>
+    public bool InCall => _channelId != null;
     public string UserName { get; private set; } = "";
 
     public event Action? StateChanged;
@@ -103,7 +106,15 @@ public class DiscordClient
                     await CommandAsync("SET_VOICE_SETTINGS", new JsonObject { ["deaf"] = !Deafened });
                     break;
                 case "leave":
+                    if (_channelId == null) return "Discord : tu n'es pas en vocal";
                     await CommandAsync("SELECT_VOICE_CHANNEL", new JsonObject { ["channel_id"] = null });
+                    break;
+                case "screen":
+                    // Discord ne laisse aucune appli lancer un partage d'écran (rien dans son RPC) :
+                    // on met l'appel au premier plan, le bouton « Partager ton écran » est alors à un clic.
+                    if (_channelId == null) return "Discord : rejoins d'abord un salon vocal";
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+                        $"discord://-/channels/{_guildId ?? "@me"}/{_channelId}") { UseShellExecute = true });
                     break;
                 default: return "Commande Discord inconnue : " + command;
             }
@@ -292,6 +303,7 @@ public class DiscordClient
                 if (v is JsonObject o && Member(o) is { } m) _members[m.Id] = m;
         }
         _channelId = id;
+        _guildId = ch["guild_id"]?.GetValue<string>();
         ChannelName = ch["name"]?.GetValue<string>() ?? "";
         if (id != null && id != old)
         {
@@ -455,6 +467,7 @@ public class DiscordClient
         Muted = Deafened = false;
         ChannelName = "";
         _channelId = null;
+        _guildId = null;
         lock (_lock) { _members.Clear(); _speaking.Clear(); }
         if (was) StateChanged?.Invoke();
     }

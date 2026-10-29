@@ -515,8 +515,8 @@ private fun WeatherWidget(widget: DeckWidget, vm: DeckViewModel) {
 
 // ---------- Salon vocal Discord ----------
 
-private val DiscordBlurple = Color(0xFF5865F2)
-private val DiscordGreen = Color(0xFF23A55A)
+internal val DiscordBlurple = Color(0xFF5865F2)
+internal val DiscordGreen = Color(0xFF23A55A)
 
 /** Qui est dans le salon vocal et qui parle (contour vert), avec le micro et la sourdine en haut. */
 @Composable
@@ -531,6 +531,10 @@ private fun DiscordWidget(widget: DeckWidget, vm: DeckViewModel) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(if (d == null) "Discord…" else "Discord\n" + d.status, color = Color(0xFFBBBBC4), fontSize = small.sp, textAlign = TextAlign.Center, maxLines = 4)
             }
+            return@BoxWithConstraints
+        }
+        if (widget.model == "discord-1x1") {
+            DiscordSpeaker(d, w, h)
             return@BoxWithConstraints
         }
         // Nombre de visages selon le modèle : 2×1 → une ligne, 2×2 → 4, 3×2 → 6.
@@ -598,5 +602,39 @@ private fun DiscordFace(m: DiscordMember, size: Float, textSize: Float) {
             }
         }
         Text(m.name, color = if (m.speaking) DiscordGreen else Color(0xFFDDDDE4), fontSize = (textSize * 0.85f).sp, maxLines = 1, softWrap = false)
+    }
+}
+
+/** Widget 1×1 : seulement la personne qui parle. Quand plus personne ne parle, la dernière reste affichée en gris. */
+@Composable
+private fun DiscordSpeaker(d: DiscordVoice, w: Float, h: Float) {
+    val speakers = d.members.filter { it.speaking }
+    var last by remember { mutableStateOf<DiscordMember?>(null) }
+    LaunchedEffect(speakers.firstOrNull()?.name) { speakers.firstOrNull()?.let { last = it } }
+    LaunchedEffect(d.inCall) { if (!d.inCall) last = null }
+    val m = speakers.firstOrNull() ?: last?.copy(speaking = false)
+    val small = min(w * 0.13f, 12f)
+    if (m == null) {
+        Text(if (d.inCall) "🔊\nPersonne\nne parle" else "Pas en\nvocal", color = Color(0xFFBBBBC4), fontSize = small.sp, textAlign = TextAlign.Center, maxLines = 3)
+        return
+    }
+    val face = min(w, h) * 0.6f
+    Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        Box(
+            Modifier
+                .size(face.dp)
+                .clip(RoundedCornerShape(50))
+                .background(if (m.speaking) DiscordBlurple else Color(0xFF3A3B44))
+                .border(if (m.speaking) 3.dp else 0.dp, if (m.speaking) DiscordGreen else Color.Transparent, RoundedCornerShape(50)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(m.name.trim().take(1).uppercase(), color = Color.White, fontSize = (face * 0.45f).sp, fontWeight = FontWeight.Bold)
+            if (speakers.size > 1) {
+                Text("+${speakers.size - 1}", color = Color.White, fontSize = (face * 0.22f).sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.TopEnd).clip(RoundedCornerShape(50)).background(DiscordGreen).padding(horizontal = 3.dp))
+            }
+        }
+        Spacer(Modifier.height(3.dp))
+        Text(m.name, color = if (m.speaking) DiscordGreen else Color(0xFF8E8E98), fontSize = small.sp, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
     }
 }
