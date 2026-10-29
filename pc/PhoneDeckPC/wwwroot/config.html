@@ -202,6 +202,13 @@
   .pcard small { color: var(--muted); font-size: 12px; }
   .pcard .px { color: var(--accent); }
   .pnotes div { margin-top: 8px; }
+  .rareopt { grid-column: 1 / -1; display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: var(--panel2); font-size: 13px; cursor: pointer; }
+  .rareopt input { margin-top: 3px; }
+  .raretab { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .raretab th, .raretab td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line, rgba(128,128,128,.25)); }
+  .raretab th { color: var(--muted); font-weight: 600; }
+  .raretab .muted { color: var(--muted); }
+  .raretab kbd { font-family: inherit; padding: 1px 6px; border-radius: 5px; background: var(--panel2); border: 1px solid var(--line, rgba(128,128,128,.35)); }
   .pback { margin-top: 10px; }
   .picgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; margin-top: 12px; max-height: 55vh; overflow-y: auto; }
   .picgrid button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 2px; font-size: 10px; color: var(--muted); }
@@ -468,6 +475,13 @@
   <div class="hint pnotes" id="presetNotes"></div>
   <input type="file" id="pageFile" accept=".json,application/json" style="display:none">
   <div style="text-align:right;margin-top:14px"><button id="pageClose">Fermer</button></div>
+</dialog>
+
+<dialog id="rareDlg" style="max-width:620px;width:94vw;max-height:90vh">
+  <h2 id="rareTitle">Touches à associer dans le jeu</h2>
+  <div class="hint">Lance le jeu, ouvre ses commandes (clavier), choisis chaque action puis appuie sur le bouton du téléphone : le jeu retient la touche. Chaque bouton a sa propre touche, inutilisée par ton clavier, donc aucun conflit. Tu retrouves cette liste dans le menu de la page (clic droit sur son nom).</div>
+  <div id="rareList" style="margin-top:10px;overflow:auto;max-height:55vh"></div>
+  <div style="text-align:right;margin-top:14px"><button id="rareCopy">Copier la liste</button> <button id="rareClose" class="primary">OK</button></div>
 </dialog>
 
 <dialog id="pictoDlg" style="max-width:640px;width:94vw">
@@ -1977,6 +1991,70 @@ const SIM_PRESETS = [
   return { ...p, group: 'sim', columns: 4, rows: row + 1, grids, widgets: SIM_TOP.widgets, buttons };
 });
 
+// ---- Touches réservées : une touche ou combinaison que rien d'autre n'utilise, différente pour chaque bouton ----
+// F13 à F24 n'existent sur aucun clavier : aucun jeu ni aucune appli ne s'en sert. Quand elles sont toutes prises, on passe
+// aux mêmes touches avec Ctrl, Maj ou Alt (84 combinaisons en tout). Le joueur n'a plus qu'à les associer dans le jeu :
+// dans les commandes du jeu, choisir l'action puis appuyer sur le bouton du téléphone.
+const RARE_MODS = ['', 'Ctrl+', 'Shift+', 'Alt+', 'Ctrl+Shift+', 'Ctrl+Alt+', 'Shift+Alt+'];
+const RARE_KEYS = RARE_MODS.flatMap(m => Array.from({ length: 12 }, (_, i) => m + 'F' + (13 + i)));
+const KEEP_GAME_KEYS = new Set(['esc', 'escape']); // Échap ouvre le menu de tous les jeux : on la garde
+const normKeys = (k) => String(k || '').toLowerCase().replace(/\s+/g, '').replace(/maj/g, 'shift').split('+').sort().join('+');
+const isRareKey = (k) => RARE_KEYS.some(r => normKeys(r) === normKeys(k));
+// Touches réservées déjà données à un bouton (toutes pages et dossiers), sauf ceux de [skip].
+function usedRareKeys(skip) {
+  const used = new Set();
+  for (const p of state.cfg.pages) for (const b of p.buttons)
+    if (!(skip && skip.has(b)) && b.action.type === 'keys' && isRareKey(b.action.keys)) used.add(normKeys(b.action.keys));
+  return used;
+}
+// Donne une touche réservée libre à chaque bouton « raccourci » de la liste (sauf Échap). Renvoie le nombre de boutons changés.
+function assignRareKeys(buttons, skip) {
+  const used = usedRareKeys(skip); let n = 0;
+  for (const b of buttons) {
+    const a = b.action;
+    if (a.type !== 'keys' || !a.keys || KEEP_GAME_KEYS.has(normKeys(a.keys)) || /,|wait:/i.test(a.keys)) continue;
+    if (isRareKey(a.keys) && !used.has(normKeys(a.keys))) { used.add(normKeys(a.keys)); continue; } // déjà unique
+    const free = RARE_KEYS.find(r => !used.has(normKeys(r)));
+    if (!free) break;
+    if (!a.gameKeys && !isRareKey(a.keys)) a.gameKeys = a.keys;
+    a.keys = free; a.keyMode = 'game'; used.add(normKeys(free)); n++;
+  }
+  return n;
+}
+function restoreGameKeys(buttons) {
+  let n = 0;
+  for (const b of buttons) if (b.action.type === 'keys' && b.action.gameKeys) { b.action.keys = b.action.gameKeys; delete b.action.gameKeys; n++; }
+  return n;
+}
+const rareButtons = (page) => page.buttons.filter(b => b.action.type === 'keys' && isRareKey(b.action.keys));
+const keyLabel = (k) => String(k).replace(/Shift/g, 'Maj');
+function convertPageToRare() {
+  const page = currentPage();
+  pushUndo();
+  const n = assignRareKeys(page.buttons, new Set(page.buttons));
+  changed({ immediate: true });
+  if (n || rareButtons(page).length) showRareList(page); else toast('Aucun bouton « raccourci » à changer sur cette page.');
+}
+function restorePageGameKeys() {
+  const page = currentPage();
+  pushUndo(); const n = restoreGameKeys(page.buttons); changed({ immediate: true });
+  toast(n ? `${n} bouton(s) remis sur les touches du jeu.` : 'Rien à remettre.');
+}
+// Liste des associations à faire dans le jeu : action, touche à appuyer, et touche d'origine du jeu.
+function showRareList(page) {
+  const list = rareButtons(page);
+  const text = list.map(b => `${b.label || 'Bouton'} : ${keyLabel(b.action.keys)}`).join('\n');
+  $('#rareTitle').textContent = `Touches à associer dans le jeu : ${page.name}`;
+  $('#rareList').replaceChildren(list.length
+    ? el('table', { class: 'raretab' }, el('tr', {}, el('th', {}, 'Bouton'), el('th', {}, 'Touche envoyée'), el('th', {}, 'Touche du jeu d\'origine')),
+      ...list.map(b => el('tr', {}, el('td', {}, b.label || 'Bouton'), el('td', {}, el('kbd', {}, keyLabel(b.action.keys))), el('td', { class: 'muted' }, b.action.gameKeys ? keyLabel(b.action.gameKeys) : '–'))))
+    : el('div', { class: 'hint' }, 'Aucun bouton de cette page n\'utilise de touche réservée.'));
+  $('#rareCopy').onclick = async () => { try { await navigator.clipboard.writeText(text); toast('Liste copiée.'); } catch { toast('Copie impossible.'); } };
+  $('#rareCopy').hidden = !list.length;
+  $('#rareDlg').showModal();
+}
+$('#rareClose').onclick = () => $('#rareDlg').close();
+
 function uniquePageName(name) {
   const names = new Set(state.cfg.pages.map(p => p.name));
   if (!names.has(name)) return name;
@@ -2015,6 +2093,10 @@ function insertRootPage({ name, autoProcesses, buttons, widgets, columns, rows, 
   changed({ immediate: true });
   return page;
 }
+// Choix « touches réservées » pour les pages sim racing, retenu sur ce PC (coché par défaut).
+function rareChoice(v) {
+  try { if (v !== undefined) localStorage.setItem('kd.rareKeys', v ? '1' : '0'); return localStorage.getItem('kd.rareKeys') !== '0'; } catch { return v ?? true; }
+}
 async function addPreset(p) {
   $('#pageDlg').close();
   let buttons = p.buttons;
@@ -2028,7 +2110,10 @@ async function addPreset(p) {
       buttons.splice(first, 0, ...scenes);
     }
   }
+  const rare = p.group === 'sim' && rareChoice();
+  if (rare) { buttons = JSON.parse(JSON.stringify(buttons)); assignRareKeys(buttons); }
   const page = insertRootPage({ name: p.name, autoProcesses: p.procs, buttons, widgets: p.widgets, columns: p.columns, rows: p.rows, screen: p.screen, grids: p.grids });
+  if (rare) { showRareList(page); return; }
   toast(p.procs ? `Page « ${page.name} » ajoutée : elle s'affiche toute seule quand l'appli est au premier plan.` : `Page « ${page.name} » ajoutée.`);
 }
 async function addEmptyPage() {
@@ -2044,6 +2129,8 @@ function addRootPage(group) {
   if (group === 'sim') {
     // Groupe « Sim racing » : une page par jeu, et un retour vers la galerie.
     presets = SIM_PRESETS;
+    list.append(el('label', { class: 'rareopt' }, el('input', { type: 'checkbox', checked: rareChoice(), onchange: (e) => rareChoice(e.target.checked) }),
+      el('span', {}, el('b', {}, 'Touches réservées KeyraDeck'), ' : chaque bouton envoie sa propre touche que rien d\'autre n\'utilise (F13 à F24, puis Ctrl / Maj / Alt + F13…). Tu les associes une fois dans le jeu, sans conflit avec ton clavier. Décoché : les touches d\'origine du jeu.')));
     list.append(card('←', 'Retour', 'Toutes les pages toutes prêtes.', null, () => addRootPage()));
     for (const p of presets) list.append(presetCard(p));
   } else {
@@ -2265,7 +2352,16 @@ function renderInspector() {
       el('select', { onchange: (e) => upd(() => { if (e.target.value) a.keyMode = e.target.value; else delete a.keyMode; }) },
         [['', 'Normal (applis, Windows)'], ['game', 'Mode jeu (touche maintenue, comme un vrai clavier)'], ['game-qwerty', 'Mode jeu, lettres à leur place QWERTY']]
           .map(([v, t]) => el('option', { value: v, selected: (a.keyMode || '') === v }, t))),
-      el('div', { class: 'hint' }, 'Si un jeu ne réagit pas, choisis « Mode jeu ». Tu peux aussi changer la touche dans les réglages du jeu : quand il attend une touche, appuie sur ce bouton du téléphone.'));
+      el('div', { class: 'hint' }, 'Si un jeu ne réagit pas, choisis « Mode jeu ». Tu peux aussi changer la touche dans les réglages du jeu : quand il attend une touche, appuie sur ce bouton du téléphone.'),
+      el('div', { style: 'margin-top:8px;display:flex;gap:6px;flex-wrap:wrap' },
+        el('button', { title: 'F13 à F24 (puis Ctrl / Maj / Alt + F13…) : une touche que rien d\'autre n\'utilise, à associer dans le jeu', onclick: () => upd(() => {
+          const skip = new Set([b]); const used = usedRareKeys(skip);
+          const free = RARE_KEYS.find(r => !used.has(normKeys(r))); if (!free) return;
+          if (!a.gameKeys && !isRareKey(a.keys)) a.gameKeys = a.keys;
+          a.keys = free; a.keyMode = 'game';
+        }) }, '🎯 Touche réservée unique'),
+        a.gameKeys ? el('button', { onclick: () => upd(() => { a.keys = a.gameKeys; delete a.gameKeys; }) }, `↩ Touche du jeu (${keyLabel(a.gameKeys)})`) : null),
+      isRareKey(a.keys) ? el('div', { class: 'hint' }, `Touche réservée ${keyLabel(a.keys)} : dans les commandes du jeu, choisis l'action puis appuie sur ce bouton du téléphone.`) : null);
   } else if (a.type === 'folder' || a.type === 'page') {
     const isPage = a.type === 'page';
     const choices = (isPage ? rootPages().filter(x => x.id !== f.page.id) : folderPages());
@@ -2978,6 +3074,9 @@ function pageMenu(p, x, y, fromBar) {
     pasteItem(on(() => pasteAt(null)), root ? ' dans cette page' : ' dans ce dossier'),
     root && !p.generated ? { icon: G.export, label: 'Exporter cette page…', onclick: on(exportPage) } : null,
     p.generated ? { icon: G.link, label: 'Détacher du menu Démarrer', onclick: on(detachPage) } : null,
+    !p.generated && p.buttons.some(b => b.action.type === 'keys') ? { icon: G.rename, label: 'Touches réservées (à associer dans le jeu)', onclick: on(convertPageToRare) } : null,
+    rareButtons(p).length ? { icon: G.open, label: 'Liste des touches à associer…', onclick: on(() => showRareList(p)) } : null,
+    p.buttons.some(b => b.action.gameKeys) ? { icon: G.undo, label: 'Remettre les touches du jeu', onclick: on(restorePageGameKeys) } : null,
     '-',
     root && roots.length > 1 ? { icon: G.back, label: 'Placer avant', disabled: i === 0, onclick: on(() => movePage(-1)) } : null,
     root && roots.length > 1 ? { icon: G.next, label: 'Placer après', disabled: i === roots.length - 1, onclick: on(() => movePage(1)) } : null,
