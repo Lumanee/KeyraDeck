@@ -161,7 +161,8 @@ fun DeckScreen(vm: DeckViewModel) {
                 if (index >= 0 && index != pager.currentPage) pager.animateScrollToPage(index)
             }
             HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { index ->
-                val page = roots[index]
+                // Téléphone en paysage : la disposition paysage de la page si elle en a une.
+                val page = roots[index].let { if (maxWidth > maxHeight) it.land ?: it else it }
                 Device(
                     vm = vm,
                     columns = page.columns ?: 5,
