@@ -13,7 +13,12 @@
     <RootNamespace>PhoneDeckPC</RootNamespace>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <BuildNumber Condition="'$(BuildNumber)' == ''">0</BuildNumber>
+    <!-- Version.Build = numéro de build, comparé par la mise à jour automatique : ne pas changer. -->
     <Version>0.3.$(BuildNumber)</Version>
+    <!-- Version affichée (0.0.1, 0.0.2…), calculée par .github/version.sh. -->
+    <DisplayVersion Condition="'$(DisplayVersion)' == ''">dev</DisplayVersion>
+    <InformationalVersion>$(DisplayVersion)</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <Product>KeyraDeck</Product>
     <AssemblyTitle>KeyraDeck</AssemblyTitle>

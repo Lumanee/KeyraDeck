@@ -15,7 +15,8 @@ android {
         // Le numéro de build vient de GitHub Actions : chaque version est plus récente que la précédente.
         val build = System.getenv("BUILD_NUMBER")?.toIntOrNull() ?: 1
         versionCode = build
-        versionName = "0.3.$build"
+        // Version affichée (0.0.1, 0.0.2…), calculée par .github/version.sh.
+        versionName = System.getenv("DISPLAY_VERSION") ?: "dev"
     }
 
     signingConfigs {

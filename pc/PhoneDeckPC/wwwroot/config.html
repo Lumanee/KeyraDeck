@@ -827,7 +827,7 @@ async function openSettings() {
     $('#hideLbl').checked = !!state.cfg.hideLabels;
     $('#usbOn').checked = state.cfg.usbEnabled !== false;
     $('#usbOpen').checked = state.cfg.usbOpenApp !== false;
-    $('#verText').textContent = 'KeyraDeck — version ' + st.build;
+    $('#verText').textContent = 'KeyraDeck — version ' + (st.appVersion || st.build) + ' (build ' + st.build + ')';
   } catch { }
   $('#setDlg').showModal();
 }
@@ -2000,7 +2000,7 @@ async function checkUpdate(manual) {
     const u = await api('/api/update/check');
     const b = $('#updBtn');
     if (u.available) {
-      b.style.display = ''; b.textContent = '⬇ Mettre à jour (version ' + u.latest + ')';
+      b.style.display = ''; b.textContent = '⬇ Mettre à jour (version ' + (u.latestVersion || u.latest) + ')';
       b.onclick = async () => {
         b.disabled = true; b.textContent = 'Téléchargement…';
         try { const r = await api('/api/update/apply', { method: 'POST' }); b.textContent = 'Redémarrage…'; if (r.error) throw new Error(r.error); }

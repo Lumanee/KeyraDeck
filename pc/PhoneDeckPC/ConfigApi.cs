@@ -63,6 +63,7 @@ public class ConfigApi
                     {
                         pcName = _store.PcName,
                         build = Updater.CurrentBuild,
+                        appVersion = Updater.CurrentVersion,
                         device = _store.Config.Device,
                         adaptedTo = _store.Config.AdaptedTo,
                         token = _store.Config.Token,
@@ -211,7 +212,7 @@ public class ConfigApi
                     return;
 
                 case "/api/settings" when method == "GET":
-                    await Json(ctx, new { startWithWindows = StartupRegistration.IsEnabled(), build = Updater.CurrentBuild });
+                    await Json(ctx, new { startWithWindows = StartupRegistration.IsEnabled(), build = Updater.CurrentBuild, appVersion = Updater.CurrentVersion });
                     return;
 
                 case "/api/settings" when method == "POST":
@@ -383,7 +384,7 @@ public class ConfigApi
             }
             catch { /* image illisible : le bouton reprendra son icône auto */ }
         }
-        return new { keyradeck = "backup", version = 1, build = Updater.CurrentBuild, date = DateTime.Now, config = cfg, icons };
+        return new { keyradeck = "backup", version = 1, build = Updater.CurrentBuild, appVersion = Updater.CurrentVersion, date = DateTime.Now, config = cfg, icons };
     }
 
     /// <summary>Restaure une sauvegarde faite par <see cref="BuildBackup"/>. Renvoie le nombre de pages et dossiers.</summary>

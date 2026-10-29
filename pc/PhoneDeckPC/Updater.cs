@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 
 namespace PhoneDeckPC;
 
-public record UpdateInfo(bool Available, int Current, int Latest, string? Error);
+public record UpdateInfo(bool Available, int Current, int Latest, string? Error, string? LatestVersion = null);
 
 /// <summary>
 /// Mise à jour automatique : compare avec la dernière version publiée sur GitHub, la télécharge
@@ -66,6 +66,10 @@ public class Updater
 
     public static int CurrentBuild => Assembly.GetExecutingAssembly().GetName().Version?.Build ?? 0;
 
+    /// <summary>Version affichée (0.0.1, 0.0.2…). Le numéro de build reste la référence pour les mises à jour.</summary>
+    public static string CurrentVersion =>
+        Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? CurrentBuild.ToString();
+
     private static HttpClient CreateClient()
     {
         var c = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
@@ -95,7 +99,8 @@ public class Updater
                 .Select(n => assets.FirstOrDefault(a => a.GetProperty("name").GetString() == n))
                 .Where(a => a.ValueKind == JsonValueKind.Object)
                 .Select(a => a.GetProperty("browser_download_url").GetString()).FirstOrDefault();
-            return new UpdateInfo(latest > current && _downloadUrl != null, current, latest, null);
+            var version = Regex.Match(body, @"version:(\S+)");
+            return new UpdateInfo(latest > current && _downloadUrl != null, current, latest, null, version.Success ? version.Groups[1].Value : null);
         }
         catch (Exception e)
         {

@@ -9,8 +9,21 @@ permissions:
   contents: write
 
 jobs:
+  version:
+    name: Numéro de version
+    runs-on: ubuntu-latest
+    outputs:
+      display: ${{ steps.v.outputs.display }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: v
+        run: echo "display=$(bash .github/version.sh)" >> "$GITHUB_OUTPUT"
+
   android:
     name: Appli Android (APK)
+    needs: version
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,6 +36,7 @@ jobs:
         working-directory: android
         env:
           BUILD_NUMBER: ${{ github.run_number }}
+          DISPLAY_VERSION: ${{ needs.version.outputs.display }}
         shell: bash
         run: |
           set -o pipefail
@@ -45,6 +59,7 @@ jobs:
 
   windows:
     name: Appli Windows (exe)
+    needs: version
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -52,7 +67,7 @@ jobs:
         with:
           dotnet-version: 8.0.x
       - name: Compiler l'exe
-        run: dotnet publish pc/PhoneDeckPC/PhoneDeckPC.csproj -c Release -p:BuildNumber=${{ github.run_number }} -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
+        run: dotnet publish pc/PhoneDeckPC/PhoneDeckPC.csproj -c Release -p:BuildNumber=${{ github.run_number }} -p:DisplayVersion=${{ needs.version.outputs.display }} -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
       - name: Zipper
         shell: pwsh
         run: |
@@ -71,7 +86,7 @@ jobs:
   release:
     name: Publier la dernière version
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: [android, windows]
+    needs: [version, android, windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -80,9 +95,10 @@ jobs:
       - name: Mettre à jour la release « derniere-version »
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.version.outputs.display }}
         run: |
           gh release delete derniere-version --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
           gh release create derniere-version KeyraDeck.apk KeyraDeck-Windows.zip PhoneDeck.apk PhoneDeckPC-Windows.zip \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
-            --title "KeyraDeck : dernière version" \
-            --notes "build:${{ github.run_number }} — fabriquée automatiquement depuis le commit $GITHUB_SHA. KeyraDeck.apk = appli Android, KeyraDeck-Windows.zip = appli Windows (PhoneDeck.apk et PhoneDeckPC-Windows.zip sont les mêmes fichiers sous l'ancien nom, gardés pour la mise à jour automatique des anciennes installations)."
+            --title "KeyraDeck $VERSION (dernière version)" \
+            --notes "version:$VERSION build:${{ github.run_number }} — fabriquée automatiquement depuis le commit $GITHUB_SHA. KeyraDeck.apk = appli Android, KeyraDeck-Windows.zip = appli Windows (PhoneDeck.apk et PhoneDeckPC-Windows.zip sont les mêmes fichiers sous l'ancien nom, gardés pour la mise à jour automatique des anciennes installations)."
