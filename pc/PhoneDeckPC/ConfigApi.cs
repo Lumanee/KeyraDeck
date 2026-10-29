@@ -131,6 +131,12 @@ public class ConfigApi
                     return;
                 }
 
+                case "/api/pictos":
+                    // Pictogrammes « mdi: » proposés dans l'inspecteur (dessinés en SVG par le configurateur).
+                    ctx.Response.Headers.CacheControl = "max-age=3600";
+                    await Json(ctx, Pictos.All.Select(p => new { name = p.Key, color = p.Value.Color, path = p.Value.Path }));
+                    return;
+
                 case "/api/appicon":
                 {
                     var target = ctx.Request.Query["path"].ToString();
