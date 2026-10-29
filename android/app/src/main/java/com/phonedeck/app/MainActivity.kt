@@ -129,7 +129,7 @@ fun App(vm: DeckViewModel) {
                 Surface(Modifier.fillMaxSize(), color = bg) {
                     when {
                         vm.serverUrl == null -> ConnectScreen(vm)
-                        vm.showPad -> PadScreen(vm)
+                        vm.showPcKeyboard -> PcKeyboardScreen(vm) { vm.showPcKeyboard = false }
                         else -> DeckScreen(vm)
                     }
                 }

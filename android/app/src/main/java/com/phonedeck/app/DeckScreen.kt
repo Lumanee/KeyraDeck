@@ -58,6 +58,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -151,17 +152,32 @@ fun DeckScreen(vm: DeckViewModel) {
         }
         val roots = vm.layout?.rootPages.orEmpty()
         if (roots.isEmpty()) {
-            Device(vm, 5, 3, emptyList(), emptyList(), 0, 1) { editing = it }
-            Waiting(vm)
+            if (vm.showPad) PadScreen(vm)
+            else {
+                Device(vm, 5, 3, emptyList(), emptyList(), 0, 1) { editing = it }
+                Waiting(vm)
+            }
         } else {
-            val pager = rememberPagerState(pageCount = { roots.size })
+            // Page 0 = souris et clavier : on y arrive en glissant vers la droite depuis l'accueil (elle est « à gauche »).
+            // Les pages du boîtier suivent, l'appli s'ouvre sur l'accueil (page 1), ou sur la souris en revenant du clavier PC.
+            val pager = rememberPagerState(initialPage = if (vm.showPad) 0 else 1, pageCount = { roots.size + 1 })
             val focus = vm.focus
             LaunchedEffect(focus) {
                 val index = roots.indexOfFirst { it.id == focus?.page }
-                if (index >= 0 && index != pager.currentPage) pager.animateScrollToPage(index)
+                if (index >= 0 && index + 1 != pager.currentPage) pager.animateScrollToPage(index + 1)
             }
+            // Le bouton 🖱 de la barre, la croix et « retour » de la page souris passent par vm.showPad.
+            LaunchedEffect(vm.showPad) {
+                if (vm.showPad && pager.currentPage != 0) pager.animateScrollToPage(0)
+                else if (!vm.showPad && pager.currentPage == 0) pager.animateScrollToPage(1)
+            }
+            LaunchedEffect(pager) { snapshotFlow { pager.settledPage }.collect { vm.showPad = it == 0 } }
             HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { index ->
-                val page = roots[index]
+                if (index == 0) {
+                    PadScreen(vm)
+                    return@HorizontalPager
+                }
+                val page = roots.getOrNull(index - 1) ?: return@HorizontalPager
                 Device(
                     vm = vm,
                     columns = page.columns ?: 5,
@@ -170,7 +186,7 @@ fun DeckScreen(vm: DeckViewModel) {
                     widgets = page.widgets,
                     screen = page.screen,
                     grids = page.grids,
-                    pageIndex = index,
+                    pageIndex = index - 1,
                     pageCount = roots.size,
                     onLongPress = { editing = it },
                 )

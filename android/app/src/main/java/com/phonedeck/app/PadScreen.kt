@@ -60,12 +60,8 @@ private const val Sentinel = "​"
  */
 @Composable
 fun PadScreen(vm: DeckViewModel) {
-    var pcKeyboard by remember { mutableStateOf(false) }
-    if (pcKeyboard) {
-        PcKeyboardScreen(vm) { pcKeyboard = false }
-        return
-    }
-    BackHandler { vm.showPad = false }
+    // La page est collée à gauche de l'accueil : « retour » ne la ferme que quand elle est affichée.
+    BackHandler(enabled = vm.showPad) { vm.showPad = false }
     val theme = LocalTheme.current
     var keyboard by remember { mutableStateOf(false) }
     val mods = remember { mutableStateOf(setOf<String>()) }
@@ -79,7 +75,7 @@ fun PadScreen(vm: DeckViewModel) {
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Souris et clavier", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            PadChip("⌨ Clavier", false) { keyboard = false; pcKeyboard = true }
+            PadChip("⌨ Clavier", false) { keyboard = false; vm.showPcKeyboard = true }
             Box(Modifier.width(8.dp))
             PadChip(if (keyboard) "Texte ✓" else "Texte", keyboard) { keyboard = !keyboard }
             Box(Modifier.width(8.dp))

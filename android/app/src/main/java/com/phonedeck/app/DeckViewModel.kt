@@ -694,6 +694,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
     // ---------- Page souris / clavier ----------
 
     var showPad by mutableStateOf(false)
+    var showPcKeyboard by mutableStateOf(false)
     private var moveX = 0f
     private var moveY = 0f
     private var lastMoveAt = 0L
