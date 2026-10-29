@@ -339,6 +339,13 @@ public class ConfigApi
                     await Json(ctx, new { connected = _int.Obs.Connected, status = _int.Obs.Status, scenes = _int.Obs.Scenes, inputs = _int.Obs.AudioInputs, current = _int.Obs.CurrentScene });
                     return;
 
+                case "/api/audio/outputs":
+                    await Json(ctx, await Task.Run(() =>
+                    {
+                        try { return AudioOutputs.List(); } catch { return new List<AudioOutput>(); }
+                    }));
+                    return;
+
                 case "/api/ha/entities":
                     await Json(ctx, (await _int.HomeAssistant.EntitiesAsync()).Select(e => new { id = e.Id, name = e.Name, state = e.State }));
                     return;

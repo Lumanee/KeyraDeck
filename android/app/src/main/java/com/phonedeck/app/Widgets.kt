@@ -319,12 +319,15 @@ private fun VolumeWidget(widget: DeckWidget, vm: DeckViewModel) {
             Text(icon, fontSize = 22.sp, modifier = Modifier.clickable { vm.toggleMasterMute() })
             bar(Modifier.weight(1f).width(34.dp))
             Text(label, color = Color.White, fontSize = 12.sp)
+            Text("🎧", fontSize = 18.sp, modifier = Modifier.clickable { vm.openOutputs() })
         }
     } else {
         Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(icon, fontSize = 24.sp, modifier = Modifier.clickable { vm.toggleMasterMute() })
             bar(Modifier.weight(1f).height(34.dp))
             Text(label, color = Color.White, fontSize = 13.sp, modifier = Modifier.width(46.dp), textAlign = TextAlign.End)
+            // Choix de la sortie son (casque, enceintes…).
+            Text("🎧", fontSize = 20.sp, modifier = Modifier.clickable { vm.openOutputs() })
         }
     }
 }

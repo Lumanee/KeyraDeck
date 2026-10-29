@@ -585,7 +585,7 @@ const findWidget = (id) => { for (const p of state.cfg.pages) { const w = (p.wid
 const WIDGET_INFO = {
   media: { name: 'Pavé média', icon: '⏯', desc: 'Précédent, lecture/pause, suivant, volume. Les modèles « avec titre » affichent aussi le morceau ou la vidéo en cours.' },
   nowplaying: { name: 'Morceau en cours', icon: '🎵', desc: 'Pochette, titre et artiste de ce qui joue sur le PC (Spotify, YouTube, lecteur Windows…), avec précédent / lecture / suivant.' },
-  volume: { name: 'Volume général', icon: '🎚', desc: 'Curseur du volume Windows avec bouton muet.' },
+  volume: { name: 'Volume général', icon: '🎚', desc: 'Curseur du volume Windows avec bouton muet. Le casque 🎧 choisit la sortie son (casque, enceintes…).' },
   clock: { name: 'Horloge', icon: '🕒', desc: 'Heure et date.' },
   system: { name: 'Performances PC', icon: '📊', desc: 'Compte-tours du processeur (CPU), de la mémoire (RAM), de la carte graphique (GPU) et du disque, en pourcentage.' },
   perfapp: { name: 'Appli active', icon: '🎮', desc: 'CPU, RAM, GPU et FPS de l\'appli au premier plan sur le PC (ton jeu par exemple). Les FPS (jeux DirectX) ne s\'affichent que si KeyraDeck est lancé en administrateur sur le PC.' },
@@ -659,7 +659,7 @@ const modelOf = (w) => (WIDGET_MODELS[w.type] || []).find(m => m.id === w.model)
 const COMMANDS = [
   { group: 'Applications et liens', items: [['app', 'Appli…', 'Lance une appli installée'], ['web', 'Site web', 'Ouvre une adresse'], ['folder', 'Dossier', 'Regroupe des boutons'], ['page', 'Aller à une page', 'Saute vers une autre page']] },
   { group: 'Clavier', items: [['keys', 'Raccourci / macro', 'Touches ou enchaînement'], ['text', 'Texte à taper', 'Écrit dans la fenêtre active']] },
-  { group: 'Système', items: [['mixer', 'Mélangeur de volume', 'Un curseur par appli'], ['micmute', 'Micro Windows', 'Couper / rétablir'], ['mastermute', 'Son Windows', 'Couper / rétablir']] },
+  { group: 'Système', items: [['mixer', 'Mélangeur de volume', 'Un curseur par appli'], ['micmute', 'Micro Windows', 'Couper / rétablir'], ['mastermute', 'Son Windows', 'Couper / rétablir'], ['audioout', 'Sortie son', 'Casque ↔ enceintes']] },
   { group: 'OBS Studio', items: [['obs:stream', 'Live', 'Lancer / arrêter le live'], ['obs:record', 'Enregistrer', 'Lancer / arrêter'], ['obs:pause', 'Pause enregistrement', 'Mettre en pause'], ['obs:scene', 'Scène', 'Passer à une scène'],
     ['obs:mute', 'Couper une source', 'Micro, son du bureau…'], ['obs:replay', 'Replay', 'Garder les dernières secondes'], ['obs:virtualcam', 'Caméra virtuelle', 'Activer / couper']] },
   { group: 'Discord', items: [['discord:panel', 'Bouton Discord', 'Ouvre micro, sourdine, partage, raccrocher'], ['discord:mute', 'Micro Discord', 'Couper / rétablir (état réel)'], ['discord:deafen', 'Sourdine Discord', 'Ne plus rien entendre'], ['discord:screen', 'Partager l\'écran', 'Montre l\'appel pour lancer le partage'], ['discord:leave', 'Quitter le vocal', 'Raccrocher']] },
@@ -1381,8 +1381,8 @@ function paintWidget(d, w) {
   } else if (w.type === 'volume') {
     const v = live.volume == null ? 0 : live.volume, vertical = w.h > w.w;
     const icon = live.muted || v === 0 ? '🔇' : '🔊';
-    if (vertical) html = `<div style="display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;width:100%"><span style="font-size:20px">${icon}</span><div style="flex:1;width:30px;background:#0a0a0d;border-radius:30px;position:relative;overflow:hidden"><div style="position:absolute;bottom:0;left:0;right:0;height:${v}%;background:${live.muted ? '#888' : acc}"></div></div><span style="font-size:12px">${live.muted ? 'Muet' : v + ' %'}</span></div>`;
-    else html = `<div style="display:flex;align-items:center;gap:10px;width:100%"><span style="font-size:22px">${icon}</span><div style="flex:1;height:30px;background:#0a0a0d;border-radius:30px;position:relative;overflow:hidden"><div style="position:absolute;top:0;bottom:0;left:0;width:${v}%;background:${live.muted ? '#888' : acc}"></div></div><span style="font-size:13px;min-width:42px;text-align:right">${live.muted ? 'Muet' : v + ' %'}</span></div>`;
+    if (vertical) html = `<div style="display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;width:100%"><span style="font-size:20px">${icon}</span><div style="flex:1;width:30px;background:#0a0a0d;border-radius:30px;position:relative;overflow:hidden"><div style="position:absolute;bottom:0;left:0;right:0;height:${v}%;background:${live.muted ? '#888' : acc}"></div></div><span style="font-size:12px">${live.muted ? 'Muet' : v + ' %'}</span><span style="font-size:16px">🎧</span></div>`;
+    else html = `<div style="display:flex;align-items:center;gap:10px;width:100%"><span style="font-size:22px">${icon}</span><div style="flex:1;height:30px;background:#0a0a0d;border-radius:30px;position:relative;overflow:hidden"><div style="position:absolute;top:0;bottom:0;left:0;width:${v}%;background:${live.muted ? '#888' : acc}"></div></div><span style="font-size:13px;min-width:42px;text-align:right">${live.muted ? 'Muet' : v + ' %'}</span><span style="font-size:18px">🎧</span></div>`;
   } else if (w.type === 'media' && (m === 'media-3x1t' || m === 'media-4x1t')) {
     // Pavé média avec le titre du morceau ou de la vidéo au-dessus, et sa petite pochette.
     const np = live.nowPlaying, top = Math.max(12, H * .3);
@@ -1493,6 +1493,7 @@ function actionSummary(b) {
     case 'text': return 'Tape du texte';
     case 'micmute': return 'Coupe / rétablit le micro';
     case 'mastermute': return 'Coupe / rétablit le son';
+    case 'audioout': return 'Change de sortie son';
     case 'folder': return 'Ouvre un dossier';
     case 'page': return 'Va à une autre page';
     case 'mixer': return 'Ouvre le mélangeur de volume';
@@ -2223,7 +2224,7 @@ function renderInspector() {
       el('button', { onclick: () => upd(() => delete b.color) }, 'Aucune')));
 
   box.append(el('label', {}, 'Action'));
-  const types = [['open', 'Lancer une appli ou un fichier'], ['url', 'Ouvrir un site web'], ['keys', 'Raccourci clavier / macro'], ['text', 'Taper du texte'], ['micmute', 'Couper / rétablir le micro Windows'], ['mastermute', 'Couper / rétablir le son Windows'], ['folder', 'Ouvrir un dossier'], ['page', 'Aller à une page'], ['mixer', 'Ouvrir le mélangeur de volume'],
+  const types = [['open', 'Lancer une appli ou un fichier'], ['url', 'Ouvrir un site web'], ['keys', 'Raccourci clavier / macro'], ['text', 'Taper du texte'], ['micmute', 'Couper / rétablir le micro Windows'], ['mastermute', 'Couper / rétablir le son Windows'], ['audioout', 'Changer de sortie son (casque, enceintes…)'], ['folder', 'Ouvrir un dossier'], ['page', 'Aller à une page'], ['mixer', 'Ouvrir le mélangeur de volume'],
     ['obs', 'OBS Studio (live, scènes…)'], ['discord', 'Discord (micro, sourdine)'], ['ha', 'Maison (Home Assistant)']];
   box.append(el('select', { onchange: (e) => upd(() => changeType(b, e.target.value)) }, types.map(([v, t]) => el('option', { value: v, selected: a.type === v }, t))));
 
@@ -2261,6 +2262,7 @@ function renderInspector() {
   }
 
   if (a.type === 'obs' || a.type === 'discord' || a.type === 'ha') integrationInspector(box, b, upd);
+  if (a.type === 'audioout') audioOutInspector(box, b, upd);
 
   if (a.type === 'keys' || a.type === 'text') {
     box.append(el('label', { style: 'display:flex;gap:8px;align-items:center;color:var(--text);margin-top:14px;cursor:pointer' },
@@ -2524,6 +2526,8 @@ async function addFromPalette(kind) {
     pushUndo(); add({ id: uid('micro'), label: 'Micro', icon: 'builtin:mic', action: { type: 'micmute' } });
   } else if (kind === 'mastermute') {
     pushUndo(); add({ id: uid('mute'), label: 'Muet', icon: 'builtin:volume', action: { type: 'mastermute' } });
+  } else if (kind === 'audioout') {
+    pushUndo(); add({ id: uid('sortie'), label: 'Sortie son', icon: 'builtin:headphones', action: { type: 'audioout', target: '' } });
   } else if (kind === 'mixer') {
     pushUndo(); add({ id: uid('volume'), label: 'Volume', icon: 'builtin:volume', action: { type: 'mixer' } });
   } else if (kind === 'app') {
@@ -2736,6 +2740,23 @@ async function openIntegrations() {
   }, 1500);
 }
 // Réglages propres aux boutons OBS / Discord / Maison, dans le panneau de droite.
+// Bouton « Changer de sortie son » : on coche les sorties entre lesquelles il bascule (aucune cochée = toutes).
+function audioOutInspector(box, b, upd) {
+  const a = b.action;
+  const list = el('div', {}, el('div', { class: 'hint' }, 'Recherche des sorties son du PC…'));
+  box.append(el('label', {}, 'Sorties entre lesquelles basculer'), list);
+  api('/api/audio/outputs').then(outs => {
+    const chosen = (a.target || '').split('|').filter(Boolean);
+    const rows = outs.map(o => ({ id: o.id, name: o.name + (o.isDefault ? ' (actuelle)' : '') }));
+    for (const id of chosen) if (!outs.some(o => o.id === id)) rows.push({ id, name: 'Sortie débranchée' });
+    if (!rows.length) { list.replaceChildren(el('div', { class: 'hint' }, 'Aucune sortie son trouvée sur ce PC.')); return; }
+    list.replaceChildren(...rows.map(r => el('label', { style: 'display:flex;gap:8px;align-items:center;color:var(--text);margin:6px 0;cursor:pointer' },
+      el('input', { type: 'checkbox', checked: chosen.includes(r.id), style: 'width:auto', onchange: (e) => upd(() => {
+        const next = chosen.filter(x => x !== r.id); if (e.target.checked) next.push(r.id); a.target = next.join('|');
+      }) }), r.name)),
+      el('div', { class: 'hint', style: 'margin-top:8px' }, chosen.length >= 2 ? 'Chaque appui passe à la sortie cochée suivante.' : 'Coche au moins deux sorties (par exemple ton casque et tes enceintes). Sans choix, le bouton passe par toutes les sorties branchées.'));
+  }).catch(e => list.replaceChildren(el('div', { class: 'hint' }, 'Erreur : ' + e.message)));
+}
 function integrationInspector(box, b, upd) {
   const a = b.action;
   const note = el('div', { class: 'hint', style: 'margin-top:8px' });

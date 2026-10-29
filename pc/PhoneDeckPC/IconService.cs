@@ -121,6 +121,8 @@ public class IconService
                     return Cached("builtin:mic", () => Builtin("mic"));
                 case "mastermute":
                     return Cached("builtin:volume", () => Builtin("volume"));
+                case "audioout":
+                    return Cached("builtin:headphones", () => Builtin("headphones"));
                 case "url":
                     return Cached("builtin:web", () => Builtin("web"));
                 case "obs":

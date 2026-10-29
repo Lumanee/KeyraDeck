@@ -136,6 +136,9 @@ data class MixerChannel(
     val icon: ImageBitmap?,
 )
 
+/** Une sortie son du PC (casque, enceintes…). */
+data class AudioOutput(val id: String, val name: String, val isDefault: Boolean)
+
 object Parser {
     fun layout(json: JSONObject): DeckLayout {
         val pages = LinkedHashMap<String, DeckPage>()
@@ -228,6 +231,14 @@ object Parser {
                 muted = c.optBoolean("muted", false),
                 icon = image(c.optStringOrNull("icon")) ?: oldIcons[id],
             )
+        }
+    }
+
+    fun outputs(json: JSONObject): List<AudioOutput> {
+        val arr = json.optJSONArray("outputs") ?: JSONArray()
+        return (0 until arr.length()).map { i ->
+            val o = arr.getJSONObject(i)
+            AudioOutput(o.optString("id"), o.optString("name"), o.optBoolean("isDefault", false))
         }
     }
 
