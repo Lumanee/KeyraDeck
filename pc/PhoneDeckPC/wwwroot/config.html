@@ -1863,25 +1863,73 @@ function layoutApply(page, snap) {
     if (x && x.grid) b.grid = x.grid; else delete b.grid;
   }
 }
-// Mise en page paysage automatique : on cherche la grille la plus large qui garde de grosses touches et où tout tient.
+// Mise en page paysage automatique : la grille du portrait est transposée (4 colonnes × 8 lignes devient 8 × 4), chaque case (ligne, colonne)
+// passe en (colonne, ligne), donc le coin en haut à gauche reste en haut à gauche et les voisins restent voisins.
+// Les rectangles (zone écran, grilles séparées) sont transposés aussi ; les widgets gardent leur forme (leurs modèles sont fixes)
+// et s'ancrent au même endroit. Ce qui tombe sur une case déjà prise passe à la case libre la plus proche.
 function makeLandscape(page, portrait) {
   const base = clone(page); delete base.land; delete base._port; delete base.generated;
   if (portrait) layoutApply(base, portrait);
-  const d = deviceDims(true);
-  const minCols = Math.max(4, ...(base.widgets || []).map(w => w.w), ...blocks(base).map(g => g.w), base.screen ? base.screen.w : 0);
-  const cands = [];
-  for (let c = minCols; c <= 12; c++) for (let r = 2; r <= 8; r++) {
-    const key = keySizeFor(c, r, d.w, d.h);
-    if (key >= 52) cands.push({ c, r, key });
+  const { cols: C, rows: R } = pageGrid(base);
+  const widgets = base.widgets || [], scr = base.screen, grids = blocks(base);
+  const inScr = scr ? new Set(screenWidgets(base)) : new Set();
+  const NC = Math.max(R, 1, ...widgets.map(w => w.w));
+  const LIMIT = C + 40; // lignes cherchées avant d'abandonner
+  const taken = new Set();
+  const pos = (slot) => ({ r: Math.floor(slot / C), c: slot % C });
+  const isFree = (set, r, c, w, h, nc) => { for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (set.has((r + y) * nc + c + x)) return false; return true; };
+  const mark = (set, r, c, w, h, nc) => { for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) set.add((r + y) * nc + c + x); };
+  // Case libre la plus proche de (r0, c0) pour un rectangle w × h ; bornes en lignes [rA, rB[ et colonnes [cA, cB[.
+  const nearest = (set, r0, c0, w, h, nc, rA, rB, cA, cB) => {
+    let best = null;
+    for (let r = rA; r + h <= rB; r++) for (let c = cA; c + w <= cB; c++) {
+      if (!isFree(set, r, c, w, h, nc)) continue;
+      const d = Math.abs(r - r0) + Math.abs(c - c0);
+      if (!best || d < best.d) best = { r, c, d };
+    }
+    return best;
+  };
+  const put = (set, r0, c0, w, h) => { // place dans toute la grille
+    const sp = nearest(set, r0, c0, w, h, NC, 0, LIMIT, 0, NC) || { r: LIMIT, c: 0 };
+    mark(set, sp.r, sp.c, w, h, NC); return sp;
+  };
+  let nscr = null, nGrids = [], nWidgets = [];
+  if (scr) {
+    const o = pos(scr.slot), sp = put(taken, o.c, o.r, scr.h, scr.w);
+    nscr = { ...scr, slot: sp.r * NC + sp.c, w: scr.h, h: scr.w };
+    const so = pos(scr.slot), local = new Set();
+    for (const w of widgets.filter(w => inScr.has(w))) { // les widgets de la zone écran la suivent, au même endroit relatif
+      const wp = pos(w.slot), dr = wp.c - so.c, dc = wp.r - so.r;
+      const ww = Math.min(w.w, nscr.w), wh = Math.min(w.h, nscr.h);
+      const r0 = sp.r + Math.min(dr, nscr.h - wh), c0 = sp.c + Math.min(dc, nscr.w - ww);
+      const f = nearest(local, r0, c0, ww, wh, NC, sp.r, sp.r + nscr.h, sp.c, sp.c + nscr.w);
+      if (f) { mark(local, f.r, f.c, ww, wh, NC); nWidgets.push({ ...w, slot: f.r * NC + f.c }); }
+      else inScr.delete(w); // plus de place sur la zone : il sera posé comme un widget ordinaire
+    }
   }
-  cands.sort((a, b) => b.key - a.key || b.c - a.c);
-  for (const k of cands) {
-    const t = clone(base);
-    if (reflowPage(t, k.c, k.r) && t.rows <= k.r) return layoutSnap(t);
+  for (const g of grids) {
+    const o = pos(g.slot), sp = put(taken, o.c, o.r, g.h, g.w);
+    nGrids.push({ ...g, slot: sp.r * NC + sp.c, w: g.h, h: g.w, columns: g.rows, rows: g.columns });
   }
-  const t = clone(base); const rec = recommendGrid(d.w, d.h);
-  reflowPage(t, Math.max(rec.cols, minCols), rec.rows);
-  return layoutSnap(t);
+  for (const w of widgets.filter(w => !inScr.has(w))) {
+    const o = pos(w.slot), sp = put(taken, o.c, Math.min(o.r, NC - w.w), w.w, w.h);
+    nWidgets.push({ ...w, slot: sp.r * NC + sp.c });
+  }
+  const places = [];
+  const blockOfBtn = (b) => grids.find(g => g.id === b.grid);
+  for (const b of base.buttons.filter(b => !blockOfBtn(b)).sort((a, b) => (a.slot ?? 0) - (b.slot ?? 0))) {
+    const o = pos(b.slot ?? 0), sp = put(taken, o.c, o.r, 1, 1);
+    places.push({ id: b.id, slot: sp.r * NC + sp.c });
+  }
+  for (const g of grids) { // dans une grille séparée : même transposition, à l'intérieur
+    const used = base.buttons.filter(b => b.grid === g.id), oc = Math.max(1, g.columns);
+    const orows = Math.max(g.rows, ...used.map(b => Math.floor((b.slot ?? 0) / oc) + 1));
+    const ng = nGrids.find(x => x.id === g.id); ng.columns = orows; ng.rows = oc;
+    for (const b of used) { const s = b.slot ?? 0; places.push({ id: b.id, slot: (s % oc) * orows + Math.floor(s / oc), grid: g.id }); }
+  }
+  const rows = Math.max(C, ...nWidgets.map(w => Math.floor(w.slot / NC) + w.h), ...nGrids.map(g => Math.floor(g.slot / NC) + g.h),
+    nscr ? Math.floor(nscr.slot / NC) + nscr.h : 0, ...places.filter(x => !x.grid).map(x => Math.floor(x.slot / NC) + 1));
+  return { columns: NC, rows, widgets: nWidgets, screen: nscr, grids: nGrids.length ? nGrids : null, places };
 }
 function enterLand(page) {
   if (page._port) return;
