@@ -85,6 +85,12 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         private set
     var ram by mutableStateOf<Int?>(null)
         private set
+    var gpu by mutableStateOf<Int?>(null)
+        private set
+    var disk by mutableStateOf<Int?>(null)
+        private set
+    var appPerf by mutableStateOf<AppPerf?>(null)
+        private set
     private var volumeDragging = false
     var weather by mutableStateOf<Weather?>(null)
         private set
@@ -381,6 +387,11 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
                 val muted = json.optBoolean("muted", false)
                 val cpuNow = if (json.has("cpu") && !json.isNull("cpu")) json.optInt("cpu") else null
                 val ramNow = if (json.has("ram") && !json.isNull("ram")) json.optInt("ram") else null
+                val gpuNow = if (json.has("gpu") && !json.isNull("gpu")) json.optInt("gpu") else null
+                val diskNow = if (json.has("disk") && !json.isNull("disk")) json.optInt("disk") else null
+                val appNow = json.optJSONObject("app")?.let {
+                    AppPerf(it.optString("name"), it.optInt("cpu"), it.optInt("ram"), it.optInt("gpu"), if (it.isNull("fps")) null else it.optInt("fps"))
+                }
                 val wj = json.optJSONObject("weather")
                 val weatherNow = wj?.let { Weather(it.optInt("temp"), it.optInt("code"), it.optInt("wind"), it.optInt("humidity"), it.optString("city")) }
                 val discordNow = Parser.discord(json.optJSONObject("discord"))
@@ -391,6 +402,9 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
                     if (!volumeDragging) { masterVolume = volume; masterMuted = muted }
                     cpu = cpuNow
                     ram = ramNow
+                    gpu = gpuNow
+                    disk = diskNow
+                    appPerf = appNow
                 }
             }
             "nowPlaying" -> {

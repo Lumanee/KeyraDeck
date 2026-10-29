@@ -76,7 +76,7 @@ public class DeckFeedback
 public class DeckWidget
 {
     public string Id { get; set; } = "";
-    /// <summary>media | nowplaying | volume | clock | system | weather</summary>
+    /// <summary>media | nowplaying | volume | clock | system | perfapp | weather | discord</summary>
     public string Type { get; set; } = "clock";
     /// <summary>Modèle choisi (ex. "system-2x2") : chaque modèle a une taille et une présentation fixes.</summary>
     public string Model { get; set; } = "";

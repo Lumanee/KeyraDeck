@@ -28,7 +28,7 @@ public class DeckServer
     private string _lastStates = "";
     private string? _autoPage;
     private readonly SystemStats _systemStats = new();
-    private bool _needVolume, _needSystem, _needWeather, _needDiscord, _needNowPlaying;
+    private bool _needVolume, _needSystem, _needPerfApp, _needWeather, _needDiscord, _needNowPlaying;
     private int _statesQueued;
     private readonly NowPlaying _nowPlaying = new();
     private string _lastNowPlaying = "";
@@ -479,10 +479,13 @@ public class DeckServer
 
     private string StatesJson(Dictionary<string, bool> states)
     {
-        float? volume = null; bool? muted = null; int? cpu = null, ram = null;
+        float? volume = null; bool? muted = null; int? cpu = null, ram = null, gpu = null, disk = null;
+        AppStats? fg = null;
         WeatherData? weather = _needWeather ? _weather.Current(_store.Config.WeatherCity) : null;
         if (_needVolume) { volume = _audio.MasterVolume(); muted = _audio.MasterMuted(); }
-        if (_needSystem) { var (c, r) = _systemStats.Read(); cpu = c; ram = r; }
+        if (_needSystem || _needPerfApp) { var (c, r, g, d) = _systemStats.Read(); cpu = c; ram = r; gpu = g; disk = d; }
+        if (_needPerfApp) fg = _systemStats.ReadForeground();
+        object? app = fg == null ? null : new { name = fg.Name, cpu = fg.Cpu, ram = fg.Ram, ramMb = fg.RamMb, gpu = fg.Gpu, fps = fg.Fps };
         var dc = _int.Discord;
         object? discord = !_needDiscord ? null : new
         {
@@ -496,7 +499,7 @@ public class DeckServer
         };
         Live = new
         {
-            cpu, ram, discord,
+            cpu, ram, gpu, disk, app, discord,
             volume = volume == null ? (int?)null : (int)Math.Round(volume.Value * 100),
             muted,
             weather = weather == null ? null : new { temp = weather.Temp, code = weather.Code, wind = weather.Wind, humidity = weather.Humidity, city = weather.City },
@@ -511,6 +514,9 @@ public class DeckServer
             muted,
             cpu,
             ram,
+            gpu,
+            disk,
+            app,
             weather = weather == null ? null : new { temp = weather.Temp, code = weather.Code, wind = weather.Wind, humidity = weather.Humidity, city = weather.City },
             discord,
         }, Wire);
@@ -725,12 +731,15 @@ public class DeckServer
 
         _needVolume = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "volume"));
         _needSystem = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "system"));
+        _needPerfApp = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "perfapp"));
+        if (!_needPerfApp) _systemStats.StopFps();
         _needWeather = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "weather"));
         // Les boutons Discord aussi : le menu d'un bouton montre le vrai état du micro et de la sourdine.
         _needDiscord = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "discord"))
                     || lookup.Values.Any(b => b.Action.Type.Equals("discord", StringComparison.OrdinalIgnoreCase));
         _int.HomeAssistant.Watch(lookup.Values.Where(b => b.Action.Type.Equals("ha", StringComparison.OrdinalIgnoreCase)).Select(b => b.Action.Target ?? ""));
-        _needNowPlaying = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "nowplaying"));
+        // Le pavé média « avec titre » affiche aussi le morceau en cours.
+        _needNowPlaying = cfg.Pages.Any(p => p.Widgets.Any(w => w.Type == "nowplaying" || (w.Type == "media" && w.Model.EndsWith("t"))));
         _lastNowPlaying = ""; // un nouveau widget reçoit tout de suite le morceau en cours
         _lastArtKey = "";
         var json = JsonSerializer.Serialize(new

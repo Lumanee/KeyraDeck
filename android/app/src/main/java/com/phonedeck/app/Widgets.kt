@@ -101,6 +101,7 @@ fun DeckWidgetView(widget: DeckWidget, width: Dp, height: Dp, unit: Dp, vm: Deck
                 "volume" -> VolumeWidget(widget, vm)
                 "clock" -> ClockWidget(widget)
                 "system" -> SystemWidget(widget, vm)
+                "perfapp" -> PerfAppWidget(widget, vm)
                 "weather" -> WeatherWidget(widget, vm)
                 "discord" -> DiscordWidget(widget, vm)
                 else -> Text(widget.type, color = Color.Gray)
@@ -113,6 +114,7 @@ fun DeckWidgetView(widget: DeckWidget, width: Dp, height: Dp, unit: Dp, vm: Deck
 
 @Composable
 private fun MediaWidget(widget: DeckWidget, vm: DeckViewModel) {
+    if (widget.model == "media-3x1t" || widget.model == "media-4x1t") { TitledMediaWidget(vm); return }
     val play = "⏯" to "PlayPause"
     val prev = "⏮" to "Prev"
     val next = "⏭" to "Next"
@@ -390,69 +392,121 @@ private fun ClockWidget(widget: DeckWidget) {
     }
 }
 
-// ---------- CPU / RAM ----------
+// ---------- Pavé média avec titre ----------
 
+/** Précédent / lecture-pause / suivant, avec au-dessus le titre du morceau ou de la vidéo et sa petite pochette. */
+@Composable
+private fun TitledMediaWidget(vm: DeckViewModel) {
+    val np = vm.nowPlaying
+    val art = vm.nowPlayingArt
+    val accent = LocalTheme.current.accent
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val top = (maxHeight * 0.30f).coerceAtLeast(14.dp)
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Row(Modifier.fillMaxWidth().height(top), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Box(Modifier.size(top).clip(RoundedCornerShape(5.dp)).background(lerp(Color.Black, accent, 0.30f)), contentAlignment = Alignment.Center) {
+                    if (art != null) Image(art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    else Text("♪", color = Color.White.copy(alpha = 0.8f), fontSize = (top.value * 0.6f).sp)
+                }
+                val line = when {
+                    np == null -> "Rien en lecture"
+                    np.artist.isNotEmpty() -> np.title + " · " + np.artist
+                    else -> np.title
+                }
+                Box(Modifier.weight(1f)) {
+                    MarqueeText(line, if (np == null) Color(0xFFBBBBC4) else Color.White, (top.value * 0.55f).coerceAtLeast(9f), FontWeight.SemiBold)
+                }
+            }
+            NowPlayingButtons(listOf("⏮" to "prev", (if (np?.playing == true) "⏸" else "▶") to "toggle", "⏭" to "next"), vm, Modifier.fillMaxWidth().weight(1f))
+        }
+    }
+}
+
+// ---------- Performances (compte-tours) ----------
+
+/** Performances du PC, toujours en compte-tours : CPU, puis RAM, GPU et disque selon la taille. */
 @Composable
 private fun SystemWidget(widget: DeckWidget, vm: DeckViewModel) {
-    val accent = LocalTheme.current.accent
-    val ramColor = lerp(accent, Color.White, 0.35f)
+    val all = listOf(Triple("CPU", vm.cpu, 100), Triple("RAM", vm.ram, 100), Triple("GPU", vm.gpu, 100), Triple("DISQUE", vm.disk, 100))
+    val n = when (widget.model) { "system-1x1" -> 1; "system-2x1" -> 2; "system-3x1" -> 3; else -> 4 }
+    GaugeGrid(all.take(n), if (n == 4) 2 else n)
+}
+
+/** CPU, RAM, GPU et FPS de l'appli au premier plan sur le PC. */
+@Composable
+private fun PerfAppWidget(widget: DeckWidget, vm: DeckViewModel) {
+    val a = vm.appPerf
+    val items = listOf(Triple("CPU", a?.cpu, 100), Triple("RAM", a?.ram, 100), Triple("GPU", a?.gpu, 100), Triple("FPS", a?.fps, 144))
+    val name = a?.name?.ifBlank { null } ?: "Aucune appli"
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        if (widget.model == "perfapp-2x2") {
+            val fs = (maxHeight.value * 0.07f).coerceIn(9f, 12f)
+            Column(Modifier.fillMaxSize()) {
+                Text("🎮 $name", color = Color(0xFFDDDDE4), fontSize = fs.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Box(Modifier.fillMaxWidth().weight(1f)) { GaugeGrid(items, 2) }
+            }
+        } else { // perfapp-4x1 : le nom dans une première colonne, puis les 4 compte-tours
+            val cell = maxWidth / 4.6f
+            Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+                Text("🎮\n$name", color = Color(0xFFDDDDE4), fontSize = (cell.value * 0.15f).coerceAtLeast(8f).sp, lineHeight = (cell.value * 0.18f).coerceAtLeast(10f).sp,
+                    maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(cell * 0.6f))
+                Box(Modifier.weight(1f).fillMaxHeight()) { GaugeGrid(items, 4) }
+            }
+        }
+    }
+}
+
+/** Plusieurs compte-tours en grille ([cols] par ligne), aussi grands que la place le permet. */
+@Composable
+private fun GaugeGrid(items: List<Triple<String, Int?, Int>>, cols: Int) {
     BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        val w = maxWidth.value
-        val h = maxHeight.value
-        when (widget.model) {
-            "system-2x2" -> Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                val ring = min(w / 2.2f, h * 0.75f)
-                Ring("CPU", vm.cpu, accent, ring)
-                Ring("RAM", vm.ram, ramColor, ring)
-            }
-            "system-3x1" -> Row(Modifier.fillMaxSize().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.weight(1f)) { StatRow("CPU", vm.cpu, accent, 14f) }
-                Box(Modifier.weight(1f)) { StatRow("RAM", vm.ram, ramColor, 14f) }
-            }
-            "system-1x1" -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
-                StatRow("CPU", vm.cpu, accent, 10f)
-                StatRow("RAM", vm.ram, ramColor, 10f)
-            }
-            else -> Column(Modifier.fillMaxSize().padding(horizontal = 4.dp), verticalArrangement = Arrangement.SpaceEvenly) {
-                StatRow("CPU", vm.cpu, accent, 13f)
-                StatRow("RAM", vm.ram, ramColor, 13f)
+        val rows = items.chunked(cols)
+        val size = (min(maxWidth.value / cols, maxHeight.value / rows.size) * 0.96f).coerceAtLeast(16f)
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
+            for (row in rows) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                for ((label, value, max) in row) Gauge(label, value, max, size)
             }
         }
     }
 }
 
+private val GaugeRed = Color(0xFFE5484D)
+
+/**
+ * Compte-tours de voiture : arc de 270° ouvert en bas, graduations, zone rouge au-delà de 85 %,
+ * le nom en petit en haut à gauche et la valeur au centre (en % sauf pour les FPS).
+ */
 @Composable
-private fun StatRow(label: String, value: Int?, color: Color, textSize: Float) {
-    Column(Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth()) {
-            Text(label, color = Color(0xFFBBBBC4), fontSize = textSize.sp, maxLines = 1, modifier = Modifier.weight(1f))
-            Text(if (value == null) "—" else "$value %", color = Color.White, fontSize = textSize.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-        }
-        Spacer(Modifier.height(2.dp))
-        Box(Modifier.fillMaxWidth().height((textSize * 0.45f).dp).clip(RoundedCornerShape(50)).background(Color(0xFF0A0A0D))) {
-            Box(Modifier.fillMaxHeight().fillMaxWidth(((value ?: 0) / 100f).coerceIn(0f, 1f)).background(color))
-        }
-    }
-}
-
-/** Jauge circulaire avec le pourcentage au centre. */
-@Composable
-private fun Ring(label: String, value: Int?, color: Color, sizeDp: Float) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(sizeDp.dp), contentAlignment = Alignment.Center) {
-            Canvas(Modifier.fillMaxSize()) {
-                val stroke = size.minDimension * 0.13f
-                val inset = stroke / 2
-                val arcSize = Size(size.width - stroke, size.height - stroke)
-                drawArc(Color(0xFF0A0A0D), 0f, 360f, false, topLeft = Offset(inset, inset), size = arcSize, style = Stroke(stroke))
-                drawArc(color, -90f, 360f * ((value ?: 0) / 100f).coerceIn(0f, 1f), false, topLeft = Offset(inset, inset), size = arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
+private fun Gauge(label: String, value: Int?, max: Int, sizeDp: Float) {
+    val accent = LocalTheme.current.accent
+    val f = if (value == null) 0f else (value.toFloat() / max).coerceIn(0f, 1f)
+    val color = if (f >= 0.85f) GaugeRed else accent
+    Box(Modifier.size(sizeDp.dp)) {
+        Canvas(Modifier.fillMaxSize()) {
+            val c = size.minDimension / 2
+            val sw = size.minDimension * 0.09f
+            val r = size.minDimension * 0.34f
+            val tl = Offset(c - r, c - r)
+            val arc = Size(r * 2, r * 2)
+            drawArc(Color(0xFF0A0A0D), 135f, 270f, false, topLeft = tl, size = arc, style = Stroke(sw, cap = StrokeCap.Round))
+            drawArc(GaugeRed.copy(alpha = 0.33f), 135f + 270f * 0.85f, 270f * 0.15f, false, topLeft = tl, size = arc, style = Stroke(sw))
+            if (f > 0f) drawArc(color, 135f, 270f * f, false, topLeft = tl, size = arc, style = Stroke(sw, cap = StrokeCap.Round))
+            for (i in 0..10) {
+                val a = Math.toRadians(135.0 + 27.0 * i)
+                val r1 = r + sw * 0.85f
+                val r2 = r + sw * (if (i % 5 == 0) 1.5f else 1.25f)
+                val cos = kotlin.math.cos(a).toFloat()
+                val sin = kotlin.math.sin(a).toFloat()
+                drawLine(if (i >= 9) GaugeRed else Color(0x55FFFFFF), Offset(c + r1 * cos, c + r1 * sin), Offset(c + r2 * cos, c + r2 * sin), strokeWidth = (size.minDimension * 0.015f).coerceAtLeast(1f))
             }
-            Text(if (value == null) "—" else "$value", color = Color.White, fontSize = (sizeDp * 0.30f).sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
-        Text(label, color = Color(0xFFBBBBC4), fontSize = (sizeDp * 0.16f).coerceAtLeast(10f).sp, maxLines = 1)
+        Text(label, color = Color(0xB3FFFFFF), fontSize = (sizeDp * 0.11f).coerceAtLeast(7f).sp, lineHeight = (sizeDp * 0.11f).coerceAtLeast(7f).sp, maxLines = 1, softWrap = false, modifier = Modifier.align(Alignment.TopStart))
+        Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.Bottom) {
+            Text(value?.toString() ?: "—", color = Color.White, fontSize = (sizeDp * 0.21f).sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            if (value != null && max == 100) Text("%", color = Color(0xBFFFFFFF), fontSize = (sizeDp * 0.105f).sp, maxLines = 1, modifier = Modifier.padding(start = 1.dp, bottom = (sizeDp * 0.03f).dp))
+        }
     }
 }
-
 
 // ---------- Météo ----------
 
