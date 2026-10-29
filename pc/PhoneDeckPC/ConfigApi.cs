@@ -174,8 +174,8 @@ public class ConfigApi
                         throw new InvalidOperationException(video ? "Vidéo trop lourde (25 Mo maximum) : prends un extrait plus court" : "Image trop lourde (10 Mo maximum)");
                     var bytes = ms.ToArray();
                     var name = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes))[..16].ToLowerInvariant() + ext;
-                    var path = Path.Combine(_store.ScreensDir, name);
-                    if (!File.Exists(path)) await File.WriteAllBytesAsync(path, bytes);
+                    var bgPath = Path.Combine(_store.ScreensDir, name);
+                    if (!File.Exists(bgPath)) await File.WriteAllBytesAsync(bgPath, bytes);
                     await Json(ctx, new { file = name, video });
                     return;
                 }
@@ -183,15 +183,15 @@ public class ConfigApi
                 case "/api/screenbg":
                 {
                     var name = ctx.Request.Query["file"].ToString();
-                    var path = _store.ScreenBgPath(name);
-                    if (path == null) { ctx.Response.StatusCode = 404; return; }
+                    var bgPath = _store.ScreenBgPath(name);
+                    if (bgPath == null) { ctx.Response.StatusCode = 404; return; }
                     ctx.Response.ContentType = Path.GetExtension(name) switch
                     {
                         ".jpg" => "image/jpeg", ".gif" => "image/gif", ".webp" => "image/webp",
                         ".mp4" => "video/mp4", ".webm" => "video/webm", _ => "image/png",
                     };
                     ctx.Response.Headers.CacheControl = "max-age=86400";
-                    await ctx.Response.SendFileAsync(path);
+                    await ctx.Response.SendFileAsync(bgPath);
                     return;
                 }
 
