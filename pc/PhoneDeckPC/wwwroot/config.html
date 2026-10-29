@@ -310,10 +310,10 @@
   .key.scell { background: transparent; box-shadow: none; border-radius: 12%; }
   .key.scell[draggable=true] { cursor: grab; }
   .key.scell.over { outline-offset: -2px; transform: none; }
-  .blk { position: relative; display: flex; flex-direction: column; background: #00000059; box-shadow: inset 0 0 0 1px #ffffff1f; cursor: grab; min-width: 0; min-height: 0; }
+  .blk { position: relative; display: flex; flex-direction: column; background: #ffffff08; box-shadow: inset 0 0 0 1px #ffffff12; cursor: grab; min-width: 0; min-height: 0; }
   .blk.selected { outline: 2px solid var(--accent); outline-offset: 3px; }
   .blk.over { outline: 2px dashed var(--ok); outline-offset: 3px; }
-  .blk .blkt { display: flex; align-items: center; color: #a8a8b2; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: none; }
+  .blk .blkt { display: flex; align-items: center; padding-left: .3em; color: #8e8e98; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: none; }
   .blk .blkin { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
   .blk .blkg { display: grid; }
   .wdg.inscr { background: transparent; border-color: transparent; box-shadow: none; }
@@ -665,7 +665,7 @@ function renderLeft() {
   const pw = $('#paneWdg'); pw.replaceChildren();
   const lay = [];
   if (!q || 'zone écran ecran'.includes(q)) lay.push(cmdRow('Zone écran', 'Une surface sans touches où tes widgets forment un seul écran', 'application/x-pd-newscreen', '1', () => addScreen()));
-  if (!q || 'grille séparée separee bloc'.includes(q)) lay.push(cmdRow('Grille séparée', 'Un cadre avec sa propre grille de boutons (plus petits ou plus grands), à côté des autres', 'application/x-pd-newblock', '1', () => addBlock()));
+  if (!q || 'grille séparée separee bloc'.includes(q)) lay.push(cmdRow('Grille séparée', 'Regroupe des boutons avec leur propre grille (un peu plus petits ou plus grands), à côté des autres', 'application/x-pd-newblock', '1', () => addBlock()));
   if (lay.length) pw.append(el('div', { class: 'grp' }, 'Disposition'), ...lay);
   for (const [type, list] of Object.entries(WIDGET_MODELS)) {
     const info = WIDGET_INFO[type];
@@ -823,13 +823,13 @@ function setBlockGrid(page, g, nc, nr) {
   g.columns = nc; g.rows = nr;
   return null;
 }
-// Ajoute une grille séparée (3×2 cases, découpée en touches deux fois plus petites) à la case donnée ou à la première place libre.
+// Ajoute une grille séparée (3×2 cases de la page pour 4×2 boutons, un peu plus petits que ceux de la page) à la case donnée ou à la première place libre.
 function addBlock(atSlot) {
   const page = currentPage();
   if (page.generated) { toast('Détache d\'abord cette page du menu Démarrer'); return; }
   const { cols, rows } = pageGrid(page);
   const w = Math.min(3, cols - (atSlot != null ? atSlot % cols : 0)), h = Math.min(2, Math.max(1, rows));
-  const g = { id: uid('grille'), slot: 0, w, h, columns: w * 2, rows: h * 2 };
+  const g = { id: uid('grille'), slot: 0, w, h, columns: Math.ceil(w * 4 / 3), rows: h };
   pushUndo();
   (page.grids ||= []).push(g);
   let err = 'Pas de place';
@@ -860,9 +860,9 @@ function deleteBlock(id) {
 // Mesures d'un bloc (en dp, comme sur le téléphone : DeckScreen.kt, GridBlockPanel) pour une touche de page de « key » dp.
 function blockMetrics(g, key) {
   const W = key * g.w + key * DEV.gap * (g.w - 1), H = key * g.h + key * DEV.gap * (g.h - 1);
-  const pad = key * 0.08, title = (g.name || '').trim() ? Math.max(key * 0.24, 14) : 0;
+  const pad = key * 0.05, title = (g.name || '').trim() ? Math.max(key * 0.12, 9) : 0;
   const k = Math.min((W - 2 * pad) / (g.columns + (g.columns - 1) * DEV.gap), (H - 2 * pad - title) / (g.rows + (g.rows - 1) * DEV.gap));
-  return { W, H, pad, title, key: k, gap: k * DEV.gap, radius: key * 0.16 };
+  return { W, H, pad, title, key: k, gap: k * DEV.gap, radius: key * 0.22 };
 }
 const findButton = (id) => { for (const p of state.cfg.pages) { const b = p.buttons.find(b => b.id === id); if (b) return { page: p, button: b }; } return null; };
 
@@ -1258,7 +1258,7 @@ function stageBlock(page, g, cols, keyDp, scale) {
   const d = el('div', { class: 'blk' + (state.selected === g.id ? ' selected' : ''), 'data-id': g.id, draggable: 'true',
     title: 'Grille séparée : glisse le cadre pour la déplacer, clic pour régler sa taille',
     style: `grid-column:${g.slot % cols + 1} / span ${g.w};grid-row:${Math.floor(g.slot / cols) + 1} / span ${g.h};padding:${m.pad * scale}px;border-radius:${m.radius * scale}px` });
-  if (m.title) d.append(el('div', { class: 'blkt', style: `height:${m.title * scale}px;font-size:${Math.max(7, Math.min(13, keyDp * 0.11)) * scale}px` }, g.name));
+  if (m.title) d.append(el('div', { class: 'blkt', style: `height:${m.title * scale}px;font-size:${Math.max(7, Math.min(11, keyDp * 0.09)) * scale}px` }, g.name));
   const inner = el('div', { class: 'blkg', style: `grid-template-columns:repeat(${g.columns},${key}px);grid-template-rows:repeat(${g.rows},${key}px);gap:${m.gap * scale}px` });
   const bySlot = new Map(blockButtons(page, g).map(b => [b.slot, b]));
   for (let s = 0; s < g.columns * g.rows; s++) inner.append(stageKey(bySlot.get(s), s, key, `grid-column:${s % g.columns + 1};grid-row:${Math.floor(s / g.columns) + 1}`, g));
@@ -1829,7 +1829,7 @@ const PAGE_PRESETS = [
 // ---- Sim racing : une page par jeu ----
 // Touches = celles d'origine des jeux, relevées dans des listes publiées par des joueurs (pas par les studios) : à vérifier
 // dans les réglages de chaque jeu. Envoi en « mode jeu » (touche maintenue ~50 ms, code matériel) pour que le jeu les voie.
-// En haut de chaque page : performances du jeu (FPS, CPU, GPU) et micro / sourdine Discord.
+// En haut de chaque page : performances du jeu (FPS, CPU, GPU) ; en bas : micro / sourdine Discord.
 const R = (label, keys, icon, toggle) => ({ label, icon, action: { type: 'keys', keys, keyMode: 'game', toggle: !!toggle } });
 const SIM_TOP = { widgets: [{ type: 'perfapp', model: 'perfapp-4x1', slot: 0, w: 4, h: 1 }], top: [DSC('Micro Discord', 'mute', 'builtin:mic'), DSC('Sourdine Discord', 'deafen', 'builtin:headphones')] };
 const SIM_CHECK = 'Touches d\'origine du jeu, à vérifier dans ses réglages. Si un bouton ne fait rien : dans les commandes du jeu, choisis l\'action puis appuie sur le bouton du téléphone, le jeu retient la touche.';
@@ -1884,16 +1884,18 @@ const SIM_PRESETS = [
     R('Klaxon', 'H', 'mdi:klaxon'), R('Moteur', 'U', 'mdi:moteur'), R('Contact', 'I', 'mdi:contact'), R('Limiteur', 'Z', 'mdi:limiteur', true), R('Ralentisseur', 'M', 'mdi:ralentisseur'), R('Rétro intérieur', 'X', 'mdi:retroviseur'),
   ] },
 ].map(p => {
-  // Chaque groupe de boutons devient une grille séparée (6 colonnes) sous la ligne « performances / Discord ».
-  const grids = [], buttons = SIM_TOP.top.map((b, i) => ({ ...b, slot: 4 + i }));
+  // Page de 4 colonnes : performances en haut, puis chaque groupe de boutons en grille séparée de la même taille que
+  // la page (simple regroupement avec un titre, boutons aussi gros que ceux de la page), et micro / sourdine Discord en bas.
+  const grids = [], buttons = [];
   let at = 0, row = 1;
   for (const [name, n] of p.groups) {
-    const rows = Math.ceil(n / 6), id = 'g' + grids.length;
-    grids.push({ id, name, slot: row * 6, w: 6, h: rows, columns: 6, rows });
+    const rows = Math.ceil(n / 4), id = 'g' + grids.length;
+    grids.push({ id, name, slot: row * 4, w: 4, h: rows, columns: 4, rows });
     p.buttons.slice(at, at + n).forEach((b, i) => buttons.push({ ...b, grid: id, slot: i }));
     at += n; row += rows;
   }
-  return { ...p, group: 'sim', columns: 6, rows: row, grids, widgets: SIM_TOP.widgets, buttons };
+  SIM_TOP.top.forEach((b, i) => buttons.push({ ...b, slot: row * 4 + i }));
+  return { ...p, group: 'sim', columns: 4, rows: row + 1, grids, widgets: SIM_TOP.widgets, buttons };
 });
 
 function uniquePageName(name) {

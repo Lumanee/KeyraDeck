@@ -340,8 +340,8 @@ fun KeyGrid(
 }
 
 /**
- * Grille séparée : un cadre creusé dans le boîtier, avec son titre et sa propre grille de touches, aussi grandes que
- * possible dans le cadre. Mêmes mesures que le configurateur du PC (config.html : blockMetrics).
+ * Grille séparée : un simple regroupement (fond et liseré très légers), avec son petit titre et sa propre grille de touches,
+ * aussi grandes que possible. Mêmes mesures que le configurateur du PC (config.html : blockMetrics).
  */
 @Composable
 private fun GridBlockPanel(
@@ -357,33 +357,33 @@ private fun GridBlockPanel(
 ) {
     val cols = block.columns
     val rows = block.rows
-    val pad = key * 0.08f
-    val title = if (block.name.isNotBlank()) max(key * 0.24f, 14.dp) else 0.dp
+    val pad = key * 0.05f
+    val title = if (block.name.isNotBlank()) max(key * 0.12f, 9.dp) else 0.dp
     val gapRatio = 0.14f
     val k = min(
         (width - pad * 2) / (cols + (cols - 1) * gapRatio),
         (height - pad * 2 - title) / (rows + (rows - 1) * gapRatio),
     )
     val g = k * gapRatio
-    val shape = RoundedCornerShape(key * 0.16f)
+    val shape = RoundedCornerShape(key * 0.22f)
     val bySlot = buttons.associateBy { it.slot }
     Column(
         Modifier
             .size(width, height)
             .clip(shape)
-            .background(Color(0x59000000))
-            .border(1.dp, Color(0x1FFFFFFF), shape)
+            .background(Color(0x08FFFFFF))
+            .border(1.dp, Color(0x12FFFFFF), shape)
             .padding(pad),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         if (title > 0.dp) {
-            Box(Modifier.height(title).fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+            Box(Modifier.height(title).fillMaxWidth().padding(start = 4.dp), contentAlignment = Alignment.CenterStart) {
                 Text(
                     block.name.uppercase(),
-                    color = Color(0xFFA8A8B2),
-                    fontSize = (key.value * 0.11f).coerceIn(8f, 13f).sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp,
+                    color = Color(0xFF8E8E98),
+                    fontSize = (key.value * 0.09f).coerceIn(7f, 11f).sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 0.8.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
