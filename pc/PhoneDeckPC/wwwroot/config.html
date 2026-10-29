@@ -174,6 +174,11 @@
   .cmd .cn { flex: 0 0 46%; font-size: 12px; font-weight: 600; letter-spacing: .02em; }
   .cmd .cd { color: var(--muted); font-size: 12px; }
   .cmd.sz .cn { flex-basis: 34%; }
+  #wprev { position: fixed; z-index: 60; pointer-events: none; padding: 14px; border-radius: 16px; background: #0b0b0ee6; border: 1px solid #ffffff1f; box-shadow: 0 12px 40px #000c; display: flex; flex-direction: column; align-items: center; gap: 10px; animation: wpin .12s ease-out; }
+  #wprev .wdg { cursor: default; }
+  #wprev .wpcap { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  #wprev .wpcap b { color: var(--text); font-weight: 600; }
+  @keyframes wpin { from { opacity: 0; transform: translateY(4px); } }
   .appitem { border-bottom: 1px solid #202025; border-radius: 0; }
   .phone { position: relative; display: flex; flex-direction: column; background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--desk), white 12%), var(--desk)); border: 3px solid #2b2b31; box-shadow: 0 0 0 1px #000, 0 0 0 5px #0b0b0d, 0 40px 90px #000c; overflow: hidden; flex: none; }
   .phone .notch { position: absolute; top: 0; left: 50%; transform: translateX(-50%); background: #000; border-radius: 0 0 999px 999px; }
@@ -535,11 +540,12 @@ function normalizePages() {
 const currentPage = () => pageById(state.page) || state.cfg.pages[0];
 const findWidget = (id) => { for (const p of state.cfg.pages) { const w = (p.widgets || []).find(w => w.id === id); if (w) return { page: p, widget: w }; } return null; };
 const WIDGET_INFO = {
-  media: { name: 'Pavé média', icon: '⏯', desc: 'Précédent, lecture/pause, suivant, volume.' },
+  media: { name: 'Pavé média', icon: '⏯', desc: 'Précédent, lecture/pause, suivant, volume. Les modèles « avec titre » affichent aussi le morceau ou la vidéo en cours.' },
   nowplaying: { name: 'Morceau en cours', icon: '🎵', desc: 'Pochette, titre et artiste de ce qui joue sur le PC (Spotify, YouTube, lecteur Windows…), avec précédent / lecture / suivant.' },
   volume: { name: 'Volume général', icon: '🎚', desc: 'Curseur du volume Windows avec bouton muet.' },
   clock: { name: 'Horloge', icon: '🕒', desc: 'Heure et date.' },
-  system: { name: 'CPU / RAM', icon: '📊', desc: 'Charge du processeur et de la mémoire du PC.' },
+  system: { name: 'Performances PC', icon: '📊', desc: 'Compte-tours du processeur (CPU), de la mémoire (RAM), de la carte graphique (GPU) et du disque, en pourcentage.' },
+  perfapp: { name: 'Appli active', icon: '🎮', desc: 'CPU, RAM, GPU et FPS de l\'appli au premier plan sur le PC (ton jeu par exemple). Les FPS (jeux DirectX) ne s\'affichent que si KeyraDeck est lancé en administrateur sur le PC.' },
   weather: { name: 'Météo', icon: '⛅', desc: 'Température et conditions actuelles de la ville choisie (Open-Meteo).' },
   discord: { name: 'Salon vocal Discord', icon: '🎧', desc: 'Qui est dans ton salon vocal et qui parle, avec ton micro et ta sourdine. Discord doit être relié dans « Connexions ».' },
 };
@@ -550,6 +556,8 @@ const WIDGET_MODELS = {
     { id: 'media-3x1', name: 'Barre ⏮ ⏯ ⏭', w: 3, h: 1 },
     { id: 'media-2x2', name: 'Carré 4 touches', w: 2, h: 2 },
     { id: 'media-3x2', name: 'Complet + volume', w: 3, h: 2 },
+    { id: 'media-3x1t', name: 'Avec titre', w: 3, h: 1 },
+    { id: 'media-4x1t', name: 'Avec titre, large', w: 4, h: 1 },
   ],
   nowplaying: [
     { id: 'nowplaying-2x1', name: 'Pochette + titre', w: 2, h: 1 },
@@ -569,10 +577,14 @@ const WIDGET_MODELS = {
     { id: 'clock-2x2', name: 'Grande horloge', w: 2, h: 2 },
   ],
   system: [
-    { id: 'system-1x1', name: 'Mini', w: 1, h: 1 },
-    { id: 'system-2x1', name: 'Compact', w: 2, h: 1 },
-    { id: 'system-3x1', name: 'Barre', w: 3, h: 1 },
-    { id: 'system-2x2', name: 'Anneaux', w: 2, h: 2 },
+    { id: 'system-1x1', name: 'CPU', w: 1, h: 1 },
+    { id: 'system-2x1', name: 'CPU + RAM', w: 2, h: 1 },
+    { id: 'system-3x1', name: 'CPU + RAM + GPU', w: 3, h: 1 },
+    { id: 'system-2x2', name: 'CPU, RAM, GPU, disque', w: 2, h: 2 },
+  ],
+  perfapp: [
+    { id: 'perfapp-4x1', name: 'Barre', w: 4, h: 1 },
+    { id: 'perfapp-2x2', name: 'Carré', w: 2, h: 2 },
   ],
   weather: [
     { id: 'weather-1x1', name: 'Icône + degrés', w: 1, h: 1 },
@@ -627,7 +639,7 @@ function renderLeft() {
     const info = WIDGET_INFO[type];
     const items = list.filter(m => !q || (info.name + ' ' + m.name).toLowerCase().includes(q));
     if (!items.length) continue;
-    pw.append(el('div', { class: 'grp' }, info.name), ...items.map(m => cmdRow(`${m.w}×${m.h}`, m.name, 'application/x-pd-newwidget', type + '|' + m.id, () => addWidget(type, m), 'sz')));
+    pw.append(el('div', { class: 'grp' }, info.name), ...items.map(m => previewOnHover(cmdRow(`${m.w}×${m.h}`, m.name, 'application/x-pd-newwidget', type + '|' + m.id, () => addWidget(type, m), 'sz'), type, m)));
   }
   if (tab === 'app') renderApps();
   requestAnimationFrame(updArrows);
@@ -1090,13 +1102,33 @@ function renderStage() {
 const WX = { 0: '☀️', 1: '🌤️', 2: '🌤️', 3: '☁️', 45: '🌫️', 48: '🌫️' };
 const wxIcon = (c) => WX[c] || (c >= 51 && c <= 57 ? '🌦️' : (c >= 61 && c <= 67) || (c >= 80 && c <= 82) ? '🌧️' : (c >= 71 && c <= 77) || c === 85 || c === 86 ? '❄️' : c >= 95 ? '⛈️' : '🌡️');
 const wxText = (c) => c === 0 ? 'Ciel dégagé' : c <= 2 ? 'Éclaircies' : c === 3 ? 'Couvert' : c <= 48 ? 'Brouillard' : c <= 57 ? 'Bruine' : c <= 67 || (c >= 80 && c <= 82) ? 'Pluie' : c <= 77 ? 'Neige' : c >= 95 ? 'Orage' : '—';
+// Compte-tours : arc de 270° ouvert en bas, graduations, zone rouge au-delà de 85 %, nom en haut à gauche, valeur au centre.
+function gauge(label, v, size, max = 100, unit = '%') {
+  const f = v == null ? 0 : Math.max(0, Math.min(1, v / max)), c = size / 2, sw = size * .09, r = size * .34;
+  const pt = (a, rr) => [c + rr * Math.cos(a * Math.PI / 180), c + rr * Math.sin(a * Math.PI / 180)];
+  const [x0, y0] = pt(135, r), [x1, y1] = pt(45, r);
+  const arc = `M${x0} ${y0} A${r} ${r} 0 1 1 ${x1} ${y1}`;
+  let ticks = '';
+  for (let i = 0; i <= 10; i++) { const a = 135 + 27 * i, [ax, ay] = pt(a, r + sw * .85), [bx, by] = pt(a, r + sw * (i % 5 ? 1.25 : 1.5)); ticks += `<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="${i >= 9 ? '#e5484d' : '#ffffff55'}" stroke-width="${Math.max(1, size * .015)}"/>`; }
+  const hot = f >= .85 ? '#e5484d' : 'var(--tacc)';
+  return `<div style="position:relative;width:${size}px;height:${size}px;flex:none"><svg width="${size}" height="${size}" style="display:block">`
+    + `<path d="${arc}" fill="none" stroke="#0a0a0d" stroke-width="${sw}" stroke-linecap="round"/>`
+    + `<path d="${arc}" pathLength="100" fill="none" stroke="#e5484d55" stroke-width="${sw}" stroke-dasharray="0 85 15 100"/>`
+    + (f > 0 ? `<path d="${arc}" pathLength="100" fill="none" stroke="${hot}" stroke-width="${sw}" stroke-linecap="round" stroke-dasharray="${f * 100} 200"/>` : '')
+    + ticks + `</svg><span style="position:absolute;left:0;top:0;font-size:${Math.max(7, size * .11)}px;line-height:1;opacity:.7;letter-spacing:.04em">${label}</span>`
+    + `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:${size * .21}px">${v == null ? '—' : v}<small style="font-size:.5em;opacity:.75;margin-left:1px">${v == null ? '' : unit}</small></div></div>`;
+}
+// Plusieurs compte-tours en grille (cols par ligne), aussi grands que la place le permet.
+function gauges(items, cols, W, H) {
+  const rows = Math.ceil(items.length / cols), size = Math.max(16, Math.min(W / cols, H / rows) * .96);
+  return `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);width:100%;height:100%;place-items:center">${items.map(([l, v, max, unit]) => gauge(l, v, size, max, unit)).join('')}</div>`;
+}
 function paintWidget(d, w) {
   const W = d.clientWidth, H = d.clientHeight; if (!W || !H) return;
   const live = (state.info && state.info.live) || {};
   const m = w.model || '';
   const acc = 'var(--tacc)';
-  const bar = (label, v, big) => `<div style="width:100%"><div style="display:flex;justify-content:space-between;font-size:${big}px"><span style="opacity:.75">${label}</span><b>${v == null ? '—' : v + ' %'}</b></div><div style="height:${Math.max(3, big * .45)}px;background:#ffffff1c;border-radius:9px;margin-top:2px"><div style="height:100%;width:${v || 0}%;background:${acc};border-radius:9px"></div></div></div>`;
-  const ring = (label, v, size) => { const r = size * .4, c = 2 * Math.PI * r; return `<div style="position:relative;width:${size}px;height:${size}px"><svg width="${size}" height="${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="#ffffff1c" stroke-width="${size * .09}"/><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${acc}" stroke-width="${size * .09}" stroke-linecap="round" stroke-dasharray="${c * (v || 0) / 100} ${c}" transform="rotate(-90 ${size / 2} ${size / 2})"/></svg><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:${size * .2}px;line-height:1.1"><b>${v == null ? '—' : v}</b><span style="opacity:.7;font-size:${size * .15}px">${label}</span></div></div>`; };
+  const esc = (t) => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   let html = '';
   if (w.type === 'clock') {
     const now = new Date();
@@ -1106,22 +1138,41 @@ function paintWidget(d, w) {
     else if (m === 'clock-2x2') html = `<b style="font-size:${Math.min(W * .3, H * .36)}px">${t}</b><span style="color:${acc};font-size:${Math.min(W * .12, H * .14)}px">${String(now.getSeconds()).padStart(2, '0')}</span><span style="opacity:.7;font-size:${Math.min(W * .085, H * .12)}px">${dt}</span>`;
     else html = `<b style="font-size:${Math.min(W * .2, H * .4)}px">${t}</b><span style="opacity:.7;font-size:${Math.max(9, Math.min(W * .065, H * .15))}px">${dt}</span>`;
   } else if (w.type === 'system') {
-    if (m === 'system-2x2') html = `<div style="display:flex;gap:${W * .06}px;align-items:center">${ring('CPU', live.cpu, Math.min(W / 2.2, H * .75))}${ring('RAM', live.ram, Math.min(W / 2.2, H * .75))}</div>`;
-    else if (m === 'system-3x1') html = `<div style="display:flex;gap:14px;width:100%;padding:0 4px">${bar('CPU', live.cpu, 13)}${bar('RAM', live.ram, 13)}</div>`;
-    else if (m === 'system-1x1') html = `<div style="display:flex;flex-direction:column;gap:4px;width:100%">${bar('CPU', live.cpu, 9)}${bar('RAM', live.ram, 9)}</div>`;
-    else html = `<div style="display:flex;flex-direction:column;gap:6px;width:100%;padding:0 4px">${bar('CPU', live.cpu, 12)}${bar('RAM', live.ram, 12)}</div>`;
+    // Toujours en compte-tours : le nom en haut à gauche, le pourcentage au centre.
+    const all = [['CPU', live.cpu], ['RAM', live.ram], ['GPU', live.gpu], ['DISQUE', live.disk]];
+    const n = m === 'system-1x1' ? 1 : m === 'system-2x1' ? 2 : m === 'system-3x1' ? 3 : 4;
+    html = gauges(all.slice(0, n), n === 4 ? 2 : n, W - 12, H - 12);
+  } else if (w.type === 'perfapp') {
+    const a = live.app;
+    const items = [['CPU', a && a.cpu], ['RAM', a && a.ram], ['GPU', a && a.gpu], ['FPS', a ? a.fps : null, 144, '']];
+    const name = esc(a ? a.name : 'Aucune appli');
+    if (m === 'perfapp-2x2') {
+      const fs = Math.max(9, Math.min(12, H * .07));
+      html = `<div style="width:100%;font-size:${fs}px;line-height:1.2;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.85">🎮 ${name}</div>`
+        + `<div style="flex:1;min-height:0;width:100%">${gauges(items, 2, W - 12, H - 12 - fs * 1.4)}</div>`;
+    } else { // perfapp-4x1 : le nom dans une première colonne, puis les 4 compte-tours
+      const cell = (W - 12) / 4.6;
+      html = `<div style="display:flex;align-items:center;width:100%;height:100%"><div style="flex:none;width:${cell * .6}px;font-size:${Math.max(8, cell * .15)}px;line-height:1.2;text-align:left;overflow:hidden;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;opacity:.85">🎮<br>${name}</div>`
+        + `<div style="flex:1;height:100%">${gauges(items, 4, cell * 4, H - 12)}</div></div>`;
+    }
   } else if (w.type === 'volume') {
     const v = live.volume == null ? 0 : live.volume, vertical = w.h > w.w;
     const icon = live.muted || v === 0 ? '🔇' : '🔊';
     if (vertical) html = `<div style="display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;width:100%"><span style="font-size:20px">${icon}</span><div style="flex:1;width:30px;background:#0a0a0d;border-radius:30px;position:relative;overflow:hidden"><div style="position:absolute;bottom:0;left:0;right:0;height:${v}%;background:${live.muted ? '#888' : acc}"></div></div><span style="font-size:12px">${live.muted ? 'Muet' : v + ' %'}</span></div>`;
     else html = `<div style="display:flex;align-items:center;gap:10px;width:100%"><span style="font-size:22px">${icon}</span><div style="flex:1;height:30px;background:#0a0a0d;border-radius:30px;position:relative;overflow:hidden"><div style="position:absolute;top:0;bottom:0;left:0;width:${v}%;background:${live.muted ? '#888' : acc}"></div></div><span style="font-size:13px;min-width:42px;text-align:right">${live.muted ? 'Muet' : v + ' %'}</span></div>`;
+  } else if (w.type === 'media' && (m === 'media-3x1t' || m === 'media-4x1t')) {
+    // Pavé média avec le titre du morceau ou de la vidéo au-dessus, et sa petite pochette.
+    const np = live.nowPlaying, top = Math.max(12, H * .3);
+    const icon = `<div style="flex:none;width:${top}px;height:${top}px;border-radius:5px;overflow:hidden;background:color-mix(in srgb, black, ${acc} 30%);display:flex;align-items:center;justify-content:center;font-size:${top * .6}px">${np && np.artKey ? `<img src="/api/art?k=${esc(np.artKey)}" style="width:100%;height:100%;object-fit:cover">` : '♪'}</div>`;
+    const line = np ? esc(np.title) + (np.artist ? `<span style="opacity:.65"> · ${esc(np.artist)}</span>` : '') : '<span style="opacity:.65">Rien en lecture</span>';
+    html = `<div style="display:flex;flex-direction:column;gap:5px;width:100%;height:100%"><div style="display:flex;gap:6px;align-items:center;height:${top}px"><span style="display:contents">${icon}</span><div style="flex:1;min-width:0;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:${Math.max(9, top * .55)}px;font-weight:600">${line}</div></div>`
+      + `<div style="flex:1;display:flex;gap:6px">${['⏮', np && np.playing ? '⏸' : '▶', '⏭'].map((g, i) => `<div style="flex:1;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:${Math.min(22, H * .3)}px;background:${i === 1 ? acc : '#ffffff1c'}">${g}</div>`).join('')}</div></div>`;
   } else if (w.type === 'media') {
     const B = { play: '⏯', prev: '⏮', next: '⏭', vd: '🔉', mute: '🔇', vu: '🔊' };
     const rows = m === 'media-1x1' ? [['play']] : m === 'media-3x1' ? [['prev', 'play', 'next']] : m === 'media-2x2' ? [['prev', 'next'], ['play', 'mute']] : [['prev', 'play', 'next'], ['vd', 'mute', 'vu']];
     html = `<div style="display:flex;flex-direction:column;gap:6px;width:100%;height:100%">${rows.map(r => `<div style="flex:1;display:flex;gap:6px">${r.map(k => `<div style="flex:1;background:#ffffff14;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:${Math.min(22, H / rows.length * .5)}px">${B[k]}</div>`).join('')}</div>`).join('')}</div>`;
   } else if (w.type === 'nowplaying') {
     const np = live.nowPlaying;
-    const esc = (t) => String(t || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const title = np ? esc(np.title) : 'Rien en lecture', artist = np ? esc(np.artist) : 'Lance Spotify ou une vidéo';
     const one = 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%';
     const cover = (sz, extra) => `<div style="flex:none;width:${sz};height:${sz};border-radius:9px;overflow:hidden;background:color-mix(in srgb, black, ${acc} 30%);display:flex;align-items:center;justify-content:center;font-size:22px;${extra || ''}">${np && np.artKey ? `<img src="/api/art?k=${esc(np.artKey)}" style="width:100%;height:100%;object-fit:cover">` : '♪'}</div>`;
@@ -1159,6 +1210,33 @@ function paintWidget(d, w) {
   }
   d.innerHTML = `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;overflow:hidden">${html}</div>`;
 }
+// ---- Aperçu d'un widget au survol (galerie et choix du modèle) : en vraie taille, avec les valeurs en direct ----
+let wprevTimer = null;
+function previewOnHover(node, type, m) {
+  node.addEventListener('mouseenter', () => showWidgetPreview(node, type, m));
+  node.addEventListener('mouseleave', hideWidgetPreview);
+  node.addEventListener('dragstart', hideWidgetPreview);
+  return node;
+}
+function showWidgetPreview(node, type, m) {
+  hideWidgetPreview();
+  const key = document.querySelector('#device .key'), grid = document.querySelector('#device .grid');
+  const u = Math.max(64, Math.min(96, key ? key.getBoundingClientRect().width : 72));
+  const gap = (grid && parseFloat(getComputedStyle(grid).columnGap)) || u * .12;
+  const W = m.w * u + (m.w - 1) * gap, H = m.h * u + (m.h - 1) * gap;
+  const face = el('div', { class: 'face' });
+  const box = el('div', { id: 'wprev' }, el('div', { class: 'wdg', style: `width:${W}px;height:${H}px` }, face),
+    el('div', { class: 'wpcap' }, el('b', {}, (WIDGET_INFO[type] || {}).name || type), ` · ${m.name} · ${m.w}×${m.h}`));
+  document.body.append(box);
+  const r = node.getBoundingClientRect(), b = box.getBoundingClientRect();
+  const left = r.right + 14 + b.width < innerWidth ? r.right + 14 : Math.max(8, r.left - 14 - b.width);
+  box.style.left = left + 'px';
+  box.style.top = Math.max(8, Math.min(innerHeight - b.height - 8, r.top + r.height / 2 - b.height / 2)) + 'px';
+  const fake = { id: 'preview', type, model: m.id, w: m.w, h: m.h };
+  paintWidget(face, fake);
+  wprevTimer = setInterval(() => paintWidget(face, fake), 1000);
+}
+function hideWidgetPreview() { clearInterval(wprevTimer); wprevTimer = null; const p = document.getElementById('wprev'); if (p) p.remove(); }
 function paintWidgets() {
   if (!state.cfg) return;
   document.querySelectorAll('#device .wdg').forEach(d => {
@@ -1766,8 +1844,8 @@ function renderWidgetInspector(box, fw) {
     w.type === 'discord' ? el('button', { style: 'margin-bottom:10px', onclick: openIntegrations }, 'Ouvrir « Connexions »') : '',
     el('label', {}, 'Modèle (taille fixe)'),
     el('div', { class: 'models' }, ...(WIDGET_MODELS[w.type] || []).map(m =>
-      el('button', { class: 'model' + (m.id === w.model ? ' on' : ''), onclick: () => pick(m) },
-        el('i', { style: `width:${m.w * 14}px;height:${m.h * 14}px` }), el('span', {}, m.name), el('small', {}, `${m.w}×${m.h}`)))),
+      previewOnHover(el('button', { class: 'model' + (m.id === w.model ? ' on' : ''), onclick: () => pick(m) },
+        el('i', { style: `width:${m.w * 14}px;height:${m.h * 14}px` }), el('span', {}, m.name), el('small', {}, `${m.w}×${m.h}`)), w.type, m))),
     ...(w.type === 'weather' ? [el('label', { style: 'margin-top:14px' }, 'Ville'),
       el('input', { type: 'text', value: state.cfg.weatherCity || '', placeholder: 'ex. Lyon', oninput: (e) => { state.cfg.weatherCity = e.target.value; state.dirty = true; setSaved('Modifications…'); clearTimeout(saveTimer); saveTimer = setTimeout(save, 900); } }),
       el('div', { class: 'hint' }, 'Nécessite une connexion internet sur le PC.')] : []),

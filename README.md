@@ -100,13 +100,14 @@ Comme sur Nova Launcher, un widget se pose sur plusieurs cases d'une page. Dans 
 
 Dans le configurateur, les widgets s'affichent **en direct** comme sur le téléphone (heure, charge CPU/RAM, volume, météo, touches média).
 
-Chaque widget existe en plusieurs **modèles à taille fixe** (ex. Horloge 1×1, 2×1, 2×2 ; CPU/RAM Mini, Compact, Barre, Anneaux) : le contenu est dessiné pour cette taille et ne disparaît jamais. Clique sur un modèle pour l'ajouter ; pour en changer, sélectionne le widget et choisis un autre modèle dans le panneau de droite.
+Chaque widget existe en plusieurs **modèles à taille fixe** (ex. Horloge 1×1, 2×1, 2×2) : le contenu est dessiné pour cette taille et ne disparaît jamais. **Survole un modèle** dans la galerie (ou dans le panneau de droite) pour voir un aperçu en vraie taille avec les valeurs en direct. Clique sur un modèle pour l'ajouter ; pour en changer, sélectionne le widget et choisis un autre modèle dans le panneau de droite.
 
-- **Pavé média** : 1×1 (lecture/pause), 3×1 (précédent, lecture, suivant), 2×2, 3×2 (avec volume − / muet / +).
+- **Pavé média** : 1×1 (lecture/pause), 3×1 (précédent, lecture, suivant), 2×2, 3×2 (avec volume − / muet / +), et **avec titre** 3×1 ou 4×1 : le titre du morceau ou de la vidéo en cours au-dessus, avec sa petite pochette, et précédent / lecture-pause / suivant dessous (agit sur le lecteur affiché, comme « Morceau en cours »).
 - **Morceau en cours** : pochette, titre et artiste de ce qui joue sur le PC, avec précédent / lecture / suivant (2×1, 4×1, 2×2 pochette en fond, 4×2 avec barre de progression). Utilise les contrôles média de Windows (le panneau qui apparaît quand on change le volume) : marche avec Spotify, YouTube dans le navigateur, le lecteur Windows, Deezer… sans compte ni clé. Windows 10 (version 1809) ou plus récent.
 - **Volume général** : barres 3×1 ou 4×1, ou verticales 1×2 et 1×3.
 - **Horloge** : 1×1 (heure), 2×1 (heure et date), 2×2 (grande horloge).
-- **CPU / RAM** : charge du processeur et de la mémoire, en 1×1, 2×1, 3×1 ou 2×2 (anneaux).
+- **Performances PC** : compte-tours (nom en haut à gauche, pourcentage au centre, zone rouge au-delà de 85 %) du processeur en 1×1, + mémoire en 2×1, + carte graphique en 3×1, + disque en 2×2.
+- **Appli active** : CPU, RAM, GPU et FPS de l'appli au premier plan sur le PC (ton jeu), en 4×1 ou 2×2. Les FPS se mesurent sur les jeux DirectX (9 à 12) et seulement si KeyraDeck est lancé **en administrateur** (clic droit > Exécuter en tant qu'administrateur) ; sinon le compte-tours FPS affiche « — ».
 
 - **Salon vocal Discord** : 2×1, 2×2, 3×2 (3, 4 ou 6 personnes). Discord doit être relié dans « Connexions ».
 - **Météo** : température et conditions de la ville choisie (1×1, 2×1, 2×2). Sélectionne le widget, tape ta ville dans le panneau de droite. Le PC doit avoir internet (service gratuit Open-Meteo, sans compte).
