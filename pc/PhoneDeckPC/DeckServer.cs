@@ -694,12 +694,30 @@ public class DeckServer
                 for (int dy = 0; dy < Math.Max(1, screen.H); dy++)
                     for (int dx = 0; dx < Math.Max(1, screen.W); dx++)
                         blocked.Add(screen.Slot + dy * cols + dx);
-            var slots = AssignSlots(buttons, blocked);
+            // Grilles séparées : leurs cases ne reçoivent pas de bouton de la page, leurs boutons sont placés dans leur propre grille.
+            var grids = (page.Grids ?? new()).Where(g => !string.IsNullOrEmpty(g.Id)).GroupBy(g => g.Id).Select(g => g.First()).ToList();
+            foreach (var g in grids)
+                for (int dy = 0; dy < Math.Max(1, g.H); dy++)
+                    for (int dx = 0; dx < Math.Max(1, g.W); dx++)
+                        blocked.Add(g.Slot + dy * cols + dx);
+            var gridIds = grids.Select(g => g.Id).ToHashSet();
+            string? GridOf(DeckButton b) => b.Grid != null && gridIds.Contains(b.Grid) ? b.Grid : null;
+            var slots = AssignSlots(buttons.Where(b => GridOf(b) == null).ToList(), blocked);
+            var gridRows = new Dictionary<string, int>();
+            foreach (var g in grids)
+            {
+                var inner = AssignSlots(buttons.Where(b => GridOf(b) == g.Id).ToList());
+                foreach (var (id, s) in inner) slots[id] = s;
+                var gc = Math.Clamp(g.Columns, 1, 12);
+                var last = inner.Values.DefaultIfEmpty(-1).Max();
+                gridRows[g.Id] = Math.Clamp(Math.Max(g.Rows, last / gc + 1), 1, 24);
+            }
             // La grille grandit si des boutons ou widgets ne rentrent pas (plutôt que de les cacher).
-            var lastCell = Math.Max(slots.Values.DefaultIfEmpty(-1).Max(), -1);
+            var lastCell = Math.Max(buttons.Where(b => GridOf(b) == null).Select(b => slots[b.Id]).DefaultIfEmpty(-1).Max(), -1);
             var needed = lastCell < 0 ? 1 : lastCell / cols + 1;
             foreach (var w in page.Widgets) needed = Math.Max(needed, w.Slot / cols + Math.Max(1, w.H));
             if (screen != null) needed = Math.Max(needed, screen.Slot / cols + Math.Max(1, screen.H));
+            foreach (var g in grids) needed = Math.Max(needed, g.Slot / cols + Math.Max(1, g.H));
             rows = Math.Max(rows ?? 1, needed);
             return new
             {
@@ -715,6 +733,11 @@ public class DeckServer
                     dim = Math.Clamp(screen.Dim, 0, 80),
                 },
                 widgets = page.Widgets.Select(w => new { id = w.Id, type = w.Type, model = w.Model, slot = w.Slot, w = Math.Max(1, w.W), h = Math.Max(1, w.H) }).ToList(),
+                grids = grids.Count == 0 ? null : grids.Select(g => new
+                {
+                    id = g.Id, name = g.Name, slot = g.Slot, w = Math.Max(1, g.W), h = Math.Max(1, g.H),
+                    columns = Math.Clamp(g.Columns, 1, 12), rows = gridRows[g.Id],
+                }).ToList(),
                 buttons = buttons.Select(b =>
                 {
                     lookup[b.Id] = b;
@@ -734,6 +757,7 @@ public class DeckServer
                         color = b.Color,
                         icon = SafeIcon(b, Children),
                         slot = slots[b.Id],
+                        grid = GridOf(b),
                         kind,
                         page = kind is "folder" or "page" ? b.Action.Page : null,
                         // Comme un dossier Android : on referme après avoir lancé une appli,
