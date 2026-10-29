@@ -122,7 +122,7 @@ data class DiscordVoice(
 
 /** Morceau en cours sur le PC. [at] = moment de réception, pour faire avancer la barre entre deux messages. */
 /** Charge de l'appli au premier plan sur le PC (widget « Appli active ») ; fps = null si le PC ne peut pas les mesurer. */
-data class AppPerf(val name: String, val cpu: Int, val ram: Int, val gpu: Int, val fps: Int?)
+data class AppPerf(val name: String, val cpu: Int, val ram: Int, val gpu: Int, val fps: Int?, val fpsNote: String? = null)
 
 data class NowPlayingInfo(val title: String, val artist: String, val app: String, val playing: Boolean, val pos: Int, val dur: Int, val at: Long)
 

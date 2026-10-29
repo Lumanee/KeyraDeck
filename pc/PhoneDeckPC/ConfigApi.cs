@@ -378,6 +378,13 @@ public class ConfigApi
                     return;
                 }
 
+                case "/api/fps/enable" when method == "POST":
+                {
+                    var error = await FpsAccess.RequestAsync(minimized: false, exit: () => ExitRequested?.Invoke());
+                    await Json(ctx, new { ok = error == null, error });
+                    return;
+                }
+
                 case "/api/usb/install" when method == "POST":
                 {
                     var error = Usb == null ? "USB indisponible" : await Usb.InstallAppAsync();

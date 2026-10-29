@@ -3,8 +3,11 @@ using System.Runtime.InteropServices;
 
 namespace PhoneDeckPC;
 
-/// <summary>Charge de l'appli au premier plan (widget « Appli active »). Fps = null si on ne peut pas les mesurer.</summary>
-public record AppStats(string Name, int Cpu, int Ram, long RamMb, int Gpu, int? Fps);
+/// <summary>
+/// Charge de l'appli au premier plan (widget « Appli active »). Fps = null si on ne peut pas les mesurer,
+/// FpsNote dit pourquoi (« admin » : il faut autoriser KeyraDeck, voir <see cref="FpsAccess"/>).
+/// </summary>
+public record AppStats(string Name, int Cpu, int Ram, long RamMb, int Gpu, int? Fps, string? FpsNote);
 
 /// <summary>Charge du processeur, de la mémoire, de la carte graphique et du disque, pour les widgets de performance.</summary>
 public class SystemStats
@@ -80,7 +83,8 @@ public class SystemStats
             _fps.Start();
             var name = p.ProcessName;
             try { var d = p.MainModule?.FileVersionInfo.FileDescription; if (!string.IsNullOrWhiteSpace(d)) name = d.Trim(); } catch { }
-            return new AppStats(name, cpu, ram, bytes / (1024 * 1024), gpu, _fps.Rate((int)pid));
+            var fps = _fps.Rate((int)pid);
+            return new AppStats(name, cpu, ram, bytes / (1024 * 1024), gpu, fps, fps == null ? _fps.Status ?? "erreur" : null);
         }
         catch
         {

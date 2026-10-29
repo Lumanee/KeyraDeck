@@ -588,7 +588,7 @@ const WIDGET_INFO = {
   volume: { name: 'Volume général', icon: '🎚', desc: 'Curseur du volume Windows avec bouton muet. Le casque 🎧 choisit la sortie son (casque, enceintes…).' },
   clock: { name: 'Horloge', icon: '🕒', desc: 'Heure et date.' },
   system: { name: 'Performances PC', icon: '📊', desc: 'Compte-tours du processeur (CPU), de la mémoire (RAM), de la carte graphique (GPU) et du disque, en pourcentage.' },
-  perfapp: { name: 'Appli active', icon: '🎮', desc: 'CPU, RAM, GPU et FPS de l\'appli au premier plan sur le PC (ton jeu par exemple). Les FPS (jeux DirectX) ne s\'affichent que si KeyraDeck est lancé en administrateur sur le PC.' },
+  perfapp: { name: 'Appli active', icon: '🎮', desc: 'CPU, RAM, GPU et FPS de l\'appli au premier plan sur le PC (ton jeu par exemple). Les FPS (DirectX, Vulkan, OpenGL) demandent une autorisation de Windows : touche « Activer les FPS » ci-dessous (une seule fois).' },
   weather: { name: 'Météo', icon: '⛅', desc: 'Température et conditions actuelles de la ville choisie (Open-Meteo).' },
   trackpad: { name: 'Trackpad', icon: '🖱', desc: 'Une surface comme le pavé tactile d\'un PC portable : glisse pour déplacer la souris, touche pour cliquer, 2 doigts pour défiler. Pas de clic droit.' },
   discord: { name: 'Salon vocal Discord', icon: '🎧', desc: 'Qui est dans ton salon vocal et qui parle, avec ton micro et ta sourdine. Discord doit être relié dans « Connexions ».' },
@@ -2317,6 +2317,12 @@ function renderWidgetInspector(box, fw) {
   box.append(el('h2', {}, 'Widget'), el('div', { style: 'font-size:18px;font-weight:600' }, info.icon + ' ' + info.name),
     el('div', { class: 'hint', style: 'margin:6px 0 12px' }, info.desc),
     w.type === 'discord' ? el('button', { style: 'margin-bottom:10px', onclick: openIntegrations }, 'Ouvrir « Connexions »') : '',
+    w.type === 'perfapp' ? el('button', { style: 'margin-bottom:10px', onclick: async (e) => {
+      const b = e.currentTarget; b.disabled = true; b.textContent = 'Réponds « Oui » dans la fenêtre de Windows…';
+      try { const r = await api('/api/fps/enable', { method: 'POST' }); toast(r.error || 'FPS activés : KeyraDeck redémarre'); }
+      catch (err) { toast('Erreur : ' + err.message); }
+      b.disabled = false; b.textContent = '⚡ Activer les FPS';
+    } }, '⚡ Activer les FPS') : '',
     el('label', {}, 'Modèle (taille fixe)'),
     el('div', { class: 'models' }, ...(WIDGET_MODELS[w.type] || []).map(m =>
       previewOnHover(el('button', { class: 'model' + (m.id === w.model ? ' on' : ''), onclick: () => pick(m) },

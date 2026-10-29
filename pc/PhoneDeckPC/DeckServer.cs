@@ -368,6 +368,18 @@ public class DeckServer
                 break;
             }
 
+            case "fpsEnable":
+            {
+                // Toucher le compte-tours FPS « admin » : la fenêtre « Oui / Non » de Windows s'ouvre sur le PC.
+                var c = client;
+                _ = Task.Run(async () =>
+                {
+                    var msg = await FpsAccess.RequestAsync(minimized: true, exit: () => Api?.ExitRequested?.Invoke());
+                    if (msg != null) try { await c.SendAsync(new { type = "toast", message = msg }); } catch { }
+                });
+                break;
+            }
+
             case "discord":
             {
                 // Micro / sourdine touchés sur le widget « Salon vocal », ou le menu d'un bouton Discord.
@@ -643,7 +655,7 @@ public class DeckServer
         if (_needVolume) { volume = _audio.MasterVolume(); muted = _audio.MasterMuted(); }
         if (_needSystem || _needPerfApp) { var (c, r, g, d) = _systemStats.Read(); cpu = c; ram = r; gpu = g; disk = d; }
         if (_needPerfApp) fg = _systemStats.ReadForeground();
-        object? app = fg == null ? null : new { name = fg.Name, cpu = fg.Cpu, ram = fg.Ram, ramMb = fg.RamMb, gpu = fg.Gpu, fps = fg.Fps };
+        object? app = fg == null ? null : new { name = fg.Name, cpu = fg.Cpu, ram = fg.Ram, ramMb = fg.RamMb, gpu = fg.Gpu, fps = fg.Fps, fpsNote = fg.FpsNote };
         var dc = _int.Discord;
         object? discord = !_needDiscord ? null : new
         {
