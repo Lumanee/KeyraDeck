@@ -65,10 +65,14 @@ public class IconService
         // "mdi:feux" ou "mdi:feux#4CAF50" : pictogramme dessiné (voyants, phares, stand…), couleur facultative.
         if (choice.StartsWith("mdi:", StringComparison.OrdinalIgnoreCase))
         {
-            var (name, color) = SplitColor(choice[4..]);
+            // Suffixe "!+" ou "!-" : pastille verte (+) ou rouge (−) dans le coin, pour distinguer TC + de TC −.
+            var spec = choice[4..];
+            char sign = ' ';
+            if (spec.Length > 2 && spec[^2] == '!' && spec[^1] is '+' or '-' or '−') { sign = spec[^1] == '+' ? '+' : '-'; spec = spec[..^2]; }
+            var (name, color) = SplitColor(spec);
             if (!Pictos.All.TryGetValue(name, out var picto)) return null;
             var c = color ?? ParseColor(picto.Color) ?? Color.White;
-            return Cached("mdi:" + name.ToLowerInvariant() + "#" + c.ToArgb(), () => Picto(picto.Path, c));
+            return Cached("mdi:" + name.ToLowerInvariant() + "#" + c.ToArgb() + sign, () => Picto(picto.Path, c, sign));
         }
 
         // "text:DRS" ou "text:MAP#FFB300" : sigle en gras dans un cadre, comme sur un volant de course.
@@ -263,11 +267,27 @@ public class IconService
     }
 
     /// <summary>Dessine un pictogramme au trait (voir <see cref="Pictos"/>).</summary>
-    private static string Picto(string pathData, Color color) => Draw(g =>
+    private static string Picto(string pathData, Color color, char sign = ' ') => Draw(g =>
     {
         using var path = Pictos.ToPath(pathData, Size, 16);
         using var brush = new SolidBrush(color);
+        if (sign == ' ') { g.FillPath(brush, path); return; }
+
+        // Avec une pastille : le pictogramme rétrécit en haut à gauche, le signe est grand en bas à droite.
+        var state = g.Save();
+        g.TranslateTransform(-8, -8);
+        g.ScaleTransform(0.8f, 0.8f);
         g.FillPath(brush, path);
+        g.Restore(state);
+        var badge = new RectangleF(66, 66, 58, 58);
+        using var fill = new SolidBrush(sign == '+' ? Color.FromArgb(46, 160, 67) : Color.FromArgb(214, 48, 49));
+        using var ring = new Pen(Color.White, 4);
+        g.FillEllipse(fill, badge);
+        g.DrawEllipse(ring, badge);
+        using var bar = new Pen(Color.White, 9) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+        const float cx = 95, cy = 95;
+        g.DrawLine(bar, cx - 15, cy, cx + 15, cy);
+        if (sign == '+') g.DrawLine(bar, cx, cy - 15, cx, cy + 15);
     });
 
     /// <summary>Sigle (« DRS », « MAP »…) dans un cadre arrondi.</summary>
