@@ -261,6 +261,37 @@ public class DeckServer
                 ForgetNotifs(root.TryGetProperty("id", out var nid) ? nid.GetString() : null);
                 break;
 
+            case "notifyDismiss":
+            {
+                // Glissée sur le téléphone : effacée partout, Windows compris.
+                var id = root.GetProperty("id").GetString() ?? "";
+                ForgetNotifs(id);
+                _winNotifs.Dismiss(id);
+                break;
+            }
+
+            case "notifyReply":
+            {
+                // Réponse tapée sur le téléphone : on ouvre la fenêtre de l'appli sur le PC et on y tape le texte.
+                var app = root.GetProperty("app").GetString() ?? "";
+                var reply = (root.GetProperty("text").GetString() ?? "").Replace("\r", " ").Replace("\n", " ").Trim();
+                var enter = root.TryGetProperty("send", out var se) && se.ValueKind == JsonValueKind.True;
+                if (reply.Length is 0 or > 1000) break;
+                var ok = await Task.Run(() => WindowsNotifications.FocusApp(app));
+                if (!ok)
+                {
+                    await client.SendAsync(new { type = "toast", message = $"Impossible d'ouvrir {app} sur le PC (appli fermée ou cachée près de l'horloge)" });
+                    break;
+                }
+                await Task.Run(() =>
+                {
+                    KeySender.TypeText(reply);
+                    if (enter) KeySender.Send("Enter");
+                });
+                await client.SendAsync(new { type = "toast", message = enter ? $"Réponse envoyée dans {app}" : $"Réponse écrite dans {app} : appuie sur Entrée pour l'envoyer" });
+                break;
+            }
+
             case "nowPlaying":
             {
                 // Boutons du widget « Morceau en cours » : agit sur le lecteur affiché (Spotify, navigateur…).
