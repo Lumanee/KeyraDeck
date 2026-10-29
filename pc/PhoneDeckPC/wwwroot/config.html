@@ -174,6 +174,15 @@
   .cmd .cn { flex: 0 0 46%; font-size: 12px; font-weight: 600; letter-spacing: .02em; }
   .cmd .cd { color: var(--muted); font-size: 12px; }
   .cmd.sz .cn { flex-basis: 34%; }
+  /* Widgets repliés : une ligne par widget, ses tailles s'ouvrent au clic */
+  .wgrp { font-weight: 600; font-size: 13px; padding: 8px 4px; border-bottom: 1px solid #202025; display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+  .wgrp:hover { background: #17171b; }
+  .wgrp .wi { width: 20px; text-align: center; }
+  .wgrp .wn { flex: 1; }
+  .wgrp small { color: var(--muted); font-weight: 400; font-size: 11px; }
+  .wgrp .chev { color: var(--muted); transition: transform .15s; }
+  .wgrp.open .chev { transform: rotate(90deg); }
+  .cmd.sz.inwg { padding-left: 32px; }
   #wprev { position: fixed; z-index: 60; pointer-events: none; padding: 14px; border-radius: 16px; background: #0b0b0ee6; border: 1px solid #ffffff1f; box-shadow: 0 12px 40px #000c; display: flex; flex-direction: column; align-items: center; gap: 10px; animation: wpin .12s ease-out; }
   #wprev .wdg { cursor: default; }
   #wprev .wpcap { font-size: 12px; color: var(--muted); white-space: nowrap; }
@@ -518,6 +527,7 @@ const el = (tag, attrs = {}, ...kids) => {
 };
 
 const state = {
+  wdgOpen: new Set(),   // widgets dépliés dans l'onglet WIDGETS
   cfg: null,            // configuration en cours d'édition
   layout: null,         // ce que le téléphone voit (icônes, cases calculées)
   page: null,           // id de la page affichée
@@ -707,7 +717,14 @@ function renderLeft() {
     const info = WIDGET_INFO[type];
     const items = list.filter(m => !q || (info.name + ' ' + m.name).toLowerCase().includes(q));
     if (!items.length) continue;
-    pw.append(el('div', { class: 'grp' }, info.name), ...items.map(m => previewOnHover(cmdRow(`${m.w}×${m.h}`, m.name, 'application/x-pd-newwidget', type + '|' + m.id, () => addWidget(type, m), 'sz'), type, m)));
+    if (!pw.querySelector('.wgrp')) pw.append(el('div', { class: 'grp' }, 'Widgets'));
+    // Chaque widget tient sur une ligne ; un clic déplie ses tailles (toutes dépliées pendant une recherche).
+    const open = !!q || state.wdgOpen.has(type);
+    const head = el('div', { class: 'wgrp' + (open ? ' open' : ''), title: info.desc }, el('span', { class: 'wi' }, info.icon), el('span', { class: 'wn' }, info.name),
+      el('small', {}, list.length + (list.length > 1 ? ' tailles' : ' taille')), el('span', { class: 'chev' }, '›'));
+    head.addEventListener('click', () => { if (state.wdgOpen.has(type)) state.wdgOpen.delete(type); else state.wdgOpen.add(type); renderLeft(); });
+    pw.append(head);
+    if (open) pw.append(...items.map(m => previewOnHover(cmdRow(`${m.w}×${m.h}`, m.name, 'application/x-pd-newwidget', type + '|' + m.id, () => addWidget(type, m), 'sz inwg'), type, m)));
   }
   if (tab === 'app') renderApps();
   requestAnimationFrame(updArrows);
