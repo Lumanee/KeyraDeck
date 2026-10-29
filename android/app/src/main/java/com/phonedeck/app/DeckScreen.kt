@@ -312,6 +312,7 @@ fun KeyGrid(
             val b = bySlot[slot]
             Box(Modifier.offset((key + gap) * (slot % cols), (key + gap) * (slot / cols))) {
                 DeckKey(b, key, b != null && b.id in active, onPress, onLongPress)
+                if (b != null && vm.discordPanel == b.id) DiscordPanel(vm, key)
             }
         }
         if (screen != null) {

@@ -100,6 +100,8 @@ data class DiscordVoice(
     val muted: Boolean,
     val deafened: Boolean,
     val members: List<DiscordMember>,
+    /** Dans un salon vocal ou un appel (même privé, sans nom). */
+    val inCall: Boolean = false,
 )
 
 /** Morceau en cours sur le PC. [at] = moment de réception, pour faire avancer la barre entre deux messages. */
@@ -197,7 +199,8 @@ object Parser {
             val m = arr.getJSONObject(i)
             DiscordMember(m.optString("name"), m.optBoolean("speaking"), m.optBoolean("muted"), m.optBoolean("deafened"))
         }
-        return DiscordVoice(d.optBoolean("connected"), d.optString("status"), d.optString("channel"), d.optBoolean("muted"), d.optBoolean("deafened"), members)
+        return DiscordVoice(d.optBoolean("connected"), d.optString("status"), d.optString("channel"), d.optBoolean("muted"), d.optBoolean("deafened"), members,
+            d.optBoolean("inCall", d.optString("channel").isNotEmpty()))
     }
 
     fun image(base64: String?): ImageBitmap? {

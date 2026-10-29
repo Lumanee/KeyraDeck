@@ -90,6 +90,8 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         private set
     var discord by mutableStateOf<DiscordVoice?>(null)
         private set
+    /** Bouton Discord dont le menu (micro, sourdine, partage, raccrocher) est ouvert. */
+    var discordPanel by mutableStateOf<String?>(null)
     var nowPlaying by mutableStateOf<NowPlayingInfo?>(null)
         private set
     var nowPlayingArt by mutableStateOf<ImageBitmap?>(null)
@@ -438,6 +440,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         when (button.kind) {
             "folder" -> button.page?.let { folderStack.add(it) }
             "mixer" -> openMixer()
+            "discordPanel" -> discordPanel = if (discordPanel == button.id) null else button.id
             "page" -> button.page?.let { target ->
                 folderStack.clear()
                 focus = FocusRequest(target, (focus?.count ?: 0) + 1)
@@ -547,7 +550,7 @@ class DeckViewModel(app: Application) : AndroidViewModel(app), DeckClient.Listen
         send(JSONObject().put("type", "type").put("key", spec))
     }
 
-    /** Micro / sourdine Discord depuis le widget « Salon vocal ». */
+    /** Micro / sourdine Discord depuis le widget « Salon vocal », ou partage / raccrocher depuis le menu d'un bouton Discord. */
     fun sendDiscord(command: String) {
         send(JSONObject().put("type", "discord").put("command", command))
     }
