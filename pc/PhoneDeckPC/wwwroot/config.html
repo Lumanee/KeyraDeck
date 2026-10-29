@@ -1567,7 +1567,8 @@ async function onDropOnSlot(e, slot, existing, blk) {
     if (fw.page !== page) { fw.page.widgets.splice(fw.page.widgets.indexOf(fw.widget), 1); (page.widgets ||= []).push(fw.widget); }
     changed(); return;
   }
-  if (inScreen(page, slot) && !dt.types.includes('application/x-pd-newwidget')) { toast('La zone écran n\'accueille que des widgets.'); return; }
+  // « slot » compte dans la grille séparée quand on dépose dedans : la zone écran ne concerne que les cases de la page.
+  if (!blk && inScreen(page, slot) && !dt.types.includes('application/x-pd-newwidget')) { toast('La zone écran n\'accueille que des widgets.'); return; }
   const moving = dt.getData('application/x-pd-button');
   if (moving) {
     const found = findButton(moving);
