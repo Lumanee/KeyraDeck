@@ -105,6 +105,23 @@ public class DeckPage
     public List<DeckWidget> Widgets { get; set; } = new();
     /// <summary>Zone « écran » : un rectangle de cases sans touches, sur lequel les widgets s'affichent comme sur un seul écran.</summary>
     public DeckScreenArea? Screen { get; set; }
+    /// <summary>Grilles séparées posées sur la page : chacune occupe un rectangle de cases et a sa propre grille de boutons.</summary>
+    public List<DeckGridBlock>? Grids { get; set; }
+}
+
+/// <summary>Grille séparée : un rectangle de cases de la page (comme un widget) découpé en sa propre grille de boutons.</summary>
+public class DeckGridBlock
+{
+    public string Id { get; set; } = "";
+    /// <summary>Titre affiché au-dessus des boutons (vide = pas de titre).</summary>
+    public string? Name { get; set; }
+    /// <summary>Case de la page en haut à gauche (0 = première case).</summary>
+    public int Slot { get; set; }
+    public int W { get; set; } = 2;
+    public int H { get; set; } = 2;
+    /// <summary>Grille intérieure (colonnes × lignes).</summary>
+    public int Columns { get; set; } = 4;
+    public int Rows { get; set; } = 4;
 }
 
 /// <summary>Rectangle de la zone écran, en cases (comme un widget).</summary>
@@ -133,6 +150,8 @@ public class DeckButton
     public string? Color { get; set; }
     /// <summary>Case dans la grille (0 = en haut à gauche, on compte ligne par ligne). Vide = première case libre.</summary>
     public int? Slot { get; set; }
+    /// <summary>Grille séparée de la page qui contient ce bouton (vide = grille de la page). Slot compte alors dans cette grille.</summary>
+    public string? Grid { get; set; }
     /// <summary>Cache le nom de ce bouton (l'icône prend toute la place).</summary>
     public bool? HideLabel { get; set; }
     /// <summary>Vibration propre à ce bouton : vide = réglage général, 0 = aucune, 1 à 3 = force.</summary>

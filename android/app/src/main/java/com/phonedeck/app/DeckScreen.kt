@@ -77,6 +77,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.max
 import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -168,6 +169,7 @@ fun DeckScreen(vm: DeckViewModel) {
                     buttons = page.buttons,
                     widgets = page.widgets,
                     screen = page.screen,
+                    grids = page.grids,
                     pageIndex = index,
                     pageCount = roots.size,
                     onLongPress = { editing = it },
@@ -248,6 +250,7 @@ private fun Device(
     pageIndex: Int,
     pageCount: Int,
     screen: DeckScreenArea? = null,
+    grids: List<DeckGridBlock> = emptyList(),
     onLongPress: (DeckButton) -> Unit,
 ) {
     val cols = columns.coerceIn(1, 12)
@@ -279,7 +282,7 @@ private fun Device(
         ) {
             StatusStrip(vm, pageIndex, 1, Modifier.fillMaxWidth().height(strip))
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                KeyGrid(vm, cols, rws, buttons, widgets, key, gap, vm.active, vm::press, onLongPress, screen)
+                KeyGrid(vm, cols, rws, buttons, widgets, key, gap, vm.active, vm::press, onLongPress, screen, grids)
             }
         }
     }
@@ -288,6 +291,7 @@ private fun Device(
 /**
  * Les touches et les widgets d'une page, placés case par case (un widget couvre plusieurs cases).
  * La zone [screen] est un seul écran sans touches : les widgets posés dessus s'affichent sans cadre, comme sur un même écran.
+ * Chaque grille séparée de [grids] couvre plusieurs cases et range ses propres boutons dans sa grille à elle.
  */
 @Composable
 fun KeyGrid(
@@ -302,10 +306,12 @@ fun KeyGrid(
     onPress: (DeckButton) -> Unit,
     onLongPress: (DeckButton) -> Unit,
     screen: DeckScreenArea? = null,
+    grids: List<DeckGridBlock> = emptyList(),
 ) {
     val covered = widgets.flatMap { w -> (0 until w.h).flatMap { dy -> (0 until w.w).map { dx -> w.slot + dy * cols + dx } } }.toSet() +
-        screen?.cells(cols).orEmpty()
-    val bySlot = buttons.associateBy { it.slot }
+        screen?.cells(cols).orEmpty() + grids.flatMap { it.cells(cols) }
+    val gridIds = grids.map { it.id }.toSet()
+    val bySlot = buttons.filter { it.grid == null || it.grid !in gridIds }.associateBy { it.slot }
     Box(Modifier.size(key * cols + gap * (cols - 1), key * rows + gap * (rows - 1))) {
         for (slot in 0 until cols * rows) {
             if (slot in covered) continue
@@ -323,6 +329,75 @@ fun KeyGrid(
         for (w in widgets) {
             Box(Modifier.offset((key + gap) * (w.slot % cols), (key + gap) * (w.slot / cols))) {
                 DeckWidgetView(w, key * w.w + gap * (w.w - 1), key * w.h + gap * (w.h - 1), key, vm, framed = screen?.holds(w, cols) != true)
+            }
+        }
+        for (g in grids) {
+            Box(Modifier.offset((key + gap) * (g.slot % cols), (key + gap) * (g.slot / cols))) {
+                GridBlockPanel(vm, g, key * g.w + gap * (g.w - 1), key * g.h + gap * (g.h - 1), key, buttons.filter { it.grid == g.id }, active, onPress, onLongPress)
+            }
+        }
+    }
+}
+
+/**
+ * Grille séparée : un cadre creusé dans le boîtier, avec son titre et sa propre grille de touches, aussi grandes que
+ * possible dans le cadre. Mêmes mesures que le configurateur du PC (config.html : blockMetrics).
+ */
+@Composable
+private fun GridBlockPanel(
+    vm: DeckViewModel,
+    block: DeckGridBlock,
+    width: Dp,
+    height: Dp,
+    key: Dp,
+    buttons: List<DeckButton>,
+    active: Set<String>,
+    onPress: (DeckButton) -> Unit,
+    onLongPress: (DeckButton) -> Unit,
+) {
+    val cols = block.columns
+    val rows = block.rows
+    val pad = key * 0.08f
+    val title = if (block.name.isNotBlank()) max(key * 0.24f, 14.dp) else 0.dp
+    val gapRatio = 0.14f
+    val k = min(
+        (width - pad * 2) / (cols + (cols - 1) * gapRatio),
+        (height - pad * 2 - title) / (rows + (rows - 1) * gapRatio),
+    )
+    val g = k * gapRatio
+    val shape = RoundedCornerShape(key * 0.16f)
+    val bySlot = buttons.associateBy { it.slot }
+    Column(
+        Modifier
+            .size(width, height)
+            .clip(shape)
+            .background(Color(0x59000000))
+            .border(1.dp, Color(0x1FFFFFFF), shape)
+            .padding(pad),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        if (title > 0.dp) {
+            Box(Modifier.height(title).fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+                Text(
+                    block.name.uppercase(),
+                    color = Color(0xFFA8A8B2),
+                    fontSize = (key.value * 0.11f).coerceIn(8f, 13f).sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(k * cols + g * (cols - 1), k * rows + g * (rows - 1))) {
+                for (slot in 0 until cols * rows) {
+                    val b = bySlot[slot]
+                    Box(Modifier.offset((k + g) * (slot % cols), (k + g) * (slot / cols))) {
+                        DeckKey(b, k, b != null && b.id in active, onPress, onLongPress)
+                        if (b != null && vm.discordPanel == b.id) DiscordPanel(vm, k)
+                    }
+                }
             }
         }
     }
@@ -520,12 +595,13 @@ private fun FolderDialog(
             Spacer(Modifier.height(14.dp))
             val columns = page.columns ?: if (page.buttons.size <= 4) 2 else 3
             val count = maxOf(
-                (page.buttons.maxOfOrNull { it.slot } ?: -1) + 1,
+                (page.buttons.filter { b -> page.grids.none { it.id == b.grid } }.maxOfOrNull { it.slot } ?: -1) + 1,
                 page.widgets.maxOfOrNull { it.slot + (it.h - 1) * columns + 1 } ?: 0,
                 page.screen?.let { it.slot + (it.h - 1) * columns + 1 } ?: 0,
+                page.grids.maxOfOrNull { it.slot + (it.h - 1) * columns + 1 } ?: 0,
             )
             val rows = page.rows ?: ((count + columns - 1) / columns).coerceAtLeast(1)
-            KeyGrid(vm, columns, rows, page.buttons, page.widgets, 84.dp, 10.dp, active, onPress, onLongPress, page.screen)
+            KeyGrid(vm, columns, rows, page.buttons, page.widgets, 84.dp, 10.dp, active, onPress, onLongPress, page.screen, page.grids)
         }
     }
 }

@@ -25,6 +25,8 @@ data class DeckButton(
     val vibrate: Int? = null,
     /** Son propre à ce bouton : null = réglage général, "off" = aucun. */
     val sound: String? = null,
+    /** Grille séparée qui contient ce bouton (null = grille de la page) ; [slot] compte alors dans cette grille. */
+    val grid: String? = null,
 )
 
 /** Un widget posé sur plusieurs cases : media, nowplaying, volume, clock, system ou weather. */
@@ -47,6 +49,14 @@ data class DeckScreenArea(val slot: Int, val w: Int, val h: Int, val bg: String?
     }
 }
 
+/**
+ * Grille séparée : un rectangle de cases de la page (comme un widget) découpé en sa propre grille de boutons,
+ * [columns] × [rows], avec un titre facultatif.
+ */
+data class DeckGridBlock(val id: String, val name: String, val slot: Int, val w: Int, val h: Int, val columns: Int, val rows: Int) {
+    fun cells(cols: Int): List<Int> = (0 until h).flatMap { dy -> (0 until w).map { dx -> slot + dy * cols + dx } }
+}
+
 /** columns / rows : taille de la grille, ou null pour un dossier mis en page automatiquement. */
 data class DeckPage(
     val id: String,
@@ -58,6 +68,7 @@ data class DeckPage(
     val buttons: List<DeckButton>,
     val widgets: List<DeckWidget> = emptyList(),
     val screen: DeckScreenArea? = null,
+    val grids: List<DeckGridBlock> = emptyList(),
 )
 
 /** Couleurs du boîtier, choisies dans le configurateur du PC. */
@@ -149,6 +160,7 @@ object Parser {
                         dim = it.optInt("dim", 30).coerceIn(0, 80),
                     )
                 },
+                grids = grids(p.optJSONArray("grids")),
             )
         }
         return DeckLayout(json.optString("pcName", "PC"), json.optString("home"), pages, theme(json.optJSONObject("theme")))
@@ -159,6 +171,18 @@ object Parser {
         return (0 until arr.length()).map { i ->
             val w = arr.getJSONObject(i)
             DeckWidget(w.optString("id"), w.optString("type"), w.optString("model"), w.optInt("slot"), w.optInt("w", 1).coerceAtLeast(1), w.optInt("h", 1).coerceAtLeast(1))
+        }
+    }
+
+    private fun grids(arr: JSONArray?): List<DeckGridBlock> {
+        if (arr == null) return emptyList()
+        return (0 until arr.length()).map { i ->
+            val g = arr.getJSONObject(i)
+            DeckGridBlock(
+                g.optString("id"), g.optStringOrNull("name").orEmpty(), g.optInt("slot"),
+                g.optInt("w", 1).coerceAtLeast(1), g.optInt("h", 1).coerceAtLeast(1),
+                g.optInt("columns", 1).coerceIn(1, 12), g.optInt("rows", 1).coerceIn(1, 24),
+            )
         }
     }
 
@@ -187,6 +211,7 @@ object Parser {
         closeFolder = b.optBoolean("closeFolder", false),
         vibrate = b.optIntOrNull("vibrate"),
         sound = b.optStringOrNull("sound"),
+        grid = b.optStringOrNull("grid"),
     )
 
     /** Liste des canaux du mélangeur. Si le PC n'envoie pas les icônes, on garde les anciennes. */

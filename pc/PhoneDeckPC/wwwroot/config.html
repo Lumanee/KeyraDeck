@@ -310,6 +310,12 @@
   .key.scell { background: transparent; box-shadow: none; border-radius: 12%; }
   .key.scell[draggable=true] { cursor: grab; }
   .key.scell.over { outline-offset: -2px; transform: none; }
+  .blk { position: relative; display: flex; flex-direction: column; background: #00000059; box-shadow: inset 0 0 0 1px #ffffff1f; cursor: grab; min-width: 0; min-height: 0; }
+  .blk.selected { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .blk.over { outline: 2px dashed var(--ok); outline-offset: 3px; }
+  .blk .blkt { display: flex; align-items: center; color: #a8a8b2; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: none; }
+  .blk .blkin { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+  .blk .blkg { display: grid; }
   .wdg.inscr { background: transparent; border-color: transparent; box-shadow: none; }
   .wdg.inscr .face { background-image: none; }
   .wdg.inscr:hover { border-color: #ffffff1f; }
@@ -657,8 +663,10 @@ function renderLeft() {
     pc.append(el('div', { class: 'grp' }, g.group), ...items.map(([k, n, d]) => cmdRow(n, d, 'application/x-pd-cmd', k, () => (k === 'app' ? setLeftTab('app') : addFromPalette(k)))));
   }
   const pw = $('#paneWdg'); pw.replaceChildren();
-  if (!q || 'zone écran ecran'.includes(q)) pw.append(el('div', { class: 'grp' }, 'Écran'),
-    cmdRow('Zone écran', 'Une surface sans touches où tes widgets forment un seul écran', 'application/x-pd-newscreen', '1', () => addScreen()));
+  const lay = [];
+  if (!q || 'zone écran ecran'.includes(q)) lay.push(cmdRow('Zone écran', 'Une surface sans touches où tes widgets forment un seul écran', 'application/x-pd-newscreen', '1', () => addScreen()));
+  if (!q || 'grille séparée separee bloc'.includes(q)) lay.push(cmdRow('Grille séparée', 'Un cadre avec sa propre grille de boutons (plus petits ou plus grands), à côté des autres', 'application/x-pd-newblock', '1', () => addBlock()));
+  if (lay.length) pw.append(el('div', { class: 'grp' }, 'Disposition'), ...lay);
   for (const [type, list] of Object.entries(WIDGET_MODELS)) {
     const info = WIDGET_INFO[type];
     const items = list.filter(m => !q || (info.name + ' ' + m.name).toLowerCase().includes(q));
@@ -732,13 +740,14 @@ function setScreen(page, slot, w, h) {
     const cells = widgetCells(o, cols), n = cells.filter(c => area.has(c)).length;
     if (n && (moved || n < cells.length)) return 'Un widget est sur le passage : déplace-le d\'abord';
   }
+  if (blockCells(page, cols).some(c => area.has(c))) return 'Une grille séparée est sur le passage : déplace-la d\'abord';
   if (moved) {
     const dx = slot % cols - old.slot % cols, dy = Math.floor(slot / cols) - Math.floor(old.slot / cols);
     for (const o of inner) o.slot += dy * cols + dx;
   } else if (inner.some(o => widgetCells(o, cols).some(c => !area.has(c)))) return 'Un widget de l\'écran dépasserait : déplace-le ou réduis-le d\'abord';
   page.screen = { ...old, slot, w, h };
   let rows = Math.max(pageGrid(page).rows, Math.floor(slot / cols) + h);
-  for (const b of page.buttons.filter(b => area.has(b.slot)).sort((a, b) => a.slot - b.slot)) {
+  for (const b of mainButtons(page).filter(b => area.has(b.slot)).sort((a, b) => a.slot - b.slot)) {
     b.slot = -1; b.slot = firstFreeSlot(page); rows = Math.max(rows, Math.floor(b.slot / cols) + 1);
   }
   page.rows = rows;
@@ -768,6 +777,92 @@ function deleteScreen() {
   if (state.selected === SCREEN) state.selected = null;
   changed();
   toast('Zone écran retirée : ses widgets restent à leur place.');
+}
+// ---- Grilles séparées : des blocs posés sur la page (comme un widget), chacun avec sa propre grille de boutons ----
+// Un bouton rangé dans un bloc a « grid » = id du bloc, et sa case « slot » compte dans la grille du bloc.
+const blocks = (page) => page.grids || [];
+const blockOf = (page, b) => b.grid ? blocks(page).find(g => g.id === b.grid) || null : null;
+const mainButtons = (page) => page.buttons.filter(b => !blockOf(page, b));
+const blockButtons = (page, g) => page.buttons.filter(b => b.grid === g.id);
+const blockCells = (page, cols) => blocks(page).flatMap(g => widgetCells(g, cols));
+const findBlock = (id) => { for (const p of state.cfg.pages) { const g = blocks(p).find(g => g.id === id); if (g) return { page: p, block: g }; } return null; };
+// Première case libre du bloc (après « from » si donné), ou -1 s'il est plein.
+function blockFreeSlot(page, g, from, avoid) {
+  const used = new Set(blockButtons(page, g).map(b => b.slot)); if (avoid != null) used.add(avoid);
+  const n = g.columns * g.rows;
+  for (let i = 0; i < n; i++) { const s = ((from ?? -1) + 1 + i) % n; if (!used.has(s)) return s; }
+  return -1;
+}
+// Pose, déplace ou redimensionne un bloc sur la page. Les boutons de la page qui se trouvent dessous sont rangés ailleurs.
+function setBlock(page, g, slot, w, h) {
+  const { cols } = pageGrid(page);
+  if (w < 1 || h < 1) return 'Taille impossible';
+  if (slot < 0 || slot % cols + w > cols) return 'Pas assez de colonnes ici (' + cols + ' colonnes)';
+  const area = new Set(widgetCells({ slot, w, h }, cols));
+  if ((page.widgets || []).some(o => widgetCells(o, cols).some(c => area.has(c)))) return 'Un widget est sur le passage : déplace-le d\'abord';
+  if (screenCells(page, cols).some(c => area.has(c))) return 'La zone écran est sur le passage';
+  if (blocks(page).some(o => o !== g && widgetCells(o, cols).some(c => area.has(c)))) return 'Une autre grille est sur le passage';
+  Object.assign(g, { slot, w, h });
+  let rows = Math.max(pageGrid(page).rows, Math.floor(slot / cols) + h);
+  for (const b of mainButtons(page).filter(b => area.has(b.slot)).sort((a, b) => a.slot - b.slot)) {
+    b.slot = -1; b.slot = firstFreeSlot(page); rows = Math.max(rows, Math.floor(b.slot / cols) + 1);
+  }
+  page.rows = rows;
+  return null;
+}
+// Change la grille intérieure d'un bloc : chaque bouton garde sa ligne et sa colonne s'il y tient, sinon il prend une case libre.
+function setBlockGrid(page, g, nc, nr) {
+  const list = blockButtons(page, g).sort((a, b) => a.slot - b.slot);
+  if (list.length > nc * nr) return `Cette grille contient ${list.length} boutons : retires-en ou déplace-les d'abord.`;
+  const oc = g.columns, taken = new Set(), later = [];
+  for (const b of list) {
+    const r = Math.floor(b.slot / oc), c = b.slot % oc;
+    if (c < nc && r < nr && !taken.has(r * nc + c)) { b.slot = r * nc + c; taken.add(b.slot); } else later.push(b);
+  }
+  for (const b of later) { let s = 0; while (taken.has(s)) s++; b.slot = s; taken.add(s); }
+  g.columns = nc; g.rows = nr;
+  return null;
+}
+// Ajoute une grille séparée (3×2 cases, découpée en touches deux fois plus petites) à la case donnée ou à la première place libre.
+function addBlock(atSlot) {
+  const page = currentPage();
+  if (page.generated) { toast('Détache d\'abord cette page du menu Démarrer'); return; }
+  const { cols, rows } = pageGrid(page);
+  const w = Math.min(3, cols - (atSlot != null ? atSlot % cols : 0)), h = Math.min(2, Math.max(1, rows));
+  const g = { id: uid('grille'), slot: 0, w, h, columns: w * 2, rows: h * 2 };
+  pushUndo();
+  (page.grids ||= []).push(g);
+  let err = 'Pas de place';
+  const fits = (s) => s % cols + w <= cols && widgetCells({ slot: s, w, h }, cols).every(c => isFree(page, c, false, g));
+  const tries = atSlot != null ? [atSlot] : [[...Array(cols * (rows + h)).keys()].find(fits) ?? rows * cols];
+  for (const s of tries) { err = setBlock(page, g, s, w, h); if (!err) break; }
+  if (err) { state.cfg = JSON.parse(state.undo.pop()); toast(err); renderAll(); return; }
+  state.selected = g.id;
+  changed({ immediate: true });
+  toast('Grille séparée ajoutée : glisse des boutons dedans, règle sa taille et son nombre de cases à droite.');
+}
+// Retire un bloc : ses boutons reviennent sur la page, aux premières cases libres.
+function deleteBlock(id) {
+  const fb = findBlock(id); if (!fb) return;
+  const { page, block } = fb;
+  pushUndo();
+  page.grids.splice(page.grids.indexOf(block), 1);
+  if (!page.grids.length) delete page.grids;
+  const { cols } = pageGrid(page);
+  for (const b of page.buttons.filter(b => b.grid === block.id).sort((a, b) => a.slot - b.slot)) {
+    delete b.grid; b.slot = -1; b.slot = firstFreeSlot(page);
+    if (b.slot >= cols * pageGrid(page).rows) page.rows = Math.floor(b.slot / cols) + 1;
+  }
+  if (state.selected === id) state.selected = null;
+  changed();
+  toast('Grille retirée : ses boutons sont revenus sur la page.');
+}
+// Mesures d'un bloc (en dp, comme sur le téléphone : DeckScreen.kt, GridBlockPanel) pour une touche de page de « key » dp.
+function blockMetrics(g, key) {
+  const W = key * g.w + key * DEV.gap * (g.w - 1), H = key * g.h + key * DEV.gap * (g.h - 1);
+  const pad = key * 0.08, title = (g.name || '').trim() ? Math.max(key * 0.24, 14) : 0;
+  const k = Math.min((W - 2 * pad) / (g.columns + (g.columns - 1) * DEV.gap), (H - 2 * pad - title) / (g.rows + (g.rows - 1) * DEV.gap));
+  return { W, H, pad, title, key: k, gap: k * DEV.gap, radius: key * 0.16 };
 }
 const findButton = (id) => { for (const p of state.cfg.pages) { const b = p.buttons.find(b => b.id === id); if (b) return { page: p, button: b }; } return null; };
 
@@ -901,13 +996,16 @@ async function loadAll() {
       p.generated = lp.buttons.map(b => ({ id: b.id, label: b.label, slot: b.slot }));
       continue;
     }
-    for (const b of p.buttons) { const lb = lp.buttons.find(x => x.id === b.id); if (lb) b.slot = lb.slot; }
-    const used = new Set(p.buttons.filter(b => b.slot != null).map(b => b.slot));
-    let next = 0;
-    for (const b of p.buttons) if (b.slot == null) { while (used.has(next)) next++; b.slot = next; used.add(next); }
+    for (const b of p.buttons) { if (b.grid && !blockOf(p, b)) delete b.grid; const lb = lp.buttons.find(x => x.id === b.id); if (lb) b.slot = lb.slot; }
+    // Chaque grille (celle de la page et chaque grille séparée) a ses propres cases.
+    for (const list of [mainButtons(p), ...blocks(p).map(g => blockButtons(p, g))]) {
+      const used = new Set(list.filter(b => b.slot != null).map(b => b.slot));
+      let next = 0;
+      for (const b of list) if (b.slot == null) { while (used.has(next)) next++; b.slot = next; used.add(next); }
+    }
   }
   if (!state.page || !pageById(state.page)) state.page = homeId();
-  if (state.selected && !findButton(state.selected) && !findWidget(state.selected) && !(state.selected === SCREEN && currentPage().screen)) state.selected = null;
+  if (state.selected && !findButton(state.selected) && !findWidget(state.selected) && !findBlock(state.selected) && !(state.selected === SCREEN && currentPage().screen)) state.selected = null;
   renderAll();
   checkAdapt();
   if (norm) changed();
@@ -977,10 +1075,10 @@ function pageGrid(page) {
   let cols = page.columns ?? (isHome ? state.cfg.columns : null);
   let rows = page.rows ?? (isHome ? state.cfg.rows : null);
   const count = page.generated ? page.generated.length : page.buttons.length;
-  const maxSlot = Math.max(-1, ...page.buttons.map(b => b.slot ?? -1), ...(page.generated || []).map(b => b.slot ?? -1));
+  const maxSlot = Math.max(-1, ...mainButtons(page).map(b => b.slot ?? -1), ...(page.generated || []).map(b => b.slot ?? -1));
   if (cols == null) cols = count <= 4 ? 2 : 3;
   if (rows == null) rows = Math.max(1, Math.ceil((maxSlot + 1) / cols));
-  const widgetRows = Math.max(0, ...(page.widgets || []).map(w => Math.floor(w.slot / cols) + w.h), page.screen ? Math.floor(page.screen.slot / cols) + page.screen.h : 0);
+  const widgetRows = Math.max(0, ...[...(page.widgets || []), ...blocks(page)].map(w => Math.floor(w.slot / cols) + w.h), page.screen ? Math.floor(page.screen.slot / cols) + page.screen.h : 0);
   rows = Math.max(rows, Math.ceil((maxSlot + 1) / cols), widgetRows);
   return { cols, rows, auto: lp && lp.columns == null && page.columns == null && !isHome };
 }
@@ -1055,10 +1153,10 @@ function renderStage() {
   dev.append(holder);
   const grid = el('div', { class: 'grid', style: `grid-template-columns:repeat(${cols},${key}px);grid-template-rows:repeat(${rows},${key}px);gap:${key * g}px` });
   const bySlot = new Map();
-  if (!page.generated) for (const b of page.buttons) bySlot.set(b.slot, b);
+  if (!page.generated) for (const b of mainButtons(page)) bySlot.set(b.slot, b);
   const gen = new Map((page.generated || []).map(b => [b.slot, b]));
   const widgets = page.widgets || [];
-  const covered = new Set(widgets.flatMap(w => widgetCells(w, cols)));
+  const covered = new Set([...widgets.flatMap(w => widgetCells(w, cols)), ...blockCells(page, cols)]);
   const scr = page.screen, scrCells = new Set(screenCells(page, cols)), inner = new Set(screenWidgets(page));
   if (scr) {
     // La dalle de l'écran, sous les widgets ; ses cases vides (transparentes, au-dessus) reçoivent les widgets qu'on dépose.
@@ -1089,45 +1187,21 @@ function renderStage() {
       continue;
     }
     const b = bySlot.get(s);
-    const k = el('div', { class: 'key' + (b ? '' : ' empty') + (b && b.id === state.selected ? ' selected' : '') + (state.findQ && !(b && matchButton(b, state.findQ)) && !(gen.has(s) && matchButton(gen.get(s), state.findQ)) ? ' dim' : ''), 'data-slot': s, 'data-id': b ? b.id : null, style: `--lbl:${Math.max(9, Math.min(15, key * 0.12))}px;${pos}` });
-    if (b) {
-      const face = el('div', { class: 'face', style: b.color ? `background-color:${b.color}` : '' });
-      const ic = iconFor(b);
-      if (ic) face.append(el('img', { class: 'icon', src: ic, draggable: 'false' }));
-      else face.append(el('div', { style: 'flex:1' }));
-      if (key >= 56 && !(b.hideLabel ?? state.cfg.hideLabels)) face.append(el('div', { class: 'lbl' }, b.label));
-      if (b.action.type === 'folder') face.append(el('span', { class: 'badge' }, '📁'));
-      if (b.action.type === 'page') face.append(el('span', { class: 'badge' }, '↪'));
-      k.append(face);
-      k.draggable = true;
-      k.addEventListener('dragstart', (e) => { e.dataTransfer.setData('application/x-pd-button', b.id); e.dataTransfer.effectAllowed = 'move'; select(b.id, true); });
-      k.addEventListener('click', () => select(b.id));
-      k.addEventListener('mouseenter', () => drawCallout(b.id));
-      k.addEventListener('mouseleave', () => drawCallout(state.selected));
-      k.addEventListener('dblclick', () => { if ((b.action.type === 'folder' || b.action.type === 'page') && pageById(b.action.page)) { state.page = b.action.page; state.selected = null; renderAll(); } });
-      k.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); if (state.selected !== b.id) select(b.id); buttonMenu(b, e.clientX, e.clientY); });
-    } else if (gen.has(s)) {
+    if (gen.has(s) && !b) {
       const gb = gen.get(s);
+      const k = el('div', { class: 'key' + (state.findQ && !matchButton(gb, state.findQ) ? ' dim' : ''), 'data-slot': s, style: `--lbl:${Math.max(9, Math.min(15, key * 0.12))}px;${pos}` });
       const ic = iconFor(gb);
       const face = el('div', { class: 'face' });
       if (ic) face.append(el('img', { class: 'icon', src: ic }));
       if (key >= 56) face.append(el('div', { class: 'lbl' }, gb.label));
-      k.classList.remove('empty'); k.append(face);
+      k.append(face);
       k.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); showMenu([{ header: gb.label }, { icon: G.link, label: 'Détacher du menu Démarrer pour modifier', onclick: detachPage }], e.clientX, e.clientY); });
-    } else {
-      k.append(el('div', { class: 'face' }));
-      k.addEventListener('click', () => { state.selected = null; renderInspector(); renderStage(); });
-      k.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); emptyMenu(s, e.clientX, e.clientY); });
+      grid.append(k);
+      continue;
     }
-    k.addEventListener('dragover', (e) => {
-      const t = e.dataTransfer.types;
-      if (['button', 'app', 'widget', 'cmd', 'newwidget', 'folder', 'screen', 'newscreen'].some(x => t.includes('application/x-pd-' + x))) { e.preventDefault(); k.classList.add('over'); }
-      else if (t.includes('Files') && b) { e.preventDefault(); k.classList.add('fileover'); }
-    });
-    k.addEventListener('dragleave', () => k.classList.remove('over', 'fileover'));
-    k.addEventListener('drop', (e) => { k.classList.remove('over', 'fileover'); e.preventDefault(); onDropOnSlot(e, s, b); });
-    grid.append(k);
+    grid.append(stageKey(b, s, key, pos, null));
   }
+  for (const g of blocks(page)) grid.append(stageBlock(page, g, cols, keyDp, scale));
   for (const w of widgets) {
     const info = WIDGET_INFO[w.type] || { name: w.type, icon: '▫' };
     const c = w.slot % cols, r = Math.floor(w.slot / cols);
@@ -1142,6 +1216,67 @@ function renderStage() {
   requestAnimationFrame(() => { paintWidgets(); drawCallout(state.selected); });
 }
 
+// Une touche de l'aperçu (bouton ou case vide). blk = grille séparée qui la contient (null = grille de la page) ; s compte dans cette grille.
+function stageKey(b, s, key, pos, blk) {
+  const page = currentPage();
+  const k = el('div', { class: 'key' + (b ? '' : ' empty') + (b && b.id === state.selected ? ' selected' : '') + (state.findQ && !(b && matchButton(b, state.findQ)) ? ' dim' : ''), 'data-slot': s, 'data-id': b ? b.id : null, style: `--lbl:${Math.max(9, Math.min(15, key * 0.12))}px;${pos}` });
+  if (b) {
+    const face = el('div', { class: 'face', style: b.color ? `background-color:${b.color}` : '' });
+    const ic = iconFor(b);
+    if (ic) face.append(el('img', { class: 'icon', src: ic, draggable: 'false' }));
+    else face.append(el('div', { style: 'flex:1' }));
+    if (key >= 56 && !(b.hideLabel ?? state.cfg.hideLabels)) face.append(el('div', { class: 'lbl' }, b.label));
+    if (b.action.type === 'folder') face.append(el('span', { class: 'badge' }, '📁'));
+    if (b.action.type === 'page') face.append(el('span', { class: 'badge' }, '↪'));
+    k.append(face);
+    k.draggable = true;
+    k.addEventListener('dragstart', (e) => { e.stopPropagation(); e.dataTransfer.setData('application/x-pd-button', b.id); e.dataTransfer.effectAllowed = 'move'; select(b.id, true); });
+    k.addEventListener('click', (e) => { e.stopPropagation(); select(b.id); });
+    k.addEventListener('mouseenter', () => drawCallout(b.id));
+    k.addEventListener('mouseleave', () => drawCallout(state.selected));
+    k.addEventListener('dblclick', () => { if ((b.action.type === 'folder' || b.action.type === 'page') && pageById(b.action.page)) { state.page = b.action.page; state.selected = null; renderAll(); } });
+    k.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); if (state.selected !== b.id) select(b.id); buttonMenu(b, e.clientX, e.clientY); });
+  } else {
+    k.append(el('div', { class: 'face' }));
+    // Case vide d'une grille séparée : un clic choisit la grille (pour régler sa taille).
+    k.addEventListener('click', (e) => { e.stopPropagation(); if (blk) { select(blk.id); return; } state.selected = null; renderInspector(); renderStage(); });
+    k.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); emptyMenu(s, e.clientX, e.clientY, blk); });
+  }
+  const accepts = blk ? ['button', 'app', 'cmd', 'folder'] : ['button', 'app', 'widget', 'cmd', 'newwidget', 'folder', 'screen', 'newscreen', 'block', 'newblock'];
+  k.addEventListener('dragover', (e) => {
+    const t = e.dataTransfer.types;
+    if (accepts.some(x => t.includes('application/x-pd-' + x))) { e.preventDefault(); e.stopPropagation(); k.classList.add('over'); }
+    else if (t.includes('Files') && b) { e.preventDefault(); e.stopPropagation(); k.classList.add('fileover'); }
+  });
+  k.addEventListener('dragleave', () => k.classList.remove('over', 'fileover'));
+  k.addEventListener('drop', (e) => { k.classList.remove('over', 'fileover'); e.preventDefault(); e.stopPropagation(); onDropOnSlot(e, s, b, blk); });
+  return k;
+}
+// Une grille séparée dans l'aperçu : un cadre sur ses cases de la page, avec son titre et ses propres touches.
+function stageBlock(page, g, cols, keyDp, scale) {
+  const m = blockMetrics(g, keyDp), key = m.key * scale;
+  const d = el('div', { class: 'blk' + (state.selected === g.id ? ' selected' : ''), 'data-id': g.id, draggable: 'true',
+    title: 'Grille séparée : glisse le cadre pour la déplacer, clic pour régler sa taille',
+    style: `grid-column:${g.slot % cols + 1} / span ${g.w};grid-row:${Math.floor(g.slot / cols) + 1} / span ${g.h};padding:${m.pad * scale}px;border-radius:${m.radius * scale}px` });
+  if (m.title) d.append(el('div', { class: 'blkt', style: `height:${m.title * scale}px;font-size:${Math.max(7, Math.min(13, keyDp * 0.11)) * scale}px` }, g.name));
+  const inner = el('div', { class: 'blkg', style: `grid-template-columns:repeat(${g.columns},${key}px);grid-template-rows:repeat(${g.rows},${key}px);gap:${m.gap * scale}px` });
+  const bySlot = new Map(blockButtons(page, g).map(b => [b.slot, b]));
+  for (let s = 0; s < g.columns * g.rows; s++) inner.append(stageKey(bySlot.get(s), s, key, `grid-column:${s % g.columns + 1};grid-row:${Math.floor(s / g.columns) + 1}`, g));
+  d.append(el('div', { class: 'blkin' }, inner));
+  d.addEventListener('click', () => select(g.id));
+  d.addEventListener('dragstart', (e) => {
+    // On attrape le cadre par la case de la page qui est sous le pointeur : elle reste sous le pointeur au dépôt.
+    const r = d.getBoundingClientRect(), dx = Math.min(g.w - 1, Math.max(0, Math.floor((e.clientX - r.left) / r.width * g.w))), dy = Math.min(g.h - 1, Math.max(0, Math.floor((e.clientY - r.top) / r.height * g.h)));
+    e.dataTransfer.setData('application/x-pd-block', [g.id, dx, dy].join('|')); e.dataTransfer.effectAllowed = 'move'; select(g.id, true);
+  });
+  d.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); if (state.selected !== g.id) select(g.id); blockMenu(g, e.clientX, e.clientY); });
+  // Déposer un cadre sur ses propres cases (petit déplacement) : on retrouve la case de la page sous le pointeur.
+  const cellAt = (e) => { const r = d.getBoundingClientRect(); return g.slot + Math.min(g.h - 1, Math.max(0, Math.floor((e.clientY - r.top) / r.height * g.h))) * cols + Math.min(g.w - 1, Math.max(0, Math.floor((e.clientX - r.left) / r.width * g.w))); };
+  d.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('application/x-pd-block')) { e.preventDefault(); d.classList.add('over'); } });
+  d.addEventListener('dragleave', () => d.classList.remove('over'));
+  d.addEventListener('drop', (e) => { d.classList.remove('over'); if (!e.dataTransfer.types.includes('application/x-pd-block')) return; e.preventDefault(); onDropOnSlot(e, cellAt(e), null, null); });
+  return d;
+}
 // ---- Rendu en direct des widgets (mêmes dispositions que sur le téléphone) ----
 const WX = { 0: '☀️', 1: '🌤️', 2: '🌤️', 3: '☁️', 45: '🌫️', 48: '🌫️' };
 const wxIcon = (c) => WX[c] || (c >= 51 && c <= 57 ? '🌦️' : (c >= 61 && c <= 67) || (c >= 80 && c <= 82) ? '🌧️' : (c >= 71 && c <= 77) || c === 85 || c === 86 ? '❄️' : c >= 95 ? '⛈️' : '🌡️');
@@ -1316,9 +1451,9 @@ function drawCallout(id) {
   stage.querySelectorAll('.callout, svg.cl').forEach(n => n.remove());
   if (!id) return;
   const target = stage.querySelector(`[data-id="${CSS.escape(id)}"]`); if (!target) return;
-  const fb = findButton(id), fw = findWidget(id), sc = id === SCREEN && currentPage().screen;
-  const title = fb ? fb.button.label : fw ? (WIDGET_INFO[fw.widget.type] || {}).name : sc ? 'Zone écran' : ''; if (!title) return;
-  const sub = fb ? actionSummary(fb.button) : fw ? (modelOf(fw.widget) || {}).name || '' : `${sc.w}×${sc.h} cases`;
+  const fb = findButton(id), fw = findWidget(id), sc = id === SCREEN && currentPage().screen, fk = findBlock(id);
+  const title = fb ? fb.button.label : fw ? (WIDGET_INFO[fw.widget.type] || {}).name : sc ? 'Zone écran' : fk ? fk.block.name || 'Grille séparée' : ''; if (!title) return;
+  const sub = fb ? actionSummary(fb.button) : fw ? (modelOf(fw.widget) || {}).name || '' : fk ? `${fk.block.columns}×${fk.block.rows} cases` : `${sc.w}×${sc.h} cases`;
   const sr = stage.getBoundingClientRect(), tr = target.getBoundingClientRect(), pr = $('#phone').getBoundingClientRect();
   const right = tr.left + tr.width / 2 > pr.left + pr.width / 2;
   const cardW = 170, space = right ? sr.right - pr.right : pr.left - sr.left;
@@ -1333,7 +1468,10 @@ function drawCallout(id) {
   stage.append(svg, el('div', { class: 'callout', style: `left:${cardX}px;top:${cardY}px;text-align:${right ? 'left' : 'right'}` }, el('b', {}, title), el('small', {}, sub)));
 }
 
-async function onDropOnSlot(e, slot, existing) {
+// Range un bouton à la case s de la grille séparée g (ou de la page si g est null).
+function setLoc(b, g, s) { if (g) b.grid = g.id; else delete b.grid; b.slot = s; }
+// blk : grille séparée où l'on dépose (null = grille de la page) ; slot compte alors dans cette grille.
+async function onDropOnSlot(e, slot, existing, blk) {
   const page = currentPage();
   const dt = e.dataTransfer;
   if (dt.files && dt.files.length) {
@@ -1352,6 +1490,18 @@ async function onDropOnSlot(e, slot, existing) {
     changed(); return;
   }
   if (dt.getData('application/x-pd-newscreen')) { addScreen(slot); return; }
+  const grabBlock = dt.getData('application/x-pd-block');
+  if (grabBlock) {
+    const [id, dx, dy] = grabBlock.split('|'), fb = findBlock(id); if (!fb || fb.page !== page || blk) return;
+    const { cols } = pageGrid(page), g = fb.block, c = slot % cols - (+dx || 0), r = Math.floor(slot / cols) - (+dy || 0);
+    if (c < 0 || r < 0) { toast('Pas assez de place ici'); return; }
+    if (r * cols + c === g.slot) return;
+    pushUndo();
+    const err = setBlock(page, g, r * cols + c, g.w, g.h);
+    if (err) { state.cfg = JSON.parse(state.undo.pop()); toast(err); renderAll(); return; }
+    changed(); return;
+  }
+  if (dt.getData('application/x-pd-newblock')) { addBlock(slot); return; }
   const movingWidget = dt.getData('application/x-pd-widget');
   if (movingWidget) {
     const fw = findWidget(movingWidget); if (!fw) return;
@@ -1364,23 +1514,28 @@ async function onDropOnSlot(e, slot, existing) {
   const moving = dt.getData('application/x-pd-button');
   if (moving) {
     const found = findButton(moving);
-    if (!found) return;
+    if (!found || found.button === existing) return;
+    const mover = found.button;
     pushUndo();
     if (found.page === page) {
-      const from = found.button.slot;
-      if (existing && existing !== found.button) existing.slot = from;
-      found.button.slot = slot;
+      // Échange : le bouton qui occupait la case prend la place de celui qu'on déplace (même d'une grille à l'autre).
+      if (existing) setLoc(existing, blockOf(page, mover), mover.slot);
+      setLoc(mover, blk, slot);
     } else {
-      found.page.buttons.splice(found.page.buttons.indexOf(found.button), 1);
-      if (existing) existing.slot = firstFreeSlot(page, slot);
-      found.button.slot = slot; page.buttons.push(found.button);
+      found.page.buttons.splice(found.page.buttons.indexOf(mover), 1);
+      if (existing) {
+        const s = blk ? blockFreeSlot(page, blk, slot, slot) : -1;
+        if (s >= 0) existing.slot = s; else setLoc(existing, null, firstFreeSlot(page, blk ? undefined : slot));
+      }
+      setLoc(mover, blk, slot); page.buttons.push(mover);
     }
     changed(); return;
   }
   const cmd = dt.getData('application/x-pd-cmd');
   if (cmd) {
     if (cmd === 'app') { setLeftTab('app'); return; }
-    state.dropSlot = slot; try { addFromPalette(cmd); } finally { state.dropSlot = undefined; }
+    state.dropSlot = slot; state.dropGrid = blk ? blk.id : undefined;
+    try { addFromPalette(cmd); } finally { state.dropSlot = undefined; state.dropGrid = undefined; }
     return;
   }
   const folderId = dt.getData('application/x-pd-folder');
@@ -1388,8 +1543,7 @@ async function onDropOnSlot(e, slot, existing) {
     const fp = pageById(folderId); if (!fp) return;
     if (fp === page) { toast('Un dossier ne peut pas s\'ouvrir depuis lui-même'); return; }
     pushUndo();
-    if (existing) existing.slot = firstFreeSlot(page, slot);
-    addButton({ id: uid('btn'), label: fp.name, icon: 'auto', action: { type: 'folder', page: fp.id } }, slot);
+    addButton({ id: uid('btn'), label: fp.name, icon: 'auto', action: { type: 'folder', page: fp.id } }, slot, blk ? blk.id : null);
     return;
   }
   const nw = dt.getData('application/x-pd-newwidget');
@@ -1402,8 +1556,7 @@ async function onDropOnSlot(e, slot, existing) {
   if (appData) {
     const a = JSON.parse(appData);
     pushUndo();
-    if (existing) existing.slot = firstFreeSlot(page, slot);
-    addButton(newAppButton(a), slot);
+    addButton(newAppButton(a), slot, blk ? blk.id : null);
   }
 }
 
@@ -1413,7 +1566,8 @@ function placeWidget(page, widget, slot, w, h) {
   if (slot % cols + w > cols) return false;
   const lastRow = Math.floor(slot / cols) + h;
   const taken = new Set();
-  for (const b of page.buttons) taken.add(b.slot);
+  for (const b of mainButtons(page)) taken.add(b.slot);
+  for (const c of blockCells(page, cols)) taken.add(c);
   for (const o of (page.widgets || [])) if (o !== widget) for (const c of widgetCells(o, cols)) taken.add(c);
   const mine = widgetCells({ slot, w, h }, cols);
   if (mine.some(c => taken.has(c))) return false;
@@ -1444,23 +1598,39 @@ function addWidget(type, model, atSlot) {
   changed({ immediate: true });
 }
 function firstFreeSlot(page, avoid) {
-  const used = new Set(page.buttons.map(b => b.slot));
+  const used = new Set(mainButtons(page).map(b => b.slot));
   const { cols, rows } = pageGrid(page);
   for (const w of (page.widgets || [])) for (const c of widgetCells(w, cols)) used.add(c);
+  for (const c of blockCells(page, cols)) used.add(c);
   for (const c of screenCells(page, cols)) used.add(c);
   if (avoid !== undefined) used.add(avoid);
   let s = 0; while (used.has(s)) s++;
   return s;
 }
 
-function addButton(b, slot) {
+function addButton(b, slot, grid) {
   const page = currentPage();
   if (page.generated) {
     toast('Ce dossier est rempli depuis le menu Démarrer : clique sur « Détacher » pour le modifier.'); return;
   }
+  const blk = blocks(page).find(g => g.id === (grid ?? state.dropGrid));
+  if (blk) {
+    // Dans une grille séparée : la case visée, ou la première libre ; le bouton qui l'occupait est poussé plus loin.
+    let s = slot ?? state.dropSlot; if (s == null || s < 0 || s >= blk.columns * blk.rows) s = blockFreeSlot(page, blk);
+    const hit = blockButtons(page, blk).find(x => x.slot === s);
+    const other = hit ? blockFreeSlot(page, blk, s, s) : 0;
+    if (s < 0 || other < 0) { if (state.undo.length) state.undo.pop(); toast('Cette grille est pleine : ajoute des cases à droite (« Grille séparée »).'); return; }
+    if (hit) hit.slot = other;
+    b.grid = blk.id; b.slot = s;
+    page.buttons.push(b);
+    state.selected = b.id;
+    changed({ immediate: true });
+    return;
+  }
+  delete b.grid;
   b.slot = slot ?? state.dropSlot ?? firstFreeSlot(page);
-  if (inScreen(page, b.slot)) b.slot = firstFreeSlot(page);
-  const hit = page.buttons.find(x => x.slot === b.slot);
+  if (inScreen(page, b.slot) || blockCells(page, pageGrid(page).cols).includes(b.slot)) b.slot = firstFreeSlot(page);
+  const hit = mainButtons(page).find(x => x.slot === b.slot);
   if (hit) hit.slot = firstFreeSlot(page, b.slot);
   const { cols, rows } = pageGrid(page);
   // La grille s'agrandit d'une ligne si besoin.
@@ -1502,8 +1672,8 @@ function reflowPage(page, nc, nr) {
   const scr = page.screen, inner = screenWidgets(page);
   const offsets = inner.map(w => [w, Math.floor(w.slot / cols) - Math.floor(scr.slot / cols), w.slot % cols - scr.slot % cols]);
   if (scr && scr.w > nc) return false;
-  const items = [...(scr ? [scr] : []), ...(page.widgets || []).filter(w => !inner.includes(w)), ...page.buttons.slice().sort((a, b) => a.slot - b.slot)];
-  if ((page.widgets || []).some(w => w.w > nc)) return false;
+  const items = [...(scr ? [scr] : []), ...blocks(page), ...(page.widgets || []).filter(w => !inner.includes(w)), ...mainButtons(page).sort((a, b) => a.slot - b.slot)];
+  if ([...(page.widgets || []), ...blocks(page)].some(w => w.w > nc)) return false;
   const taken = new Set(); const pos = new Map(); const later = [];
   const free = (r, c, w, h) => { for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (taken.has((r + y) * nc + c + x)) return false; return true; };
   const take = (it, r, c) => { const w = it.w || 1, h = it.h || 1; for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) taken.add((r + y) * nc + c + x); pos.set(it, r * nc + c); };
@@ -1527,7 +1697,7 @@ function setGrid(dc, dr) {
   const { cols, rows } = pageGrid(page);
   const nc = Math.min(12, Math.max(1, cols + dc)), nr = Math.min(12, Math.max(1, rows + dr));
   pushUndo();
-  if (!reflowPage(page, nc, nr)) { state.undo.pop(); toast('Un widget est trop large pour cette grille : change son modèle d\'abord.'); return; }
+  if (!reflowPage(page, nc, nr)) { state.undo.pop(); toast('Un widget ou une grille séparée est trop large pour cette grille : réduis-le d\'abord.'); return; }
   changed();
 }
 // ---- Adaptation à l'écran du téléphone ----
@@ -1664,56 +1834,67 @@ const R = (label, keys, icon, toggle) => ({ label, icon, action: { type: 'keys',
 const SIM_TOP = { widgets: [{ type: 'perfapp', model: 'perfapp-4x1', slot: 0, w: 4, h: 1 }], top: [DSC('Micro Discord', 'mute', 'builtin:mic'), DSC('Sourdine Discord', 'deafen', 'builtin:headphones')] };
 const SIM_CHECK = 'Touches d\'origine du jeu, à vérifier dans ses réglages. Si un bouton ne fait rien : dans les commandes du jeu, choisis l\'action puis appuie sur le bouton du téléphone, le jeu retient la touche.';
 const SIM_PRESETS = [
-  { id: 'sim-ac', name: 'Assetto Corsa', emoji: '🏎', desc: 'Aides (TC, ABS), caméras, replay, rétro virtuel, force du volant.',
+  { id: 'sim-ac', groups: [['Aides', 6], ['Vues', 6], ['Session', 6]], name: 'Assetto Corsa', emoji: '🏎', desc: 'Aides (TC, ABS), caméras, replay, rétro virtuel, force du volant.',
     note: 'Assetto Corsa d\'origine n\'a pas de touche pour les phares, le klaxon ou le limiteur (Content Manager / Custom Shaders Patch en ajoutent : règle-les puis modifie les boutons). « TC − » et « ABS − » (Ctrl+Maj) sont des raccourcis non officiels.',
     procs: ['acs', 'acs_x86'], buttons: [
     R('TC', 'Ctrl+T', 'mdi:tc'), R('TC −', 'Ctrl+Shift+T', 'mdi:tc'), R('ABS', 'Ctrl+A', 'mdi:abs'), R('ABS −', 'Ctrl+Shift+A', 'mdi:abs'), R('Boîte auto', 'Ctrl+G', 'mdi:boite'), R('Trajectoire', 'Ctrl+I', 'mdi:trajectoire'),
     R('Caméra', 'F1', 'mdi:camera'), R('Caméras TV', 'F3', 'mdi:tv'), R('Embarquées', 'F6', 'mdi:video'), R('Rétro virtuel', 'F11', 'mdi:retroviseur'), R('Applis', 'Ctrl+H', 'mdi:grille'), R('Noms', 'Ctrl+L', 'mdi:pilotes'),
     R('Replay', 'Ctrl+R', 'mdi:replay'), R('Recommencer', 'Ctrl+O', 'mdi:recommencer'), R('Dégâts', 'Ctrl+J', 'mdi:degats'), R('Volant +', 'Add', 'mdi:volant'), R('Volant −', 'Subtract', 'mdi:volant'), R('Pause', 'Esc', 'mdi:pause'),
   ] },
-  { id: 'sim-acc', name: 'Assetto Corsa Competizione', emoji: '🏁', desc: 'Phares, limiteur, essuie-glace, clignotants, TC, ABS, MAP moteur, démarrage.',
+  { id: 'sim-acc', groups: [['Feux', 6], ['Aides', 6], ['Voiture', 6]], name: 'Assetto Corsa Competizione', emoji: '🏁', desc: 'Phares, limiteur, essuie-glace, clignotants, TC, ABS, MAP moteur, démarrage.',
     note: 'Pas de touche d\'origine pour la répartition de freinage ni le klaxon : ajoute-les dans les commandes du jeu si tu veux.',
     procs: ['ac2-win64-shipping'], buttons: [
-    R('Phares', 'L', 'mdi:feux'), R('Appel de phares', 'Shift+L', 'mdi:pleins-phares'), R('Feux de pluie', 'Ctrl+L', 'mdi:antibrouillard'), R('Limiteur', 'Alt+L', 'mdi:limiteur', true), R('Essuie-glace', 'Alt+R', 'mdi:essuie-glace'), R('Clignotant gauche', 'Alt+Left', 'mdi:clignotant-gauche'),
-    R('TC +', 'Shift+T', 'mdi:tc'), R('TC −', 'Ctrl+T', 'mdi:tc'), R('ABS +', 'Shift+A', 'mdi:abs'), R('ABS −', 'Ctrl+A', 'mdi:abs'), R('MAP +', 'Shift+E', 'text:MAP+#FFB300'), R('Clignotant droit', 'Alt+Right', 'mdi:clignotant-droit'),
-    R('Contact', 'Shift+I', 'mdi:contact'), R('Démarreur', 'S', 'mdi:moteur'), R('MFD', 'Insert', 'mdi:ecrans'), R('HUD', 'F2', 'mdi:tableau-de-bord'), R('MAP −', 'Ctrl+E', 'text:MAP−#FFB300'), R('Caméra', 'F1', 'mdi:camera'),
+    R('Phares', 'L', 'mdi:feux'), R('Appel de phares', 'Shift+L', 'mdi:pleins-phares'), R('Feux de pluie', 'Ctrl+L', 'mdi:antibrouillard'), R('Essuie-glace', 'Alt+R', 'mdi:essuie-glace'), R('Clignotant gauche', 'Alt+Left', 'mdi:clignotant-gauche'), R('Clignotant droit', 'Alt+Right', 'mdi:clignotant-droit'),
+    R('TC +', 'Shift+T', 'mdi:tc'), R('TC −', 'Ctrl+T', 'mdi:tc'), R('ABS +', 'Shift+A', 'mdi:abs'), R('ABS −', 'Ctrl+A', 'mdi:abs'), R('MAP +', 'Shift+E', 'text:MAP+#FFB300'), R('MAP −', 'Ctrl+E', 'text:MAP−#FFB300'),
+    R('Limiteur', 'Alt+L', 'mdi:limiteur', true), R('Contact', 'Shift+I', 'mdi:contact'), R('Démarreur', 'S', 'mdi:moteur'), R('MFD', 'Insert', 'mdi:ecrans'), R('HUD', 'F2', 'mdi:tableau-de-bord'), R('Caméra', 'F1', 'mdi:camera'),
   ] },
-  { id: 'sim-evo', name: 'Assetto Corsa EVO', emoji: '🏎', desc: 'Phares, limiteur, essuie-glace, clignotants, TC, ABS, MAP : touches à associer dans le jeu.',
+  { id: 'sim-evo', groups: [['Feux', 6], ['Aides', 6], ['Jeu', 1]], name: 'Assetto Corsa EVO', emoji: '🏎', desc: 'Phares, limiteur, essuie-glace, clignotants, TC, ABS, MAP : touches à associer dans le jeu.',
     note: 'Pas de liste officielle des touches d\'EVO : ces boutons envoient F13 à F24 (touches absentes du clavier, donc sans conflit). Dans Réglages > Commandes du jeu, choisis chaque action puis appuie sur le bouton du téléphone.',
     procs: ['assettocorsaevo'], buttons: [
     R('Phares', 'F13', 'mdi:feux'), R('Appel de phares', 'F14', 'mdi:pleins-phares'), R('Limiteur', 'F15', 'mdi:limiteur', true), R('Essuie-glace', 'F16', 'mdi:essuie-glace'), R('Clignotant gauche', 'F17', 'mdi:clignotant-gauche'), R('Clignotant droit', 'F18', 'mdi:clignotant-droit'),
     R('TC +', 'F19', 'mdi:tc'), R('TC −', 'F20', 'mdi:tc'), R('ABS +', 'F21', 'mdi:abs'), R('ABS −', 'F22', 'mdi:abs'), R('MAP +', 'F23', 'text:MAP+#FFB300'), R('MAP −', 'F24', 'text:MAP−#FFB300'),
     R('Pause', 'Esc', 'mdi:pause'),
   ] },
-  { id: 'sim-f1', name: 'F1 (EA SPORTS)', emoji: '🏆', desc: 'DRS / limiteur, dépassement, radio, MFD, flashback, caméras.',
+  { id: 'sim-f1', groups: [['Pilotage', 6], ['MFD et caméra', 6], ['Jeu', 1]], name: 'F1 (EA SPORTS)', emoji: '🏆', desc: 'DRS / limiteur, dépassement, radio, MFD, flashback, caméras.',
     note: 'Touches relevées pour F1 25 (proches pour F1 22 à 24). DRS et limiteur des stands partagent la même touche dans le jeu. Le mode ERS se règle dans le MFD.',
     procs: ['f1_25', 'f1_24', 'f1_23', 'f1_22'], buttons: [
     R('DRS / limiteur', 'F', 'text:DRS#4CAF50'), R('Dépassement', 'M', 'mdi:eclair'), R('Radio', 'T', 'mdi:radio'), R('Parler', 'S', 'mdi:micro'), R('Flashback', 'X', 'mdi:retour-arriere'), R('Regard arrière', 'End', 'mdi:retroviseur'),
     R('MFD', 'NumPad0', 'mdi:ecrans'), R('MFD ↑', 'Up', 'mdi:haut'), R('MFD ↓', 'Down', 'mdi:bas'), R('MFD ←', 'Left', 'mdi:gauche'), R('MFD →', 'Right', 'mdi:droite'), R('Caméra', 'C', 'mdi:camera'),
     R('Pause', 'Esc', 'mdi:pause'),
   ] },
-  { id: 'sim-ams2', name: 'Automobilista 2', emoji: '🇧🇷', desc: 'Arrêt au stand, TC, ABS, stabilité, boost, ICM, caméras, remise en piste.',
+  { id: 'sim-ams2', groups: [['Stand et aides', 6], ['Affichage', 6], ['Session', 3]], name: 'Automobilista 2', emoji: '🇧🇷', desc: 'Arrêt au stand, TC, ABS, stabilité, boost, ICM, caméras, remise en piste.',
     note: 'Liste de touches non officielle et incomplète (pas de phares ni de limiteur par défaut au clavier) : vérifie chaque bouton dans les commandes du jeu.',
     procs: ['ams2avx', 'ams2'], buttons: [
     R('Demander l\'arrêt', 'G', 'mdi:stand'), R('TC', 'K', 'mdi:tc'), R('ABS', 'J', 'mdi:abs'), R('Stabilité', 'M', 'mdi:esp'), R('Boost', 'Space', 'mdi:turbo'), R('Embrayage auto', 'O', 'mdi:embrayage'),
     R('Gestion (ICM)', 'N', 'mdi:reglages'), R('HUD', 'C', 'mdi:tableau-de-bord'), R('Télémétrie', 'X', 'mdi:telemetrie'), R('Temps', 'Tab', 'mdi:chrono'), R('Noms', 'Z', 'mdi:pilotes'), R('Regard arrière', 'B', 'mdi:retroviseur'),
     R('Caméra', 'F', 'mdi:camera'), R('Remise en piste', 'Enter', 'mdi:remise-en-piste'), R('Pause', 'Esc', 'mdi:pause'),
   ] },
-  { id: 'sim-ets2', name: 'Camion (ETS2 / ATS)', emoji: '🚚', desc: 'Euro Truck Simulator 2 et American Truck Simulator : feux, warning, klaxons, remorque, régulateur.',
+  { id: 'sim-ets2', groups: [['Moteur et feux', 6], ['Conduite', 6], ['Vues et outils', 6]], name: 'Camion (ETS2 / ATS)', emoji: '🚚', desc: 'Euro Truck Simulator 2 et American Truck Simulator : feux, warning, klaxons, remorque, régulateur.',
     note: 'Mêmes touches dans les deux jeux. Pas de touche d\'origine relevée pour les clignotants : ajoute-les depuis les commandes du jeu.',
     procs: ['eurotrucks2', 'amtrucks'], buttons: [
     R('Moteur', 'E', 'mdi:moteur'), R('Feux', 'L', 'mdi:feux'), R('Pleins phares', 'K', 'mdi:pleins-phares'), R('Appel de phares', 'J', 'mdi:pleins-phares#FFFFFF'), R('Warning', 'O', 'mdi:warning', true), R('Essuie-glaces', 'P', 'mdi:essuie-glace'),
     R('Klaxon', 'H', 'mdi:klaxon'), R('Klaxon à air', 'N', 'mdi:klaxon-air'), R('Régulateur', 'C', 'mdi:regulateur'), R('Frein moteur', 'B', 'mdi:frein-moteur'), R('Frein à main', 'Space', 'mdi:frein-a-main'), R('Remorque', 'T', 'mdi:remorque'),
     R('Rétroviseurs', 'F2', 'mdi:retroviseur'), R('GPS', 'F3', 'mdi:gps'), R('Carte', 'M', 'mdi:carte'), R('Caméra', '9', 'mdi:camera'), R('Radio', 'R', 'mdi:radio'), R('Sauvegarde rapide', 'Scroll', 'mdi:sauvegarde'),
   ] },
-  { id: 'sim-bus', name: 'Bus Simulator 21', emoji: '🚌', desc: 'Portes, agenouillement, rampe, arrêt, billetterie, feux et clignotants.',
+  { id: 'sim-bus', groups: [['Passagers', 6], ['Feux', 6], ['Conduite', 6]], name: 'Bus Simulator 21', emoji: '🚌', desc: 'Portes, agenouillement, rampe, arrêt, billetterie, feux et clignotants.',
     note: 'Touches relevées pour Bus Simulator 21 (clavier QWERTY). Le clignotant droit (E) sert aussi à « interagir » dans certaines versions : vérifie-le dans le jeu.',
     procs: ['bussimulator21-win64-shipping', 'bussimulator21'], buttons: [
     R('Porte 1', '1', 'mdi:porte'), R('Porte 2', '2', 'mdi:porte'), R('Agenouillement', 'V', 'mdi:baisser'), R('Rampe', 'G', 'mdi:rampe'), R('Frein d\'arrêt', 'Alt', 'mdi:arret-bus', true), R('Billetterie', 'Ctrl', 'mdi:ticket'),
     R('Clignotant gauche', 'Q', 'mdi:clignotant-gauche'), R('Clignotant droit', 'E', 'mdi:clignotant-droit'), R('Warning', '7', 'mdi:warning', true), R('Feux', 'L', 'mdi:feux'), R('Pleins phares', 'K', 'mdi:pleins-phares'), R('Essuie-glace', 'B', 'mdi:essuie-glace'),
     R('Klaxon', 'H', 'mdi:klaxon'), R('Moteur', 'U', 'mdi:moteur'), R('Contact', 'I', 'mdi:contact'), R('Limiteur', 'Z', 'mdi:limiteur', true), R('Ralentisseur', 'M', 'mdi:ralentisseur'), R('Rétro intérieur', 'X', 'mdi:retroviseur'),
   ] },
-].map(p => ({ ...p, group: 'sim', columns: 6, widgets: SIM_TOP.widgets, buttons: [...SIM_TOP.top.map((b, i) => ({ ...b, slot: 4 + i })), ...p.buttons.map((b, i) => ({ ...b, slot: 6 + i }))] }));
+].map(p => {
+  // Chaque groupe de boutons devient une grille séparée (6 colonnes) sous la ligne « performances / Discord ».
+  const grids = [], buttons = SIM_TOP.top.map((b, i) => ({ ...b, slot: 4 + i }));
+  let at = 0, row = 1;
+  for (const [name, n] of p.groups) {
+    const rows = Math.ceil(n / 6), id = 'g' + grids.length;
+    grids.push({ id, name, slot: row * 6, w: 6, h: rows, columns: 6, rows });
+    p.buttons.slice(at, at + n).forEach((b, i) => buttons.push({ ...b, grid: id, slot: i }));
+    at += n; row += rows;
+  }
+  return { ...p, group: 'sim', columns: 6, rows: row, grids, widgets: SIM_TOP.widgets, buttons };
+});
 
 function uniquePageName(name) {
   const names = new Set(state.cfg.pages.map(p => p.name));
@@ -1722,23 +1903,33 @@ function uniquePageName(name) {
   return `${name} ${i}`;
 }
 // Ajoute une page (après la dernière page, avant les dossiers) avec ses boutons rangés dans l'ordre, puis l'affiche.
-function insertRootPage({ name, autoProcesses, buttons, widgets, columns, rows, screen }) {
+// Donne de nouveaux identifiants aux grilles séparées d'une page copiée (et à leurs boutons) ; un bouton dont la grille n'existe pas revient sur la page.
+function remapBlocks(page) {
+  const ids = new Map();
+  page.grids = (page.grids || []).map(g => { const id = uid('grille'); ids.set(g.id, id); return { ...g, id }; });
+  if (!page.grids.length) delete page.grids;
+  for (const b of page.buttons) { if (b.grid && ids.has(b.grid)) b.grid = ids.get(b.grid); else delete b.grid; }
+}
+function insertRootPage({ name, autoProcesses, buttons, widgets, columns, rows, screen, grids }) {
   const g = pageGrid(rootPages()[0]);
   const page = { id: uid('page'), name: uniquePageName(name || 'Page'), root: true, columns: columns || g.cols, rows: rows || g.rows, buttons: [], widgets: [] };
   if (autoProcesses && autoProcesses.length) page.autoProcesses = autoProcesses.slice();
   page.widgets = (widgets || []).filter(w => WIDGET_MODELS[w.type]).map(w => ({ ...w, id: uid('w') }));
   if (screen) page.screen = { ...screen };
-  let next = 0;
-  page.buttons = buttons.map(b => {
-    const copy = JSON.parse(JSON.stringify(b)); copy.id = uid('b');
-    if (copy.slot == null) copy.slot = next++;
-    return copy;
-  });
+  if (grids && grids.length) page.grids = grids.map(g => ({ ...g }));
+  page.buttons = buttons.map(b => { const copy = JSON.parse(JSON.stringify(b)); copy.id = uid('b'); return copy; });
+  remapBlocks(page);
+  // Les boutons sans case prennent les suivantes, dans la grille de la page ou dans leur grille séparée.
+  for (const list of [mainButtons(page), ...blocks(page).map(g => blockButtons(page, g))]) {
+    const used = new Set(list.filter(b => b.slot != null).map(b => b.slot));
+    let next = 0;
+    for (const b of list) if (b.slot == null) { while (used.has(next)) next++; b.slot = next; used.add(next); }
+  }
   pushUndo();
   const at = state.cfg.pages.indexOf(rootPages().pop()) + 1;
   state.cfg.pages.splice(at, 0, page);
   // Si la grille du téléphone est plus petite, les boutons en trop passent à la ligne.
-  reflowPage(page, Math.max(page.columns, ...page.widgets.map(w => w.w), page.screen ? page.screen.w : 0), page.rows);
+  reflowPage(page, Math.max(page.columns, ...page.widgets.map(w => w.w), ...blocks(page).map(g => g.w), page.screen ? page.screen.w : 0), page.rows);
   state.page = page.id; state.selected = null;
   changed({ immediate: true });
   return page;
@@ -1756,7 +1947,7 @@ async function addPreset(p) {
       buttons.splice(first, 0, ...scenes);
     }
   }
-  const page = insertRootPage({ name: p.name, autoProcesses: p.procs, buttons, widgets: p.widgets, columns: p.columns });
+  const page = insertRootPage({ name: p.name, autoProcesses: p.procs, buttons, widgets: p.widgets, columns: p.columns, rows: p.rows, screen: p.screen, grids: p.grids });
   toast(p.procs ? `Page « ${page.name} » ajoutée : elle s'affiche toute seule quand l'appli est au premier plan.` : `Page « ${page.name} » ajoutée.`);
 }
 async function addEmptyPage() {
@@ -1821,7 +2012,8 @@ function exportPage() {
     .map(b => { const c = JSON.parse(JSON.stringify(b)); delete c.id; if (!isSharedIcon(c.icon)) c.icon = 'auto'; return c; });
   const data = { keyradeck: 'page', version: 1, page: { name: page.name, autoProcesses: page.autoProcesses, columns: pageGrid(page).cols, rows: pageGrid(page).rows,
     buttons, widgets: (page.widgets || []).map(w => { const c = { ...w }; delete c.id; return c; }),
-    screen: page.screen ? { slot: page.screen.slot, w: page.screen.w, h: page.screen.h } : undefined } }; // le fond reste sur ce PC
+    screen: page.screen ? { slot: page.screen.slot, w: page.screen.w, h: page.screen.h } : undefined, // le fond reste sur ce PC
+    grids: blocks(page).length ? blocks(page).map(g => ({ ...g })) : undefined } };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = el('a', { href: URL.createObjectURL(blob), download: (page.name || 'page').replace(/[\\/:*?"<>|]/g, '_') + '.keyradeck.json' });
   document.body.append(a); a.click(); a.remove();
@@ -1840,7 +2032,9 @@ async function importPageFile(file) {
     const cols = Math.min(12, Math.max(1, +p.columns || 0)) || null, rows = Math.min(12, Math.max(1, +p.rows || 0)) || null;
     const page = insertRootPage({ name: String(p.name || 'Page importée'), autoProcesses: Array.isArray(p.autoProcesses) ? p.autoProcesses.map(String) : null,
       buttons, widgets: Array.isArray(p.widgets) ? p.widgets : [], columns: cols, rows,
-      screen: p.screen && +p.screen.w > 0 && +p.screen.h > 0 ? { slot: Math.max(0, +p.screen.slot || 0), w: +p.screen.w, h: +p.screen.h } : null });
+      screen: p.screen && +p.screen.w > 0 && +p.screen.h > 0 ? { slot: Math.max(0, +p.screen.slot || 0), w: +p.screen.w, h: +p.screen.h } : null,
+      grids: (Array.isArray(p.grids) ? p.grids : []).filter(g => g && g.id && +g.w > 0 && +g.h > 0).map(g => ({ id: String(g.id), name: g.name ? String(g.name).slice(0, 30) : undefined,
+        slot: Math.max(0, +g.slot || 0), w: Math.min(12, +g.w), h: Math.min(12, +g.h), columns: Math.min(12, Math.max(1, +g.columns || 1)), rows: Math.min(12, Math.max(1, +g.rows || 1)) })) });
     toast(`Page « ${page.name} » importée.`);
   } catch (e) { toast('Impossible d\'importer : ' + e.message); }
 }
@@ -1861,6 +2055,8 @@ function renderInspector() {
   state.inspSel = state.selected;
   const box = $('#inspector'); box.replaceChildren();
   if (state.selected === SCREEN && currentPage().screen) { renderScreenInspector(box, currentPage()); return; }
+  const fbk = state.selected && findBlock(state.selected);
+  if (fbk) { renderBlockInspector(box, fbk.page, fbk.block); return; }
   const fw = state.selected && findWidget(state.selected);
   if (fw) { renderWidgetInspector(box, fw); return; }
   const f = state.selected && findButton(state.selected);
@@ -2031,6 +2227,30 @@ function renderScreenInspector(box, page) {
       el('b', { style: 'min-width:42px;text-align:right' }, (sc.dim ?? 30) + ' %'))] : []),
     el('div', { class: 'row', style: 'margin-top:18px' }, el('button', { class: 'danger', onclick: deleteScreen }, '🗑 Retirer la zone écran')));
 }
+function renderBlockInspector(box, page, g) {
+  const { cols } = pageGrid(page);
+  const run = (fn) => { pushUndo(); const err = fn(); if (err) { state.cfg = JSON.parse(state.undo.pop()); toast(err); renderAll(); return; } changed(); };
+  const stepper = (label, value, dec, inc, canDec, canInc) => el('div', { class: 'row', style: 'align-items:center;gap:10px;margin:6px 0' },
+    el('span', { style: 'flex:1' }, label),
+    el('button', { onclick: dec, disabled: !canDec, title: 'Réduire' }, '−'), el('b', { style: 'min-width:22px;text-align:center' }, String(value)), el('button', { onclick: inc, disabled: !canInc, title: 'Agrandir' }, '+'));
+  const size = (dw, dh) => run(() => setBlock(page, g, g.slot, g.w + dw, g.h + dh));
+  const cells = (dc, dr) => run(() => setBlockGrid(page, g, g.columns + dc, g.rows + dr));
+  const n = blockButtons(page, g).length;
+  box.append(el('h2', {}, 'Grille séparée'),
+    el('div', { class: 'hint', style: 'margin:0 0 12px' }, 'Un cadre posé sur la page, avec sa propre grille de boutons : plus de cases = des boutons plus petits. Glisse le cadre pour le déplacer, glisse des boutons dedans ou dehors.'),
+    el('label', {}, 'Titre (facultatif)'),
+    el('input', { type: 'text', value: g.name || '', placeholder: 'ex. Moteur, Caméras…', maxlength: 30,
+      oninput: (e) => { if (!inspector.typing) { pushUndo(); inspector.typing = true; } const v = e.target.value; if (v.trim()) g.name = v; else delete g.name; changed2(); }, onchange: () => inspector.typing = false }),
+    el('label', { style: 'margin-top:14px' }, 'Place sur la page (en cases)'),
+    stepper('Largeur', g.w, () => size(-1, 0), () => size(1, 0), g.w > 1, g.slot % cols + g.w < cols),
+    stepper('Hauteur', g.h, () => size(0, -1), () => size(0, 1), g.h > 1, g.h < 12),
+    el('label', { style: 'margin-top:14px' }, 'Cases de la grille'),
+    stepper('Colonnes', g.columns, () => cells(-1, 0), () => cells(1, 0), g.columns > 1, g.columns < 12),
+    stepper('Lignes', g.rows, () => cells(0, -1), () => cells(0, 1), g.rows > 1, g.rows < 12),
+    el('div', { class: 'hint', style: 'margin-top:10px' }, n ? `${n} bouton${n > 1 ? 's' : ''} sur ${g.columns * g.rows} cases.` : 'Aucun bouton pour l\'instant : glisse une commande ou une appli dans une case.'),
+    el('div', { class: 'row', style: 'margin-top:18px' }, el('button', { class: 'danger', onclick: () => deleteBlock(g.id) }, '🗑 Retirer la grille')),
+    el('div', { class: 'hint', style: 'margin-top:6px' }, 'Ses boutons reviennent sur la page.'));
+}
 // Envoie l'image ou la vidéo au PC, qui la garde ; la page ne retient que son nom.
 function pickScreenBg(page) {
   const input = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp,video/mp4,video/webm', style: 'display:none' });
@@ -2169,46 +2389,47 @@ function undo() {
 // ---------- Ajout ----------
 
 async function addFromPalette(kind) {
-  const drop = state.dropSlot;
+  const drop = state.dropSlot, grid = state.dropGrid;
+  const add = (b) => addButton(b, drop, grid);
   if (kind === 'web') {
     const url = await askText('Site web', 'https://', 'Adresse du site à ouvrir.');
     if (!url) return;
     pushUndo();
     let host = url; try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { }
-    addButton({ id: uid('site'), label: host, icon: 'builtin:web', action: { type: 'url', target: url } }, drop);
+    add({ id: uid('site'), label: host, icon: 'builtin:web', action: { type: 'url', target: url } });
   } else if (kind === 'keys') {
-    pushUndo(); addButton({ id: uid('macro'), label: 'Macro', icon: 'builtin:keyboard', action: { type: 'keys', keys: '' } });
+    pushUndo(); add({ id: uid('macro'), label: 'Macro', icon: 'builtin:keyboard', action: { type: 'keys', keys: '' } });
   } else if (kind === 'text') {
-    pushUndo(); addButton({ id: uid('texte'), label: 'Texte', icon: 'builtin:keyboard', action: { type: 'text', text: '' } });
+    pushUndo(); add({ id: uid('texte'), label: 'Texte', icon: 'builtin:keyboard', action: { type: 'text', text: '' } });
   } else if (kind === 'folder') {
     const name = await askText('Nouveau dossier', 'Nouveau dossier'); if (!name) return;
     pushUndo();
     const id = uid('dossier');
     state.cfg.pages.push({ id, name, buttons: [] });
-    addButton({ id: uid('btn'), label: name, icon: 'auto', action: { type: 'folder', page: id } }, drop);
+    add({ id: uid('btn'), label: name, icon: 'auto', action: { type: 'folder', page: id } });
   } else if (kind === 'page') {
     const target = rootPages().find(p => p.id !== state.page);
     if (!target) { toast('Crée d\'abord une deuxième page avec « ＋ Page ».'); return; }
     pushUndo();
-    addButton({ id: uid('aller'), label: target.name, icon: 'auto', action: { type: 'page', page: target.id } }, drop);
+    add({ id: uid('aller'), label: target.name, icon: 'auto', action: { type: 'page', page: target.id } });
   } else if (kind === 'micmute') {
-    pushUndo(); addButton({ id: uid('micro'), label: 'Micro', icon: 'builtin:mic', action: { type: 'micmute' } });
+    pushUndo(); add({ id: uid('micro'), label: 'Micro', icon: 'builtin:mic', action: { type: 'micmute' } });
   } else if (kind === 'mastermute') {
-    pushUndo(); addButton({ id: uid('mute'), label: 'Muet', icon: 'builtin:volume', action: { type: 'mastermute' } });
+    pushUndo(); add({ id: uid('mute'), label: 'Muet', icon: 'builtin:volume', action: { type: 'mastermute' } });
   } else if (kind === 'mixer') {
-    pushUndo(); addButton({ id: uid('volume'), label: 'Volume', icon: 'builtin:volume', action: { type: 'mixer' } });
+    pushUndo(); add({ id: uid('volume'), label: 'Volume', icon: 'builtin:volume', action: { type: 'mixer' } });
   } else if (kind === 'app') {
     setLeftTab('app'); $('#appSearch').focus();
   } else if (kind.startsWith('obs:')) {
     const command = kind.slice(4);
-    pushUndo(); addButton({ id: uid('obs'), label: OBS_CMDS[command], icon: 'auto', action: { type: 'obs', command, target: command === 'scene' || command === 'mute' ? '' : undefined } }, drop);
+    pushUndo(); add({ id: uid('obs'), label: OBS_CMDS[command], icon: 'auto', action: { type: 'obs', command, target: command === 'scene' || command === 'mute' ? '' : undefined } });
     integrationReminder('obs');
   } else if (kind.startsWith('discord:')) {
     const command = kind.slice(8);
-    pushUndo(); addButton({ id: uid('discord'), label: DISCORD_CMDS[command], icon: command === 'deafen' ? 'builtin:headphones' : command === 'mute' ? 'builtin:mic' : command === 'panel' ? 'builtin:discord' : 'auto', action: { type: 'discord', command } }, drop);
+    pushUndo(); add({ id: uid('discord'), label: DISCORD_CMDS[command], icon: command === 'deafen' ? 'builtin:headphones' : command === 'mute' ? 'builtin:mic' : command === 'panel' ? 'builtin:discord' : 'auto', action: { type: 'discord', command } });
     integrationReminder('discord');
   } else if (kind === 'ha') {
-    pushUndo(); addButton({ id: uid('maison'), label: 'Lampe', icon: 'auto', action: { type: 'ha', command: 'toggle', target: '' } }, drop);
+    pushUndo(); add({ id: uid('maison'), label: 'Lampe', icon: 'auto', action: { type: 'ha', command: 'toggle', target: '' } });
     integrationReminder('homeAssistant');
   }
 }
@@ -2523,7 +2744,7 @@ function buttonMenu(b, x, y) {
     '-',
     { icon: G.cut, label: 'Couper', kb: 'Ctrl+X', onclick: () => copyItem(b.id, true) },
     { icon: G.copy, label: 'Copier', kb: 'Ctrl+C', onclick: () => copyItem(b.id) },
-    pasteItem(() => pasteAt(freeSlotAfter(page, b.slot)), ' à côté'),
+    pasteItem(() => { const g = blockOf(page, b); if (g) pasteAt(blockFreeSlot(page, g, b.slot), g.id); else pasteAt(freeSlotAfter(page, b.slot)); }, ' à côté'),
     { icon: G.dup, label: 'Dupliquer', kb: 'Ctrl+D', onclick: () => duplicateItem(b.id) },
     { icon: G.move, label: 'Déplacer vers', sub: moveTargets(b.id, page, a.type === 'folder' ? a.page : null) },
     '-',
@@ -2559,9 +2780,21 @@ function screenMenu(slot, x, y) {
     { icon: G.del, label: 'Retirer la zone écran', danger: true, onclick: deleteScreen },
   ], x, y);
 }
-function emptyMenu(slot, x, y) {
+function emptyMenu(slot, x, y, blk) {
   const page = currentPage();
-  const addSub = COMMANDS.flatMap((g, i) => [i ? '-' : null, { header: g.group }, ...g.items.map(([k, n, d]) => ({ label: n, onclick: () => addAt(k, slot) }))]);
+  const addSub = COMMANDS.flatMap((g, i) => [i ? '-' : null, { header: g.group }, ...g.items.map(([k, n, d]) => ({ label: n, onclick: () => addAt(k, slot, blk ? blk.id : undefined) }))]);
+  if (blk) {
+    showMenu([
+      { header: 'Case vide' + (blk.name ? ` (« ${blk.name} »)` : ' (grille séparée)') },
+      pasteItem(() => pasteAt(slot, blk.id), ' ici'),
+      '-',
+      { icon: G.add, label: 'Ajouter un bouton', sub: addSub },
+      '-',
+      { icon: G.rename, label: 'Régler cette grille…', onclick: () => select(blk.id) },
+      { icon: G.del, label: 'Retirer la grille', danger: true, onclick: () => deleteBlock(blk.id) },
+    ], x, y);
+    return;
+  }
   const wSub = Object.entries(WIDGET_MODELS).map(([type, list]) => ({ label: WIDGET_INFO[type].name, sub: list.map(m => ({ label: `${m.name}  (${m.w}×${m.h})`, onclick: () => addWidget(type, m, slot) })) }));
   showMenu([
     { header: 'Case vide' },
@@ -2570,6 +2803,16 @@ function emptyMenu(slot, x, y) {
     page.generated ? null : { icon: G.add, label: 'Ajouter un bouton', sub: addSub },
     page.generated ? null : { icon: G.widget, label: 'Ajouter un widget', sub: wSub },
     page.generated || page.screen ? null : { icon: G.widget, label: 'Créer une zone écran ici', onclick: () => addScreen(slot) },
+    page.generated ? null : { icon: G.widget, label: 'Créer une grille séparée ici', onclick: () => addBlock(slot) },
+  ], x, y);
+}
+function blockMenu(g, x, y) {
+  showMenu([
+    { header: g.name ? `Grille « ${g.name} »` : 'Grille séparée' },
+    { icon: G.rename, label: 'Régler (titre, taille, cases)…', onclick: () => select(g.id) },
+    pasteItem(() => pasteAt(null, g.id), ' dans cette grille'),
+    '-',
+    { icon: G.del, label: 'Retirer la grille', kb: 'Suppr', danger: true, onclick: () => deleteBlock(g.id) },
   ], x, y);
 }
 function pageMenu(p, x, y, fromBar) {
@@ -2609,9 +2852,10 @@ function stageMenu(x, y) {
 // ---------- Copier / coller / dupliquer / déplacer ----------
 
 // forWidget : un widget peut se poser sur la zone écran, un bouton non.
-function isFree(page, s, forWidget) {
+function isFree(page, s, forWidget, ignoreBlock) {
   const { cols } = pageGrid(page);
-  return !page.buttons.some(b => b.slot === s) && !(page.widgets || []).some(w => widgetCells(w, cols).includes(s)) && (forWidget || !inScreen(page, s));
+  return !mainButtons(page).some(b => b.slot === s) && !(page.widgets || []).some(w => widgetCells(w, cols).includes(s)) && (forWidget || !inScreen(page, s))
+    && !blocks(page).some(g => g !== ignoreBlock && widgetCells(g, cols).includes(s));
 }
 function freeSlotAfter(page, from) {
   const { cols, rows } = pageGrid(page);
@@ -2641,7 +2885,7 @@ function copyItem(id, cut) {
   if (cut) { if (fb) deleteButton(id); else deleteWidget(id); toast(`« ${clipName()} » coupé : clic droit > Coller sur la page de ton choix.`); }
   else toast(`« ${clipName()} » copié : clic droit > Coller (ou Ctrl+V) sur n'importe quelle page.`);
 }
-function pasteAt(slot) {
+function pasteAt(slot, grid) {
   const c = state.clip;
   if (!c) { toast('Rien à coller : fais d\'abord clic droit > Copier sur un bouton.'); return; }
   const page = currentPage();
@@ -2651,8 +2895,10 @@ function pasteAt(slot) {
   // Un bouton coupé garde son identité (et son image) la première fois qu'on le colle.
   if (!(c.cut && !findButton(b.id))) b.id = uid('b');
   c.cut = false;
-  if (slot == null || !isFree(page, slot)) slot = firstFreeSlot(page);
-  pushUndo(); addButton(b, slot);
+  const blk = blocks(page).find(g => g.id === grid);
+  if (blk) { if (slot == null || blockButtons(page, blk).some(x => x.slot === slot)) slot = blockFreeSlot(page, blk); }
+  else if (slot == null || !isFree(page, slot)) slot = firstFreeSlot(page);
+  pushUndo(); addButton(b, slot, blk ? blk.id : null);
   if (b.id !== from) copyIcons([{ from, to: b.id }]);
 }
 function pasteWidget(w, slot) {
@@ -2666,7 +2912,8 @@ function duplicateItem(id) {
     if (fb.page.generated) return;
     if (fb.page !== currentPage()) state.page = fb.page.id;
     const b = clone(fb.button), from = b.id; b.id = uid('b');
-    pushUndo(); addButton(b, freeSlotAfter(fb.page, fb.button.slot));
+    const blk = blockOf(fb.page, fb.button);
+    pushUndo(); addButton(b, blk ? blockFreeSlot(fb.page, blk, fb.button.slot) : freeSlotAfter(fb.page, fb.button.slot), blk ? blk.id : null);
     copyIcons([{ from, to: b.id }]);
   } else if (fw) {
     if (fw.page !== currentPage()) state.page = fw.page.id;
@@ -2679,6 +2926,7 @@ function moveToPage(id, pid) {
   pushUndo();
   if (fb) {
     fb.page.buttons.splice(fb.page.buttons.indexOf(fb.button), 1);
+    delete fb.button.grid;
     const s = firstFreeSlot(target), { cols, rows } = pageGrid(target);
     fb.button.slot = s; target.buttons.push(fb.button);
     if (s >= cols * rows) target.rows = Math.ceil((s + 1) / cols);
@@ -2710,6 +2958,7 @@ function duplicatePage(p) {
   const pairs = [];
   for (const b of copy.buttons) { const id = uid('b'); pairs.push({ from: b.id, to: id }); b.id = id; }
   copy.widgets = (copy.widgets || []).map(w => ({ ...w, id: uid('w') }));
+  remapBlocks(copy);
   pushUndo();
   state.cfg.pages.splice(state.cfg.pages.indexOf(p) + 1, 0, copy);
   state.page = copy.id; state.selected = null;
@@ -2717,9 +2966,10 @@ function duplicatePage(p) {
   copyIcons(pairs);
   toast(`« ${copy.name} » créée.`);
 }
-function addAt(kind, slot) {
+function addAt(kind, slot, grid) {
   if (kind === 'app') { setLeftTab('app'); $('#appSearch').focus(); toast('Choisis l\'appli dans la liste à gauche (ou glisse-la sur la case).'); return; }
-  state.dropSlot = slot; try { addFromPalette(kind); } finally { state.dropSlot = undefined; }
+  state.dropSlot = slot; state.dropGrid = grid;
+  try { addFromPalette(kind); } finally { state.dropSlot = undefined; state.dropGrid = undefined; }
 }
 
 // ---------- Recherche de boutons ----------
@@ -2797,10 +3047,15 @@ document.addEventListener('keydown', (e) => {
   if (ctrl && k === 'f') { e.preventDefault(); $('#findInput').focus(); $('#findInput').select(); return; }
   if (e.target.matches('input, textarea, select') || document.querySelector('dialog[open]')) return;
   const sel = state.selected;
-  if (e.key === 'Delete' && sel) { if (sel === SCREEN) deleteScreen(); else if (findWidget(sel)) deleteWidget(sel); else deleteButton(sel); }
+  if (e.key === 'Delete' && sel) { if (sel === SCREEN) deleteScreen(); else if (findWidget(sel)) deleteWidget(sel); else if (findBlock(sel)) deleteBlock(sel); else deleteButton(sel); }
   else if (ctrl && k === 'z') { e.preventDefault(); undo(); }
   else if (ctrl && (k === 'c' || k === 'x') && sel) { e.preventDefault(); copyItem(sel, k === 'x'); }
-  else if (ctrl && k === 'v') { e.preventDefault(); const fb = sel && findButton(sel); pasteAt(fb && fb.page === currentPage() ? freeSlotAfter(fb.page, fb.button.slot) : null); }
+  else if (ctrl && k === 'v') {
+    e.preventDefault();
+    const fb = sel && findButton(sel), fk = sel && findBlock(sel), g = fk ? fk.block : fb && blockOf(fb.page, fb.button);
+    if (g && (fk || fb).page === currentPage()) pasteAt(blockFreeSlot(currentPage(), g, fb ? fb.button.slot : undefined), g.id);
+    else pasteAt(fb && fb.page === currentPage() ? freeSlotAfter(fb.page, fb.button.slot) : null);
+  }
   else if (ctrl && k === 'd' && sel) { e.preventDefault(); duplicateItem(sel); }
   else if (e.key === 'F2') { e.preventDefault(); if (sel && findButton(sel)) renameButton(sel); else renamePage(); }
 });
