@@ -178,6 +178,9 @@ public class DeckAction
     public string? Page { get; set; }
     /// <summary>keys : raccourci(s), ex. "Ctrl+Shift+M" ou "Ctrl+C, wait:200, Ctrl+V".</summary>
     public string? Keys { get; set; }
+    /// <summary>keys : façon d'envoyer les touches. Vide = normal ; "game" = mode jeu (touche maintenue un instant, code matériel) ;
+    /// "game-qwerty" = mode jeu avec les lettres à leur place QWERTY (touches par défaut des jeux qui lisent la position de la touche).</summary>
+    public string? KeyMode { get; set; }
     /// <summary>text : texte tapé au clavier, tel quel.</summary>
     public string? Text { get; set; }
     /// <summary>Bouton à bascule : il devient rouge quand on l'active (utile pour un raccourci Discord, par exemple).

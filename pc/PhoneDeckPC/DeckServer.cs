@@ -411,7 +411,7 @@ public class DeckServer
         {
             "open" => await _catalog.LaunchAsync(action),
             "url" => await _catalog.OpenUrlAsync(action.Target ?? ""),
-            "keys" => await Task.Run(() => KeySender.Send(action.Keys ?? "")),
+            "keys" => await Task.Run(() => KeySender.Send(action.Keys ?? "", action.KeyMode)),
             "text" => await Task.Run(() => KeySender.TypeText(action.Text ?? "")),
             "micmute" => await Task.Run(() => { _audio.ToggleMic(); return (string?)null; }),
             "mastermute" => await Task.Run(() => { _audio.ToggleMaster(); return (string?)null; }),

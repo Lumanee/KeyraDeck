@@ -62,6 +62,25 @@ public class IconService
             return Cached(choice.ToUpperInvariant(), () => Glyph((char)code));
         }
 
+        // "mdi:feux" ou "mdi:feux#4CAF50" : pictogramme dessiné (voyants, phares, stand…), couleur facultative.
+        if (choice.StartsWith("mdi:", StringComparison.OrdinalIgnoreCase))
+        {
+            var (name, color) = SplitColor(choice[4..]);
+            if (!Pictos.All.TryGetValue(name, out var picto)) return null;
+            var c = color ?? ParseColor(picto.Color) ?? Color.White;
+            return Cached("mdi:" + name.ToLowerInvariant() + "#" + c.ToArgb(), () => Picto(picto.Path, c));
+        }
+
+        // "text:DRS" ou "text:MAP#FFB300" : sigle en gras dans un cadre, comme sur un volant de course.
+        if (choice.StartsWith("text:", StringComparison.OrdinalIgnoreCase))
+        {
+            var (text, color) = SplitColor(choice[5..]);
+            text = text.Trim();
+            if (text.Length is 0 or > 5) return null;
+            var c = color ?? Color.White;
+            return Cached("text:" + text + "#" + c.ToArgb(), () => Badge(text, c));
+        }
+
         if (choice.StartsWith("app:", StringComparison.OrdinalIgnoreCase))
         {
             var app = _catalog.Find(choice[4..]);
@@ -230,6 +249,39 @@ public class IconService
         "play" => Glyph(''),
         _ => null,
     };
+
+    private static (string Name, Color? Color) SplitColor(string spec)
+    {
+        var i = spec.LastIndexOf('#');
+        return i < 0 ? (spec, null) : (spec[..i], ParseColor(spec[i..]));
+    }
+
+    private static Color? ParseColor(string? hex)
+    {
+        if (hex == null || !System.Text.RegularExpressions.Regex.IsMatch(hex, "^#[0-9a-fA-F]{6}$")) return null;
+        return Color.FromArgb(Convert.ToInt32(hex[1..], 16) | unchecked((int)0xFF000000));
+    }
+
+    /// <summary>Dessine un pictogramme au trait (voir <see cref="Pictos"/>).</summary>
+    private static string Picto(string pathData, Color color) => Draw(g =>
+    {
+        using var path = Pictos.ToPath(pathData, Size, 16);
+        using var brush = new SolidBrush(color);
+        g.FillPath(brush, path);
+    });
+
+    /// <summary>Sigle (« DRS », « MAP »…) dans un cadre arrondi.</summary>
+    private static string Badge(string text, Color color) => Draw(g =>
+    {
+        using var pen = new Pen(color, 7);
+        using var frame = RoundedRect(new RectangleF(12, 30, Size - 24, Size - 60), 14);
+        g.DrawPath(pen, frame);
+        var px = text.Length switch { 1 => 54, 2 => 48, 3 => 40, 4 => 31, _ => 25 };
+        using var font = new Font("Segoe UI", px, FontStyle.Bold, GraphicsUnit.Pixel);
+        using var brush = new SolidBrush(color);
+        using var fmt = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+        g.DrawString(text.ToUpperInvariant(), font, brush, new RectangleF(0, 2, Size, Size), fmt);
+    });
 
     /// <summary>Dessine un pictogramme de la police d'icônes de Windows.</summary>
     private static string? Glyph(char glyph, Color? color = null)
