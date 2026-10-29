@@ -63,6 +63,8 @@
             display: flex; flex-direction: column; }
   .strip { display: flex; align-items: center; gap: 8px; color: #6e6e78; font-size: 10px; letter-spacing: .3em; font-weight: 700; }
   .strip .dot { width: 7px; height: 7px; margin: 0; }
+  .strip .ledbox { flex: 1; min-width: 0; display: flex; align-items: center; }
+  .strip .led { display: block; background: #050506; box-shadow: inset 0 0 0 1px #ffffff1f; }
   .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
   .preset { border: 2px solid transparent; border-radius: 10px; padding: 6px 10px; display: flex; gap: 6px; align-items: center; }
   .preset.on { border-color: var(--accent); }
@@ -1204,6 +1206,70 @@ function recommendGrid(W, H) {
   return best || { cols: 4, rows: 6, key: 64 };
 }
 
+// Mini écran LED du boîtier : le nom de la page en points lumineux (même police 5×7 que LedDisplay.kt sur le téléphone).
+const LED_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-.!?/':+&#()_";
+const LED_FONT = '7e0909097e7f494949363e414141227f4141413e7f494949417f090909013e4149497a7f0808087f00417f41002040413f017f081422417f404040407f020c027f' +
+  '7f0408107f3e4141413e7f090909063e4151215e7f09192946464949493101017f01013f4040403f1f2040201f3f4038403f6314081463030478040361514945433e' +
+  '5149453e00427f400042615149462141454b311814127f1027454545393c4a49493001710905033649494936064949291e0808080808006060000000005f0000020151' +
+  '090620100804020004030000003636000008083e08083649552250147f147f14001c2241000041221c004040404040';
+function ledColumns(text) {
+  const clean = String(text || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().trim();
+  const cols = [];
+  for (const c of clean) {
+    const i = LED_CHARS.indexOf(c);
+    if (i < 0) { cols.push(0, 0, 0); continue; }
+    for (let x = 0; x < 5; x++) cols.push(parseInt(LED_FONT.substr((i * 5 + x) * 2, 2), 16));
+    cols.push(0);
+  }
+  cols.pop();
+  return cols;
+}
+let ledLast = null;
+function ledDisplay(text, h) {
+  const glyphs = ledColumns(text), p = h / 9, loop = glyphs.length + 8;
+  const cv = el('canvas', { class: 'led', style: `height:${h}px;border-radius:${h * 0.22}px` });
+  const t0 = performance.now(), revealFrom = text !== ledLast ? t0 : -1e9;
+  ledLast = text;
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--tacc').trim() || '#ECECF0';
+  const frame = now => {
+    if (!cv.isConnected && now - t0 > 500) return; // l'aperçu a été redessiné : on arrête
+    requestAnimationFrame(frame);
+    const room = cv.parentElement ? cv.parentElement.clientWidth : 0;
+    const w = Math.max(p * 3, Math.min(room, p * (glyphs.length + 4)));
+    const dpr = window.devicePixelRatio || 1;
+    if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); cv.style.width = w + 'px'; }
+    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+    const n = Math.floor(w / p), left = (w - n * p) / 2, r = p * 0.36;
+    const scrolls = glyphs.length > n - 2;
+    // Défilement : 1,4 s de pause puis 70 ms par colonne, en boucle.
+    const cyc = 1400 + loop * 70, tt = (now - t0) % cyc;
+    const shift = scrolls ? Math.floor(Math.max(0, tt - 1400) / 70) : 0;
+    const start = scrolls ? 1 - shift : Math.floor((n - glyphs.length) / 2);
+    const lit = Math.floor(Math.min(1, (now - revealFrom) / 420) * n);
+    for (let cx = 0; cx < n; cx++) {
+      let bits = 0;
+      if (cx < lit) {
+        let gi = cx - start;
+        if (scrolls) gi = ((gi % loop) + loop) % loop;
+        if (gi >= 0 && gi < glyphs.length) bits = glyphs[gi];
+      }
+      for (let y = 0; y < 7; y++) {
+        const x0 = left + (cx + 0.5) * p, y0 = (y + 1.5) * p;
+        g.beginPath();
+        if (bits >> y & 1) {
+          g.globalAlpha = 0.22; g.fillStyle = accent; g.arc(x0, y0, r * 1.9, 0, 7); g.fill();
+          g.beginPath(); g.globalAlpha = 1; g.arc(x0, y0, r, 0, 7); g.fill();
+        } else {
+          g.globalAlpha = 0.09; g.fillStyle = accent; g.arc(x0, y0, r, 0, 7); g.fill();
+        }
+      }
+    }
+    g.globalAlpha = 1;
+  };
+  requestAnimationFrame(frame);
+  return cv;
+}
+
 function renderStage() {
   const page = currentPage();
   const dev = $('#device'); dev.replaceChildren();
@@ -1234,7 +1300,8 @@ function renderStage() {
     }
   }
   dev.append(el('div', { class: 'strip', style: `height:${DEV.strip * scale}px;font-size:${Math.max(7, 10 * scale)}px` },
-    el('span', { class: 'dot' + (state.info && state.info.clients.length ? ' on' : '') }), el('img', { src: document.querySelector('.logoimg').src, style: `height:${Math.max(8, 14 * scale)}px;width:auto;opacity:.9` }), 'KEYRADECK'));
+    el('span', { class: 'dot' + (state.info && state.info.clients.length ? ' on' : '') }), el('img', { src: document.querySelector('.logoimg').src, style: `height:${Math.max(8, 14 * scale)}px;width:auto;opacity:.9` }), 'KEYRADECK',
+    el('span', { class: 'ledbox' }, page.name ? ledDisplay(page.name, Math.max(9, 14 * scale)) : '')));
   const holder = el('div', { style: 'flex:1;display:flex;align-items:center;justify-content:center;min-height:0' });
   dev.append(holder);
   const grid = el('div', { class: 'grid', style: `grid-template-columns:repeat(${cols},${key}px);grid-template-rows:repeat(${rows},${key}px);gap:${key * g}px` });

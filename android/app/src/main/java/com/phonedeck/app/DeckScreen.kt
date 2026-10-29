@@ -189,6 +189,7 @@ fun DeckScreen(vm: DeckViewModel) {
                     grids = page.grids,
                     pageIndex = index - 1,
                     pageCount = roots.size,
+                    pageName = page.name,
                     onLongPress = { editing = it },
                 )
             }
@@ -266,6 +267,7 @@ private fun Device(
     widgets: List<DeckWidget>,
     pageIndex: Int,
     pageCount: Int,
+    pageName: String = "",
     screen: DeckScreenArea? = null,
     grids: List<DeckGridBlock> = emptyList(),
     onLongPress: (DeckButton) -> Unit,
@@ -297,7 +299,7 @@ private fun Device(
                 .border(1.dp, BodyEdge, shape)
                 .padding(pad),
         ) {
-            StatusStrip(vm, pageIndex, 1, Modifier.fillMaxWidth().height(strip))
+            StatusStrip(vm, pageIndex, 1, pageName, Modifier.fillMaxWidth().height(strip))
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 KeyGrid(vm, cols, rws, buttons, widgets, key, gap, vm.active, vm::press, onLongPress, screen, grids)
             }
@@ -426,7 +428,7 @@ private fun GridBlockPanel(
 }
 
 @Composable
-private fun StatusStrip(vm: DeckViewModel, pageIndex: Int, pageCount: Int, modifier: Modifier) {
+private fun StatusStrip(vm: DeckViewModel, pageIndex: Int, pageCount: Int, pageName: String, modifier: Modifier) {
     var menu by remember { mutableStateOf(false) }
     val led = when (vm.status) {
         Status.Connected -> Color(0xFF4CD964)
@@ -459,7 +461,10 @@ private fun StatusStrip(vm: DeckViewModel, pageIndex: Int, pageCount: Int, modif
             letterSpacing = 3.sp,
         )
         // Seulement la LED (verte = connecté, orange = connexion, rouge = déconnecté) et « USB » par câble : pas de nom de PC.
-        Spacer(Modifier.weight(1f))
+        // À côté du nom : le nom de la page sur un mini écran LED à points (il défile s'il est trop long).
+        Box(Modifier.weight(1f).padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) {
+            if (pageName.isNotBlank()) LedDisplay(pageName, 14.dp)
+        }
         NotificationBadge(vm)
         Spacer(Modifier.width(6.dp))
         // Accès à la page souris / clavier, depuis n'importe quelle page.
