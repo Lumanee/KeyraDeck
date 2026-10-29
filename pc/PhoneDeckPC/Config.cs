@@ -186,6 +186,9 @@ public class DeckAction
     /// <summary>keys : façon d'envoyer les touches. Vide = normal ; "game" = mode jeu (touche maintenue un instant, code matériel) ;
     /// "game-qwerty" = mode jeu avec les lettres à leur place QWERTY (touches par défaut des jeux qui lisent la position de la touche).</summary>
     public string? KeyMode { get; set; }
+    /// <summary>keys : touche d'origine du jeu, gardée quand KeyraDeck a mis à la place une touche réservée (F13 à F24…)
+    /// à associer dans le jeu ; sert à afficher la liste des associations et à revenir aux touches du jeu.</summary>
+    public string? GameKeys { get; set; }
     /// <summary>text : texte tapé au clavier, tel quel.</summary>
     public string? Text { get; set; }
     /// <summary>Bouton à bascule : il devient rouge quand on l'active (utile pour un raccourci Discord, par exemple).
