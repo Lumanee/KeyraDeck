@@ -2206,6 +2206,8 @@ const PAGE_PRESETS = [
 // dans les réglages de chaque jeu. Envoi en « mode jeu » (touche maintenue ~50 ms, code matériel) pour que le jeu les voie.
 // En haut de chaque page : performances du jeu (FPS, CPU, GPU) ; en bas : micro / sourdine Discord.
 const R = (label, keys, icon, toggle) => ({ label, icon, action: { type: 'keys', keys, keyMode: 'game', toggle: !!toggle } });
+// Jeu sans touche d'origine (EVO) : le bouton reçoit sa touche à l'ajout, « gameKeys » vide = pas de touche d'origine à remettre.
+const E = (label, _k, icon, toggle) => { const b = R(label, 'Z', icon, toggle); b.action.gameKeys = ''; return b; };
 const SIM_TOP = { widgets: [{ type: 'perfapp', model: 'perfapp-4x1', slot: 0, w: 4, h: 1 }], top: [DSC('Micro Discord', 'mute', 'builtin:mic'), DSC('Sourdine Discord', 'deafen', 'builtin:headphones')] };
 const SIM_CHECK = 'Touches d\'origine du jeu, à vérifier dans ses réglages. Si un bouton ne fait rien : dans les commandes du jeu, choisis l\'action puis appuie sur le bouton du téléphone, le jeu retient la touche.';
 const SIM_PRESETS = [
@@ -2223,12 +2225,26 @@ const SIM_PRESETS = [
     R('TC +', 'Shift+T', 'mdi:tc!+'), R('TC −', 'Ctrl+T', 'mdi:tc!-'), R('ABS +', 'Shift+A', 'mdi:abs!+'), R('ABS −', 'Ctrl+A', 'mdi:abs!-'), R('MAP +', 'Shift+E', 'text:MAP+#FFB300'), R('MAP −', 'Ctrl+E', 'mdi:moteur#FFB300!-'),
     R('Limiteur', 'Alt+L', 'mdi:limiteur', true), R('Contact', 'Shift+I', 'mdi:contact'), R('Démarreur', 'S', 'mdi:moteur'), R('MFD', 'Insert', 'mdi:ecrans'), R('HUD', 'F2', 'mdi:tableau-de-bord'), R('Caméra', 'F1', 'mdi:camera'),
   ] },
-  { id: 'sim-evo', groups: [['Feux', 6], ['Aides', 6], ['Jeu', 1]], name: 'Assetto Corsa EVO', emoji: '🏎', desc: 'Phares, limiteur, essuie-glace, clignotants, TC, ABS, MAP : touches à associer dans le jeu.',
-    note: 'Pas de liste officielle des touches d\'EVO : ces boutons envoient F13 à F24 (touches absentes du clavier, donc sans conflit). Dans Réglages > Commandes du jeu, choisis chaque action puis appuie sur le bouton du téléphone.',
+  { id: 'sim-evo', groups: [['Feux', 6], ['Voiture', 4], ['Aides', 8], ['Frein et boost', 4], ['Moteur', 4]], name: 'Assetto Corsa EVO', emoji: '🏎', desc: 'Feux, aides (TC, ABS, ESC), répartition de frein, DRS / ERS, MAP moteur, turbo : les actions de l\'onglet Voiture.',
+    note: 'EVO n\'a aucune touche par défaut sur l\'onglet Volant : chaque bouton envoie une touche simple et unique, à associer dans Réglages > Commandes > Volant > Voiture (choisis l\'action, puis appuie sur le bouton du téléphone ; la liste est affichée à l\'ajout). Suspensions, différentiel, ERS détaillé et affichage : page « Assetto Corsa EVO · Réglages ».',
+    singleKey: true, noOrigin: true, avoid: ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12', 'Up', 'Down', 'Left', 'Right', 'W', 'A', 'S', 'D', 'Shift', 'Space', 'Ctrl', 'Alt', 'Tab', 'Esc', 'Enter'],
     procs: ['assettocorsaevo'], buttons: [
-    R('Phares', 'F13', 'mdi:feux'), R('Appel de phares', 'F14', 'mdi:pleins-phares'), R('Limiteur', 'F15', 'mdi:limiteur', true), R('Essuie-glace', 'F16', 'mdi:essuie-glace'), R('Clignotant gauche', 'F17', 'mdi:clignotant-gauche'), R('Clignotant droit', 'F18', 'mdi:clignotant-droit'),
-    R('TC +', 'F19', 'mdi:tc!+'), R('TC −', 'F20', 'mdi:tc!-'), R('ABS +', 'F21', 'mdi:abs!+'), R('ABS −', 'F22', 'mdi:abs!-'), R('MAP +', 'F23', 'text:MAP+#FFB300'), R('MAP −', 'F24', 'mdi:moteur#FFB300!-'),
-    R('Pause', 'Esc', 'mdi:pause'),
+    E('Appel de phares', 'Z', 'mdi:pleins-phares'), E('Feux de pluie', 'Z', 'mdi:antibrouillard'), E('Clignotant gauche', 'Z', 'mdi:clignotant-gauche'), E('Clignotant droit', 'Z', 'mdi:clignotant-droit'), E('Warning', 'Z', 'mdi:warning', true), E('Phares escamotables', 'Z', 'mdi:feux'),
+    E('Contact', 'Z', 'mdi:contact'), E('Démarreur', 'Z', 'mdi:moteur'), E('Limiteur', 'Z', 'mdi:limiteur', true), E('Klaxon', 'Z', 'mdi:klaxon'),
+    E('TC −', 'Z', 'mdi:tc!-'), E('TC +', 'Z', 'mdi:tc!+'), E('Coupure TC −', 'Z', 'mdi:tc#2196F3!-'), E('Coupure TC +', 'Z', 'mdi:tc#2196F3!+'),
+    E('ABS −', 'Z', 'mdi:abs!-'), E('ABS +', 'Z', 'mdi:abs!+'), E('ESC −', 'Z', 'mdi:esp!-'), E('ESC +', 'Z', 'mdi:esp!+'),
+    E('Frein vers l\'arrière', 'Z', 'mdi:voiture-arriere#E53935'), E('Frein vers l\'avant', 'Z', 'mdi:voiture#E53935'), E('DRS', 'Z', 'text:DRS#4CAF50'), E('ERS dépassement', 'Z', 'mdi:eclair'),
+    E('MAP moteur −', 'Z', 'mdi:moteur#FFB300!-'), E('MAP moteur +', 'Z', 'mdi:moteur#FFB300!+'), E('Turbo −', 'Z', 'mdi:turbo!-'), E('Turbo +', 'Z', 'mdi:turbo!+'),
+  ] },
+  { id: 'sim-evo-setup', groups: [['ERS et hybride', 5], ['Affichage', 6], ['Suspensions', 8], ['Différentiel et EBB', 6], ['Essuie-glace', 2]], name: 'Assetto Corsa EVO · Réglages', emoji: '🔧', desc: 'ERS (recharge, déploiement, MGU-H), modes, écrans, amortisseurs, différentiel, EBB, essuie-glace.',
+    note: 'Ces boutons envoient des touches réservées (F13 à F24, avec Ctrl / Maj / Alt quand elles sont toutes prises). Teste-en une dans les commandes d\'EVO : si le jeu ne la reconnaît pas, dis-le-moi et je passe cette page en touches simples. La page n\'est pas liée au jeu : glisse vers elle depuis la page EVO.',
+    noOrigin: true, buttons: [
+    E('Recharge ERS −', 'Z', 'mdi:eclair#4CAF50!-'), E('Recharge ERS +', 'Z', 'mdi:eclair#4CAF50!+'), E('Déploiement ERS −', 'Z', 'mdi:eclair#FFB300!-'), E('Déploiement ERS +', 'Z', 'mdi:eclair#FFB300!+'), E('MGU-H', 'Z', 'text:MGU-H#2196F3'),
+    E('Mode perf. −', 'Z', 'mdi:compteur!-'), E('Mode perf. +', 'Z', 'mdi:compteur!+'), E('Écran −', 'Z', 'mdi:tableau-de-bord!-'), E('Écran +', 'Z', 'mdi:tableau-de-bord!+'), E('Page écran −', 'Z', 'mdi:ecrans!-'), E('Page écran +', 'Z', 'mdi:ecrans!+'),
+    E('Amort. AV compression −', 'Z', 'mdi:reglages#2196F3!-'), E('Amort. AV compression +', 'Z', 'mdi:reglages#2196F3!+'), E('Amort. AV détente −', 'Z', 'mdi:reglages#4CAF50!-'), E('Amort. AV détente +', 'Z', 'mdi:reglages#4CAF50!+'),
+    E('Amort. AR compression −', 'Z', 'mdi:reglages#FFB300!-'), E('Amort. AR compression +', 'Z', 'mdi:reglages#FFB300!+'), E('Amort. AR détente −', 'Z', 'mdi:reglages#E53935!-'), E('Amort. AR détente +', 'Z', 'mdi:reglages#E53935!+'),
+    E('EBB −', 'Z', 'mdi:frein-moteur!-'), E('EBB +', 'Z', 'mdi:frein-moteur!+'), E('Diff. puissance −', 'Z', 'mdi:boite#4CAF50!-'), E('Diff. puissance +', 'Z', 'mdi:boite#4CAF50!+'), E('Diff. décélération −', 'Z', 'mdi:boite#FFB300!-'), E('Diff. décélération +', 'Z', 'mdi:boite#FFB300!+'),
+    E('Essuie-glace −', 'Z', 'mdi:essuie-glace!-'), E('Essuie-glace +', 'Z', 'mdi:essuie-glace!+'),
   ] },
   { id: 'sim-f1', groups: [['Pilotage', 6], ['MFD et caméra', 6], ['Jeu', 1]], name: 'F1 (EA SPORTS)', emoji: '🏆', desc: 'DRS / limiteur, dépassement, radio, MFD, flashback, caméras.',
     note: 'Touches relevées pour F1 25 (proches pour F1 22 à 24). DRS et limiteur des stands partagent la même touche dans le jeu. Le mode ERS se règle dans le MFD.',
@@ -2311,7 +2327,7 @@ function assignRareKeys(buttons, skip) {
     if (isRareKey(a.keys) && !used.has(normKeys(a.keys))) { used.add(normKeys(a.keys)); continue; } // déjà unique
     const free = RARE_KEYS.find(r => !used.has(normKeys(r)));
     if (!free) break;
-    if (!a.gameKeys && !isRareKey(a.keys)) a.gameKeys = a.keys;
+    if (a.gameKeys == null && !isRareKey(a.keys)) a.gameKeys = a.keys;
     a.keys = free; a.keyMode = 'game'; used.add(normKeys(free)); n++;
   }
   return n;
@@ -2321,10 +2337,11 @@ function assignRareKeys(buttons, skip) {
 // Arrêt défil, F2 F5 F6 F9, flèches, puis quelques lettres rarement prises. Uniques sur la page (chaque jeu a sa page),
 // en évitant les touches d'origine du jeu (liste [avoid] du préréglage et touches du jeu déjà sur la page).
 const SINGLE_KEYS = ['NumPad0', 'NumPad7', 'NumPad8', 'NumPad9', 'Decimal', 'Divide', 'Multiply', 'Subtract', 'Add',
-  'Insert', 'Delete', 'Home', 'PageUp', 'PageDown', 'Scroll', 'F2', 'F5', 'F6', 'F9', 'Up', 'Down', 'Left', 'Right', 'J', 'N', 'P', 'Y'];
+  'Insert', 'Delete', 'Home', 'PageUp', 'PageDown', 'Scroll', 'F2', 'F5', 'F6', 'F9', 'Up', 'Down', 'Left', 'Right', 'J', 'N', 'P', 'Y',
+  'NumPad1', 'NumPad2', 'NumPad3', 'NumPad4', 'NumPad5', 'NumPad6', 'End', 'Pause'];
 const isSingleKey = (k) => SINGLE_KEYS.some(r => normKeys(r) === normKeys(k));
 // Touche simple donnée par KeyraDeck : on la reconnaît à la touche du jeu d'origine gardée à côté.
-const isGivenSingle = (a) => a.type === 'keys' && !!a.gameKeys && isSingleKey(a.keys);
+const isGivenSingle = (a) => a.type === 'keys' && a.gameKeys != null && isSingleKey(a.keys);
 // Préréglage « touches simples » d'une page (par ses applis), sinon null.
 const singlePreset = (page) => SIM_PRESETS.find(p => p.singleKey && (page.autoProcesses || []).some(x => p.procs.includes(String(x).toLowerCase()))) || null;
 // Touches à ne pas donner sur cette page : touches d'origine du jeu et touches déjà prises par les boutons hors [buttons].
@@ -2346,7 +2363,8 @@ function assignSingleKeys(page, buttons, avoid) {
   for (const b of keyed) {
     const a = b.action, free = SINGLE_KEYS.find(r => !used.has(normKeys(r)));
     if (!free) break;
-    a.gameKeys = a.keys; a.keys = free; a.keyMode = 'game'; used.add(normKeys(free)); n++;
+    if (a.gameKeys == null) a.gameKeys = a.keys;
+    a.keys = free; a.keyMode = 'game'; used.add(normKeys(free)); n++;
   }
   return n;
 }
@@ -2457,7 +2475,7 @@ async function addPreset(p) {
       buttons.splice(first, 0, ...scenes);
     }
   }
-  const rare = p.group === 'sim' && rareChoice();
+  const rare = p.group === 'sim' && (rareChoice() || p.noOrigin);
   if (rare && !p.singleKey) { buttons = JSON.parse(JSON.stringify(buttons)); assignRareKeys(buttons); }
   const page = insertRootPage({ name: p.name, autoProcesses: p.procs, buttons, widgets: p.widgets, columns: p.columns, rows: p.rows, screen: p.screen, grids: p.grids });
   if (rare && p.singleKey) { assignSingleKeys(page, page.buttons, p.avoid); changed({ immediate: true }); }
@@ -2749,7 +2767,7 @@ function renderInspector() {
           if (singlePreset(f.page)) { assignSingleKeys(f.page, [b]); return; }
           const skip = new Set([b]); const used = usedRareKeys(skip);
           const free = RARE_KEYS.find(r => !used.has(normKeys(r))); if (!free) return;
-          if (!a.gameKeys && !isRareKey(a.keys)) a.gameKeys = a.keys;
+          if (a.gameKeys == null && !isRareKey(a.keys)) a.gameKeys = a.keys;
           a.keys = free; a.keyMode = 'game';
         }) }, '🎯 Touche réservée unique'),
         !singlePreset(f.page) ? el('button', { title: 'Une seule touche (pavé numérique, Inser, Début, flèches…) pour les jeux qui ne voient pas F13 à F24', onclick: () => upd(() => assignSingleKeys(f.page, [b])) }, '🎯 Touche simple unique') : null,
