@@ -2251,8 +2251,21 @@ const SIM_PRESETS = [
     R('Klaxon', 'H', 'mdi:klaxon'), R('Klaxon à air', 'N', 'mdi:klaxon-air'), R('Régulateur', 'C', 'mdi:regulateur'), R('Frein moteur', 'B', 'mdi:frein-moteur'), R('Frein à main', 'Space', 'mdi:frein-a-main'), R('Remorque', 'T', 'mdi:remorque'),
     R('Rétroviseurs', 'F2', 'mdi:retroviseur'), R('GPS', 'F3', 'mdi:gps'), R('Carte', 'M', 'mdi:carte'), R('Caméra', '9', 'mdi:camera'), R('Radio', 'R', 'mdi:radio'), R('Sauvegarde rapide', 'Scroll', 'mdi:sauvegarde'),
   ] },
+  { id: 'sim-bus27', groups: [['Portes', 6], ['Feux', 8], ['Bus', 6], ['Boîte et vues', 8]], name: 'Bus Simulator 27', emoji: '🚌', desc: 'Portes 1 à 5, feux et éclairages, rampe, ralentisseur, limiteur, boîte D / N / R, ordinateur de bord.',
+    note: 'Touches relevées pour Bus Simulator 27 (liste de joueurs, pas officielle). Le jeu ne prend qu\'une touche par action et ne voit pas F13 à F24 : les « touches réservées » de cette page sont donc des touches simples (pavé numérique, Inser, Début, flèches…).',
+    singleKey: true, avoid: ['W', 'A', 'S', 'D', 'Shift', 'Space', 'X', 'I', 'R', 'F', 'F7', 'F8', 'F10', 'Q', 'E', '7', 'L', 'K', '9', '8', '0', 'M', 'Z', 'H', 'G', 'B', 'O',
+      '1', '2', '3', '4', '5', '6', 'NumPad1', 'NumPad2', 'NumPad3', 'NumPad4', 'NumPad5', 'NumPad6', 'C', 'End', 'F4', 'F3', 'Ctrl', 'T', 'F1', 'Tab', 'Esc'],
+    procs: ['bussimulator27-win64-shipping', 'bussimulator27', 'bus simulator 27'], buttons: [
+    R('Porte 1', '1', 'mdi:porte'), R('Porte 2', '2', 'mdi:porte'), R('Porte 3', '3', 'mdi:porte'), R('Porte 4', '4', 'mdi:porte'), R('Porte 5', '5', 'mdi:porte'), R('Toutes les portes', '6', 'mdi:portiere'),
+    R('Clignotant gauche', 'Q', 'mdi:clignotant-gauche'), R('Clignotant droit', 'E', 'mdi:clignotant-droit'), R('Warning', '7', 'mdi:warning', true), R('Feux', 'L', 'mdi:feux'),
+    R('Pleins phares', 'K', 'mdi:pleins-phares'), R('Lumière passagers', '9', 'mdi:lampe-allumee'), R('Lumière cockpit', '8', 'mdi:lampe'), R('Lumière ordinateur', '0', 'mdi:ecrans#FFB300'),
+    R('Klaxon', 'H', 'mdi:klaxon'), R('Ralentisseur', 'M', 'mdi:ralentisseur'), R('Limiteur', 'Z', 'mdi:limiteur', true), R('Rampe', 'G', 'mdi:rampe'), R('Essuie-glace', 'B', 'mdi:essuie-glace'), R('Batterie', 'I', 'mdi:eclair'),
+    R('Marche avant (D)', 'F7', 'text:D#4CAF50'), R('Point mort (N)', 'F8', 'text:N#FFB300'), R('Marche arrière (R)', 'F10', 'text:R#F44336'), R('Rapport +', 'R', 'mdi:haut'),
+    R('Rapport −', 'F', 'mdi:bas'), R('Caméra', 'C', 'mdi:camera'), R('Ordinateur de bord', 'Ctrl', 'mdi:ecrans'), R('Pause', 'Esc', 'mdi:pause'),
+  ] },
   { id: 'sim-bus', groups: [['Passagers', 6], ['Feux', 6], ['Conduite', 6]], name: 'Bus Simulator 21', emoji: '🚌', desc: 'Portes, agenouillement, rampe, arrêt, billetterie, feux et clignotants.',
     note: 'Touches relevées pour Bus Simulator 21 (clavier QWERTY). Le clignotant droit (E) sert aussi à « interagir » dans certaines versions : vérifie-le dans le jeu.',
+    singleKey: true, avoid: ['W', 'A', 'S', 'D', 'Shift', 'Space', 'C', 'F', 'R', 'T', 'Tab', 'Esc', 'F1', 'F2', 'F3', 'F4', 'End', '3', '4', '5', '6', '8', '9', '0'],
     procs: ['bussimulator21-win64-shipping', 'bussimulator21'], buttons: [
     R('Porte 1', '1', 'mdi:porte'), R('Porte 2', '2', 'mdi:porte'), R('Agenouillement', 'V', 'mdi:baisser'), R('Rampe', 'G', 'mdi:rampe'), R('Frein d\'arrêt', 'Alt', 'mdi:arret-bus', true), R('Billetterie', 'Ctrl', 'mdi:ticket'),
     R('Clignotant gauche', 'Q', 'mdi:clignotant-gauche'), R('Clignotant droit', 'E', 'mdi:clignotant-droit'), R('Warning', '7', 'mdi:warning', true), R('Feux', 'L', 'mdi:feux'), R('Pleins phares', 'K', 'mdi:pleins-phares'), R('Essuie-glace', 'B', 'mdi:essuie-glace'),
@@ -2303,17 +2316,55 @@ function assignRareKeys(buttons, skip) {
   }
   return n;
 }
+// Touches simples (une seule touche, sans Ctrl / Maj / Alt) pour les jeux qui n'acceptent qu'une touche par action et ne
+// voient pas F13 à F24 (Bus Simulator…). Des plus sûres aux moins sûres : pavé numérique, Inser / Suppr / Début / Pages,
+// Arrêt défil, F2 F5 F6 F9, flèches, puis quelques lettres rarement prises. Uniques sur la page (chaque jeu a sa page),
+// en évitant les touches d'origine du jeu (liste [avoid] du préréglage et touches du jeu déjà sur la page).
+const SINGLE_KEYS = ['NumPad0', 'NumPad7', 'NumPad8', 'NumPad9', 'Decimal', 'Divide', 'Multiply', 'Subtract', 'Add',
+  'Insert', 'Delete', 'Home', 'PageUp', 'PageDown', 'Scroll', 'F2', 'F5', 'F6', 'F9', 'Up', 'Down', 'Left', 'Right', 'J', 'N', 'P', 'Y'];
+const isSingleKey = (k) => SINGLE_KEYS.some(r => normKeys(r) === normKeys(k));
+// Touche simple donnée par KeyraDeck : on la reconnaît à la touche du jeu d'origine gardée à côté.
+const isGivenSingle = (a) => a.type === 'keys' && !!a.gameKeys && isSingleKey(a.keys);
+// Préréglage « touches simples » d'une page (par ses applis), sinon null.
+const singlePreset = (page) => SIM_PRESETS.find(p => p.singleKey && (page.autoProcesses || []).some(x => p.procs.includes(String(x).toLowerCase()))) || null;
+// Touches à ne pas donner sur cette page : touches d'origine du jeu et touches déjà prises par les boutons hors [buttons].
+function usedSingleKeys(page, buttons, avoid) {
+  const used = new Set((avoid || (singlePreset(page) || {}).avoid || []).map(normKeys));
+  for (const b of page.buttons) {
+    const a = b.action; if (a.type !== 'keys') continue;
+    if (a.gameKeys) used.add(normKeys(a.gameKeys));
+    if (!buttons.includes(b) || !isGivenSingle(a)) used.add(normKeys(a.keys));
+  }
+  return used;
+}
+// Donne une touche simple libre à chaque bouton « raccourci » de la liste (sauf Échap). Renvoie le nombre de boutons changés.
+function assignSingleKeys(page, buttons, avoid) {
+  const keyed = buttons.filter(b => b.action.type === 'keys' && b.action.keys && !KEEP_GAME_KEYS.has(normKeys(b.action.keys)) && !/,|wait:/i.test(b.action.keys));
+  // On repart des touches du jeu, pour que chaque bouton ait la même touche simple à chaque conversion.
+  for (const b of keyed) if (b.action.gameKeys) { b.action.keys = b.action.gameKeys; delete b.action.gameKeys; }
+  const used = usedSingleKeys(page, keyed, avoid); let n = 0;
+  for (const b of keyed) {
+    const a = b.action, free = SINGLE_KEYS.find(r => !used.has(normKeys(r)));
+    if (!free) break;
+    a.gameKeys = a.keys; a.keys = free; a.keyMode = 'game'; used.add(normKeys(free)); n++;
+  }
+  return n;
+}
 function restoreGameKeys(buttons) {
   let n = 0;
   for (const b of buttons) if (b.action.type === 'keys' && b.action.gameKeys) { b.action.keys = b.action.gameKeys; delete b.action.gameKeys; n++; }
   return n;
 }
-const rareButtons = (page) => page.buttons.filter(b => b.action.type === 'keys' && isRareKey(b.action.keys));
-const keyLabel = (k) => String(k).replace(/Shift/g, 'Maj');
-function convertPageToRare() {
+const rareButtons = (page) => page.buttons.filter(b => b.action.type === 'keys' && (isRareKey(b.action.keys) || isGivenSingle(b.action)));
+// Nom de touche lisible (celui qu'on voit dans les réglages du jeu), pour la liste à associer.
+const KEY_NAMES = { decimal: 'Pavé num .', divide: 'Pavé num /', multiply: 'Pavé num *', subtract: 'Pavé num −', add: 'Pavé num +',
+  insert: 'Inser', delete: 'Suppr', home: 'Début (↖)', end: 'Fin', pageup: 'Page préc. (⇞)', pagedown: 'Page suiv. (⇟)', scroll: 'Arrêt défil.',
+  up: 'Flèche ↑', down: 'Flèche ↓', left: 'Flèche ←', right: 'Flèche →', shift: 'Maj', esc: 'Échap', escape: 'Échap' };
+const keyLabel = (k) => String(k).split('+').map(x => KEY_NAMES[x.toLowerCase()] || x.replace(/^NumPad(\d)$/i, 'Pavé num $1')).join('+');
+function convertPageToRare(single) {
   const page = currentPage();
   pushUndo();
-  const n = assignRareKeys(page.buttons, new Set(page.buttons));
+  const n = single || singlePreset(page) ? assignSingleKeys(page, page.buttons) : assignRareKeys(page.buttons, new Set(page.buttons));
   changed({ immediate: true });
   if (n || rareButtons(page).length) showRareList(page); else toast('Aucun bouton « raccourci » à changer sur cette page.');
 }
@@ -2407,8 +2458,9 @@ async function addPreset(p) {
     }
   }
   const rare = p.group === 'sim' && rareChoice();
-  if (rare) { buttons = JSON.parse(JSON.stringify(buttons)); assignRareKeys(buttons); }
+  if (rare && !p.singleKey) { buttons = JSON.parse(JSON.stringify(buttons)); assignRareKeys(buttons); }
   const page = insertRootPage({ name: p.name, autoProcesses: p.procs, buttons, widgets: p.widgets, columns: p.columns, rows: p.rows, screen: p.screen, grids: p.grids });
+  if (rare && p.singleKey) { assignSingleKeys(page, page.buttons, p.avoid); changed({ immediate: true }); }
   if (rare) { showRareList(page); return; }
   toast(p.procs ? `Page « ${page.name} » ajoutée : elle s'affiche toute seule quand l'appli est au premier plan.` : `Page « ${page.name} » ajoutée.`);
 }
@@ -2432,7 +2484,7 @@ function addRootPage(group) {
   } else {
     presets = PAGE_PRESETS;
     list.append(card('＋', 'Page vide', 'Tu la remplis toi-même.', null, addEmptyPage));
-    list.append(card('🏁', 'Sim racing', 'Une page par jeu : Assetto Corsa, ACC, EVO, F1, Automobilista 2, camion (ETS2 / ATS), Bus Simulator.', `${SIM_PRESETS.length} jeux · vraies icônes de tableau de bord`, () => addRootPage('sim')));
+    list.append(card('🏁', 'Sim racing', 'Une page par jeu : Assetto Corsa, ACC, EVO, F1, Automobilista 2, camion (ETS2 / ATS), Bus Simulator 21 et 27.', `${SIM_PRESETS.length} jeux · vraies icônes de tableau de bord`, () => addRootPage('sim')));
     for (const p of presets) list.append(presetCard(p));
     list.append(card('📂', 'Importer un fichier…', 'Une page partagée (fichier .keyradeck), d\'un ami ou de la communauté.', null, () => $('#pageFile').click()));
     // Pages rangées dans Documents\KeyraDeck\Pages (exportées ici ou téléchargées) : un clic pour les ajouter.
@@ -2694,13 +2746,15 @@ function renderInspector() {
       el('div', { class: 'hint' }, 'Si un jeu ne réagit pas, choisis « Mode jeu ». Tu peux aussi changer la touche dans les réglages du jeu : quand il attend une touche, appuie sur ce bouton du téléphone.'),
       el('div', { style: 'margin-top:8px;display:flex;gap:6px;flex-wrap:wrap' },
         el('button', { title: 'F13 à F24 (puis Ctrl / Maj / Alt + F13…) : une touche que rien d\'autre n\'utilise, à associer dans le jeu', onclick: () => upd(() => {
+          if (singlePreset(f.page)) { assignSingleKeys(f.page, [b]); return; }
           const skip = new Set([b]); const used = usedRareKeys(skip);
           const free = RARE_KEYS.find(r => !used.has(normKeys(r))); if (!free) return;
           if (!a.gameKeys && !isRareKey(a.keys)) a.gameKeys = a.keys;
           a.keys = free; a.keyMode = 'game';
         }) }, '🎯 Touche réservée unique'),
+        !singlePreset(f.page) ? el('button', { title: 'Une seule touche (pavé numérique, Inser, Début, flèches…) pour les jeux qui ne voient pas F13 à F24', onclick: () => upd(() => assignSingleKeys(f.page, [b])) }, '🎯 Touche simple unique') : null,
         a.gameKeys ? el('button', { onclick: () => upd(() => { a.keys = a.gameKeys; delete a.gameKeys; }) }, `↩ Touche du jeu (${keyLabel(a.gameKeys)})`) : null),
-      isRareKey(a.keys) ? el('div', { class: 'hint' }, `Touche réservée ${keyLabel(a.keys)} : dans les commandes du jeu, choisis l'action puis appuie sur ce bouton du téléphone.`) : null);
+      isRareKey(a.keys) || isGivenSingle(a) ? el('div', { class: 'hint' }, `Touche réservée ${keyLabel(a.keys)} : dans les commandes du jeu, choisis l'action puis appuie sur ce bouton du téléphone.`) : null);
   } else if (a.type === 'folder' || a.type === 'page') {
     const isPage = a.type === 'page';
     const choices = (isPage ? rootPages().filter(x => x.id !== f.page.id) : folderPages());
@@ -3438,7 +3492,8 @@ function pageMenu(p, x, y, fromBar) {
     pasteItem(on(() => pasteAt(null)), root ? ' dans cette page' : ' dans ce dossier'),
     root && !p.generated ? { icon: G.export, label: 'Exporter cette page…', onclick: on(exportPage) } : null,
     p.generated ? { icon: G.link, label: 'Détacher du menu Démarrer', onclick: on(detachPage) } : null,
-    !p.generated && p.buttons.some(b => b.action.type === 'keys') ? { icon: G.rename, label: 'Touches réservées (à associer dans le jeu)', onclick: on(convertPageToRare) } : null,
+    !p.generated && p.buttons.some(b => b.action.type === 'keys') ? { icon: G.rename, label: singlePreset(p) ? 'Touches réservées simples (à associer dans le jeu)' : 'Touches réservées (à associer dans le jeu)', onclick: on(() => convertPageToRare()) } : null,
+    !p.generated && !singlePreset(p) && p.buttons.some(b => b.action.type === 'keys') ? { icon: G.rename, label: 'Touches simples uniques (jeu sans F13-F24 ni combinaisons)', onclick: on(() => convertPageToRare(true)) } : null,
     rareButtons(p).length ? { icon: G.open, label: 'Liste des touches à associer…', onclick: on(() => showRareList(p)) } : null,
     p.buttons.some(b => b.action.gameKeys) ? { icon: G.undo, label: 'Remettre les touches du jeu', onclick: on(restorePageGameKeys) } : null,
     '-',
