@@ -169,6 +169,15 @@ public static class KeySender
         if (qwerty && QwertyScan.TryGetValue(k, out var sc))
             return new INPUT { type = INPUT_KEYBOARD, U = new InputUnion { ki = new KEYBDINPUT { wScan = sc, dwFlags = KEYEVENTF_SCANCODE | (up ? KEYEVENTF_KEYUP : 0) } } };
         var vk = k switch { Keys.ControlKey => 0xA2, Keys.ShiftKey => 0xA0, Keys.Menu => 0xA4, _ => (int)k }; // côté gauche
+        if (k is >= Keys.NumPad0 and <= Keys.NumPad9 or Keys.Decimal)
+        {
+            // Chiffres du pavé numérique : leur code matériel est celui de Début, Fin, flèches… et Windows choisit selon
+            // Verr Num. On envoie donc la touche elle-même (avec son code matériel à côté) : le jeu voit « Pavé num 7 »
+            // même si Verr Num est éteint, sans se mélanger avec Début.
+            var layout = GetKeyboardLayout(GetWindowThreadProcessId(GetForegroundWindow(), out _));
+            var nsc = MapVirtualKeyEx((uint)vk, MAPVK_VK_TO_VSC_EX, layout) & 0xFF;
+            return new INPUT { type = INPUT_KEYBOARD, U = new InputUnion { ki = new KEYBDINPUT { wVk = (ushort)vk, wScan = (ushort)nsc, dwFlags = up ? KEYEVENTF_KEYUP : 0 } } };
+        }
         return PhysicalKey(vk, up);
     }
 
