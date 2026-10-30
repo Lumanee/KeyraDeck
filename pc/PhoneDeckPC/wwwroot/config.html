@@ -2251,17 +2251,20 @@ const SIM_PRESETS = [
     R('Klaxon', 'H', 'mdi:klaxon'), R('Klaxon à air', 'N', 'mdi:klaxon-air'), R('Régulateur', 'C', 'mdi:regulateur'), R('Frein moteur', 'B', 'mdi:frein-moteur'), R('Frein à main', 'Space', 'mdi:frein-a-main'), R('Remorque', 'T', 'mdi:remorque'),
     R('Rétroviseurs', 'F2', 'mdi:retroviseur'), R('GPS', 'F3', 'mdi:gps'), R('Carte', 'M', 'mdi:carte'), R('Caméra', '9', 'mdi:camera'), R('Radio', 'R', 'mdi:radio'), R('Sauvegarde rapide', 'Scroll', 'mdi:sauvegarde'),
   ] },
-  { id: 'sim-bus27', groups: [['Portes', 6], ['Feux', 8], ['Bus', 6], ['Boîte et vues', 8]], name: 'Bus Simulator 27', emoji: '🚌', desc: 'Portes 1 à 5, feux et éclairages, rampe, ralentisseur, limiteur, boîte D / N / R, ordinateur de bord.',
-    note: 'Touches relevées pour Bus Simulator 27 (liste de joueurs, pas officielle). Le jeu ne prend qu\'une touche par action et ne voit pas F13 à F24 : les « touches réservées » de cette page sont donc des touches simples (pavé numérique, Inser, Début, flèches…).',
-    singleKey: true, avoid: ['W', 'A', 'S', 'D', 'Shift', 'Space', 'X', 'I', 'R', 'F', 'F7', 'F8', 'F10', 'Q', 'E', '7', 'L', 'K', '9', '8', '0', 'M', 'Z', 'H', 'G', 'B', 'O',
-      '1', '2', '3', '4', '5', '6', 'NumPad1', 'NumPad2', 'NumPad3', 'NumPad4', 'NumPad5', 'NumPad6', 'C', 'End', 'F4', 'F3', 'Ctrl', 'T', 'F1', 'Tab', 'Esc'],
+  { id: 'sim-bus27', groups: [['Moteur et boîte', 7], ['Feux', 9], ['Portes', 6], ['Bus', 6]], name: 'Bus Simulator 27', emoji: '🚌', desc: 'Contact, frein de stationnement, boîte D / N / R, feux, portes 1 à 5, rampe, agenouillement, essuie-glaces.',
+    note: 'Touches par défaut du jeu (préréglage « Défaut » de Raccourcis > Clavier et souris) : rien à associer. Une seule touche par bouton.',
+    keepGameKeys: true, singleKey: true, avoid: ['W', 'A', 'S', 'D', 'Shift', 'Space', 'X', 'I', 'R', 'F', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'End', 'Y', 'C', 'Z',
+      'Q', 'E', '7', 'L', 'K', '9', '8', '0', 'J', '1', '2', '3', '4', '5', '6', 'NumPad1', 'NumPad2', 'NumPad3', 'NumPad4', 'NumPad5', 'NumPad6',
+      'N', 'U', 'H', 'V', 'G', 'B', 'OemPeriod', 'Oemcomma', 'O', 'Ctrl', 'Tab', 'T', 'Esc'],
     procs: ['bussimulator27-win64-shipping', 'bussimulator27', 'bus simulator 27'], buttons: [
+    R('Allumage', 'I', 'mdi:contact'), R('Frein de stationnement', 'Space', 'mdi:frein-a-main'), R('Marche avant (D)', 'F6', 'text:D#4CAF50'), R('Point mort (N)', 'F7', 'text:N#FFB300'),
+    R('Marche arrière (R)', 'F8', 'text:R#F44336'), R('Passer la vitesse', 'R', 'mdi:haut'), R('Rétrograder', 'F', 'mdi:bas'),
+    R('Clignotant gauche', 'Q', 'mdi:clignotant-gauche'), R('Feux de détresse', '7', 'mdi:warning', true), R('Feux de route', 'K', 'mdi:pleins-phares'), R('Clignotant droit', 'E', 'mdi:clignotant-droit'),
+    R('Feux (interrupteur)', 'L', 'mdi:feux'), R('Feux orange', 'J', 'mdi:veilleuses#FFB300'), R('Lumières passagers', '9', 'mdi:lampe-allumee'), R('Lumières cockpit', '8', 'mdi:lampe'),
+    R('Lumières ordinateur', '0', 'mdi:ecrans#FFB300'),
     R('Porte 1', '1', 'mdi:porte'), R('Porte 2', '2', 'mdi:porte'), R('Porte 3', '3', 'mdi:porte'), R('Porte 4', '4', 'mdi:porte'), R('Porte 5', '5', 'mdi:porte'), R('Toutes les portes', '6', 'mdi:portiere'),
-    R('Clignotant gauche', 'Q', 'mdi:clignotant-gauche'), R('Clignotant droit', 'E', 'mdi:clignotant-droit'), R('Warning', '7', 'mdi:warning', true), R('Feux', 'L', 'mdi:feux'),
-    R('Pleins phares', 'K', 'mdi:pleins-phares'), R('Lumière passagers', '9', 'mdi:lampe-allumee'), R('Lumière cockpit', '8', 'mdi:lampe'), R('Lumière ordinateur', '0', 'mdi:ecrans#FFB300'),
-    R('Klaxon', 'H', 'mdi:klaxon'), R('Ralentisseur', 'M', 'mdi:ralentisseur'), R('Limiteur', 'Z', 'mdi:limiteur', true), R('Rampe', 'G', 'mdi:rampe'), R('Essuie-glace', 'B', 'mdi:essuie-glace'), R('Batterie', 'I', 'mdi:eclair'),
-    R('Marche avant (D)', 'F7', 'text:D#4CAF50'), R('Point mort (N)', 'F8', 'text:N#FFB300'), R('Marche arrière (R)', 'F10', 'text:R#F44336'), R('Rapport +', 'R', 'mdi:haut'),
-    R('Rapport −', 'F', 'mdi:bas'), R('Caméra', 'C', 'mdi:camera'), R('Ordinateur de bord', 'Ctrl', 'mdi:ecrans'), R('Pause', 'Esc', 'mdi:pause'),
+    R('Essuie-glaces', 'B', 'mdi:essuie-glace'), R('Klaxon', 'H', 'mdi:klaxon'), R('Agenouillement', 'V', 'mdi:baisser'), R('Rampe', 'G', 'mdi:rampe'),
+    R('Ralentisseur', 'N', 'mdi:ralentisseur'), R('Limiteur de vitesse', 'U', 'mdi:limiteur', true),
   ] },
   { id: 'sim-bus', groups: [['Passagers', 6], ['Feux', 6], ['Conduite', 6]], name: 'Bus Simulator 21', emoji: '🚌', desc: 'Portes, agenouillement, rampe, arrêt, billetterie, feux et clignotants.',
     note: 'Touches relevées pour Bus Simulator 21 (clavier QWERTY). Le clignotant droit (E) sert aussi à « interagir » dans certaines versions : vérifie-le dans le jeu.',
@@ -2359,7 +2362,7 @@ const rareButtons = (page) => page.buttons.filter(b => b.action.type === 'keys' 
 // Nom de touche lisible (celui qu'on voit dans les réglages du jeu), pour la liste à associer.
 const KEY_NAMES = { decimal: 'Pavé num .', divide: 'Pavé num /', multiply: 'Pavé num *', subtract: 'Pavé num −', add: 'Pavé num +',
   insert: 'Inser', delete: 'Suppr', home: 'Début (↖)', end: 'Fin', pageup: 'Page préc. (⇞)', pagedown: 'Page suiv. (⇟)', scroll: 'Arrêt défil.',
-  up: 'Flèche ↑', down: 'Flèche ↓', left: 'Flèche ←', right: 'Flèche →', shift: 'Maj', esc: 'Échap', escape: 'Échap' };
+  up: 'Flèche ↑', down: 'Flèche ↓', left: 'Flèche ←', right: 'Flèche →', shift: 'Maj', space: 'Espace', esc: 'Échap', escape: 'Échap' };
 const keyLabel = (k) => String(k).split('+').map(x => KEY_NAMES[x.toLowerCase()] || x.replace(/^NumPad(\d)$/i, 'Pavé num $1')).join('+');
 function convertPageToRare(single) {
   const page = currentPage();
@@ -2457,7 +2460,7 @@ async function addPreset(p) {
       buttons.splice(first, 0, ...scenes);
     }
   }
-  const rare = p.group === 'sim' && rareChoice();
+  const rare = p.group === 'sim' && !p.keepGameKeys && rareChoice(); // keepGameKeys : touches du jeu vérifiées, rien à associer
   if (rare && !p.singleKey) { buttons = JSON.parse(JSON.stringify(buttons)); assignRareKeys(buttons); }
   const page = insertRootPage({ name: p.name, autoProcesses: p.procs, buttons, widgets: p.widgets, columns: p.columns, rows: p.rows, screen: p.screen, grids: p.grids });
   if (rare && p.singleKey) { assignSingleKeys(page, page.buttons, p.avoid); changed({ immediate: true }); }
