@@ -240,6 +240,44 @@ public class ConfigApi
                     return;
                 }
 
+                case "/api/iconlib":
+                    await Json(ctx, new { folder = _backups.IconLibDir, items = IconLibrary.List(_backups.IconLibDir).ToList() });
+                    return;
+
+                case "/api/iconlib/img":
+                {
+                    var file = IconLibrary.Resolve(_backups.IconLibDir, ctx.Request.Query["p"].ToString());
+                    if (file == null) { ctx.Response.StatusCode = 404; return; }
+                    ctx.Response.ContentType = file.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? "image/png" : "image/jpeg";
+                    ctx.Response.Headers.CacheControl = "max-age=3600";
+                    await ctx.Response.SendFileAsync(file);
+                    return;
+                }
+
+                case "/api/iconlib/import" when method == "POST":
+                {
+                    AllowLargeBody(ctx);
+                    var zip = await ReadBody(ctx);
+                    Directory.CreateDirectory(_backups.IconLibDir);
+                    int added;
+                    try { added = await Task.Run(() => IconLibrary.Import(_backups.IconLibDir, zip)); }
+                    catch (InvalidDataException) { throw new InvalidOperationException("Ce fichier n'est pas un .zip valide"); }
+                    await Json(ctx, new { ok = true, added });
+                    return;
+                }
+
+                case "/api/iconlib/use" when method == "POST":
+                {
+                    // Image de la bibliothèque posée sur un bouton, agrandie en HD (les packs sont souvent en 60×60).
+                    var id = ctx.Request.Query["buttonId"].ToString();
+                    if (string.IsNullOrEmpty(id)) throw new InvalidOperationException("buttonId manquant");
+                    var file = IconLibrary.Resolve(_backups.IconLibDir, ctx.Request.Query["p"].ToString())
+                        ?? throw new InvalidOperationException("Image introuvable dans la bibliothèque");
+                    await _server.SetCustomIconAsync(id, await Task.Run(() => IconLibrary.Hd256(file)), ".png");
+                    await Json(ctx, new { ok = true });
+                    return;
+                }
+
                 case "/api/backup":
                 {
                     var name = $"KeyraDeck-sauvegarde-{DateTime.Now:yyyy-MM-dd}.keyradeck-backup.json";
@@ -482,6 +520,7 @@ public class ConfigApi
                     {
                         "backups" => _backups.BackupsDir,
                         "pages" => _backups.PagesDir,
+                        "icons" => _backups.IconLibDir,
                         _ => _store.DataDir,
                     };
                     Directory.CreateDirectory(dir);
