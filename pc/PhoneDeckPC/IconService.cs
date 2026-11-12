@@ -94,6 +94,14 @@ public class IconService
             return Cached("text:" + text + "#" + c.ToArgb(), () => Badge(text, c));
         }
 
+        // "wow:INV_Misc_Bag_07" : icône du jeu World of Warcraft livrée avec l'appli (ressource « wow/NOM.png »), agrandie.
+        if (choice.StartsWith("wow:", StringComparison.OrdinalIgnoreCase))
+        {
+            var name = choice[4..].Trim();
+            if (name.Length is 0 or > 64 || !name.All(ch => char.IsAsciiLetterOrDigit(ch) || ch == '_')) return null;
+            return Cached("wow:" + name, () => FromEmbedded("wow/" + name + ".png"));
+        }
+
         if (choice.StartsWith("app:", StringComparison.OrdinalIgnoreCase))
         {
             var app = _catalog.Find(choice[4..]);
@@ -184,6 +192,17 @@ public class IconService
         var bmp = ShellImage.Get(parsingName, Size);
         if (bmp == null) return null;
         using (bmp) return ToBase64(bmp);
+    }
+
+    private static string? FromEmbedded(string resource)
+    {
+        using var stream = System.Reflection.Assembly.GetExecutingAssembly().GetManifestResourceStream(resource);
+        if (stream == null) return null;
+        using var ms = new MemoryStream();
+        stream.CopyTo(ms);
+        ms.Position = 0;
+        using var src = new Bitmap(ms);
+        return Draw(g => g.DrawImage(src, new Rectangle(0, 0, Size, Size), 0, 0, src.Width, src.Height, GraphicsUnit.Pixel));
     }
 
     private string? FromImageFile(string path)

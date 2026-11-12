@@ -2325,46 +2325,24 @@ const SIM_PRESETS = [
   ] },
 ].map(p => groupedPage(p, SIM_TOP, 'sim'));
 
-// ---- World of Warcraft : pages de raccourcis (touches par défaut du jeu) et de macros ----
-// Touches = celles par défaut de la version actuelle du jeu (identiques en AZERTY : WoW suit la lettre). Si tu les as changées dans
-// Options > Raccourcis, modifie le bouton. Les macros sont des commandes de discussion (/reload, /follow…) tapées dans le jeu.
+// ---- World of Warcraft : une seule page avec l'essentiel (touches par défaut du jeu) ----
+// Panneaux : touches par défaut du jeu actuel (WoW suit la lettre, AZERTY compris). Si tu les as changées dans Options > Raccourcis,
+// modifie le bouton. Icônes « wow:NOM » : images du jeu livrées avec l'appli. Macros : touches F13 à F18 que rien d'autre n'utilise.
 const W = (label, keys, icon, toggle) => R(label, keys, icon, toggle);
-// Commande de discussion : Entrée ouvre la fenêtre de discussion, la commande est tapée, Entrée l'envoie.
-const WM = (label, cmd, icon) => ({ label, icon: icon || 'mdi:reglages', action: { type: 'text', text: '\n' + cmd + '\n' } });
 const WOW_PROCS = ['wow', 'wowclassic', 'wowb', 'wowt'];
-const WOW_TOP = { widgets: [], top: [DSC('Micro Discord', 'mute', 'builtin:mic'), DSC('Sourdine Discord', 'deafen', 'builtin:headphones')] };
-const WOW_BAR = (mod, name) => ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map(n => W(mod ? name + ' ' + n : n, mod + n, 'text:' + n + (mod ? (mod === 'Shift+' ? '#42A5F5' : '#FFB300') : '#FFFFFF')));
 const WOW_PRESETS = [
-  { id: 'wow-panels', groups: [['Personnage', 5], ['Monde', 6], ['Social et groupe', 4], ['Interface', 5]], name: 'WoW : panneaux', emoji: '🐉', desc: 'Sacs, personnage, talents, sorts, quêtes, carte, succès, guilde, groupe, JcJ, menu et interface.',
-    note: 'Touches par défaut de World of Warcraft (retail). Les pages WoW s\'affichent toutes seules quand le jeu est au premier plan (seule cette page est liée au jeu : les autres, tu les ouvres en glissant).',
+  { id: 'wow', groups: [['Panneaux', 12], ['Maj + chiffres', 6], ['Ctrl + chiffres', 6], ['Macros', 8]], name: 'World of Warcraft', emoji: '🐉', desc: 'Sacs, personnage, talents, sorts, métiers, carte, quêtes, social, guilde, groupe, succès, menu, plus tes macros.',
+    note: 'Touches par défaut du jeu : rien à régler pour les panneaux. Maj + chiffres et Ctrl + chiffres lancent tes barres d\'action (vérifie dans Options > Raccourcis). « Macro 1 à 6 » envoient F13 à F18, des touches que rien n\'utilise : dans le jeu, ouvre ta macro ou le sort, clique sur « Définir le raccourci » et appuie sur le bouton du téléphone. « Enchaînement A et B » lancent plusieurs sorts à la suite : change les touches et les pauses avec l\'éditeur de macro du bouton. La page s\'affiche toute seule quand WoW est au premier plan.',
     procs: WOW_PROCS, buttons: [
-    W('Sacs', 'B', 'mdi:wow-sac'), W('Personnage', 'C', 'mdi:wow-personnage'), W('Talents', 'N', 'mdi:wow-talents'), W('Livre de sorts', 'P', 'mdi:wow-sorts'), W('Métiers', 'K', 'mdi:wow-metiers'),
-    W('Carte du monde', 'M', 'mdi:carte#4CAF50'), W('Journal de quêtes', 'L', 'mdi:wow-quetes'), W('Succès', 'Y', 'mdi:wow-succes'), W('Collections (montures…)', 'Shift+P', 'mdi:wow-montures'), W('Journal de l\'aventure', 'Shift+J', 'mdi:wow-aventure'), W('Recherche de groupe', 'I', 'mdi:wow-groupe'),
-    W('Amis / social', 'O', 'mdi:wow-amis'), W('Guilde et communautés', 'J', 'mdi:wow-guilde'), W('JcJ', 'H', 'mdi:wow-jcj'), W('Discussion', 'Enter', 'mdi:wow-discussion'),
-    W('Menu du jeu', 'Esc', 'mdi:wow-menu'), W('Masquer l\'interface', 'Alt+Z', 'mdi:wow-masquer', true), W('Plaques ennemies', 'V', 'mdi:wow-ennemi', true), W('Plaques alliées', 'Shift+V', 'mdi:wow-allie', true), W('Capture d\'écran', 'PrintScreen', 'mdi:camera'),
+    W('Sacs', 'B', 'wow:INV_Misc_Bag_07'), W('Personnage', 'C', 'wow:INV_Chest_Plate01'), W('Talents', 'N', 'wow:Spell_Nature_StarFall'), W('Sorts', 'P', 'wow:INV_Misc_Book_09'),
+    W('Métiers', 'K', 'wow:INV_Hammer_01'), W('Carte', 'M', 'wow:INV_Misc_Map_01'), W('Quêtes', 'L', 'wow:INV_Scroll_03'), W('Social', 'O', 'wow:INV_Misc_Head_Human_01'),
+    W('Guilde', 'J', 'wow:INV_Shirt_GuildTabard_01'), W('Groupe', 'I', 'wow:Spell_Holy_PrayerOfHealing'), W('Succès', 'Y', 'wow:INV_Crown_01'), W('Menu', 'Esc', 'wow:INV_Misc_Gear_01'),
+    ...[1, 2, 3, 4, 5, 6].map(n => W('Maj+' + n, 'Shift+' + n, 'text:' + n + '#42A5F5')),
+    ...[1, 2, 3, 4, 5, 6].map(n => W('Ctrl+' + n, 'Ctrl+' + n, 'text:' + n + '#FFB300')),
+    ...[1, 2, 3, 4, 5, 6].map(n => W('Macro ' + n, 'F' + (12 + n), 'wow:INV_Misc_Rune_0' + n)),
+    W('Enchaînement A', '1, wait:1500, 2, wait:1500, 3', 'wow:INV_Misc_Note_01'), W('Enchaînement B', 'Shift+1, wait:1500, Shift+2, wait:1500, Shift+3', 'wow:INV_Misc_Note_02'),
   ] },
-  { id: 'wow-combat', groups: [['Cibles', 9], ['Déplacements', 3]], name: 'WoW : cibles et combat', emoji: '⚔️', desc: 'Ennemi suivant / précédent, moi-même, membres du groupe, dernière cible, assister, saut, course automatique.',
-    note: 'Touches par défaut : Tab / Maj+Tab (ennemis), F1 (moi), F2 à F5 (groupe), G (dernière cible), F (assister), Espace, Verr. num (course auto). Tes sorts restent sur la page « barres d\'action ».',
-    buttons: [
-    W('Ennemi suivant', 'Tab', 'mdi:wow-cible'), W('Ennemi précédent', 'Shift+Tab', 'mdi:wow-cible'), W('Dernière cible', 'G', 'mdi:retour-arriere'), W('Assister', 'F', 'mdi:wow-assister'),
-    W('Moi-même', 'F1', 'mdi:wow-moi'), W('Groupe 1', 'F2', 'text:1#4CAF50'), W('Groupe 2', 'F3', 'text:2#4CAF50'), W('Groupe 3', 'F4', 'text:3#4CAF50'),
-    W('Groupe 4', 'F5', 'text:4#4CAF50'), W('Sauter', 'Space', 'mdi:wow-saut'), W('Course automatique', 'NumLock', 'mdi:wow-course', true), W('Marcher / courir', 'Divide', 'mdi:wow-marche'),
-  ] },
-  { id: 'wow-bars', groups: [['Barre d\'action 1 (touches 1 à 0)', 10], ['Barre avec Maj+', 10], ['Barre avec Ctrl+', 10]], name: 'WoW : barres d\'action', emoji: '🔢', desc: 'Les touches 1 à 0 de ta barre principale, plus les mêmes avec Maj et Ctrl pour tes autres barres.',
-    note: 'Chaque bouton appuie sur la touche de la case, comme au clavier. Les touches 1 à 0 sont celles d\'origine de la barre principale ; Maj+ et Ctrl+ sont les raccourcis habituels des autres barres : vérifie dans Options > Raccourcis > Barres d\'action. 11 et 12 : ajoute-les si tu les utilises.',
-    buttons: [...WOW_BAR('', ''), ...WOW_BAR('Shift+', 'Maj'), ...WOW_BAR('Ctrl+', 'Ctrl')] },
-  { id: 'wow-macros', groups: [['Outils', 8], ['Groupe et raid', 8], ['Émotes', 6]], name: 'WoW : macros', emoji: '💬', desc: 'Commandes toutes faites : recharger l\'interface, suivre, assister, jet de dé, appel, marqueurs de raid et émotes.',
-    note: 'Chaque bouton tape la commande dans la discussion du jeu (Entrée, commande, Entrée). Ferme la fenêtre de discussion avant. Les commandes anglaises marchent dans toutes les langues. Pour une vraie macro (sorts), crée-la dans le jeu (/macro) et mets-la sur une barre : les boutons « barres d\'action » la lanceront.',
-    buttons: [
-    WM('Recharger l\'interface', '/reload', 'mdi:wow-recharger'), WM('Suivre la cible', '/follow', 'mdi:wow-suivre'), WM('Assister', '/assist', 'mdi:wow-assister'), WM('Descendre de monture', '/dismount', 'mdi:wow-monture'),
-    WM('Attaque auto', '/startattack', 'mdi:wow-epee'), WM('Arrêter l\'attaque', '/stopattack', 'mdi:wow-epee#B0BEC5'), WM('Retirer la cible', '/cleartarget', 'mdi:wow-cible#B0BEC5'), WM('Journal de combat', '/combatlog', 'mdi:wow-journal'),
-    WM('Jet de dé (1-100)', '/roll', 'mdi:wow-de'), WM('Appel (prêt ?)', '/readycheck', 'mdi:wow-appel'), WM('Focus : définir', '/focus', 'mdi:wow-focus'), WM('Focus : retirer', '/clearfocus', 'mdi:wow-focus#F44336'),
-    WM('Marqueur étoile', '/tm 1', 'text:1#FFD600'), WM('Marqueur cercle', '/tm 2', 'text:2#FF9800'), WM('Marqueur losange', '/tm 3', 'text:3#AB47BC'), WM('Marqueur triangle', '/tm 4', 'text:4#4CAF50'),
-    WM('Marqueur lune', '/tm 5', 'text:5#B0BEC5'), WM('Marqueur carré', '/tm 6', 'text:6#42A5F5'), WM('Marqueur croix', '/tm 7', 'text:7#F44336'), WM('Marqueur crâne', '/tm 8', 'text:8#FFFFFF'),
-    WM('Danser', '/dance', 'mdi:wow-rire'), WM('Saluer', '/wave', 'mdi:wow-salut'), WM('Rire', '/laugh', 'mdi:wow-rire'), WM('Remercier', '/thank', 'mdi:wow-merci'),
-    WM('S\'asseoir', '/sit', 'mdi:wow-assis'), WM('Quitter (déconnexion)', '/camp', 'mdi:wow-quitter'),
-  ] },
-].map(p => groupedPage(p, WOW_TOP, 'wow'));
+].map(p => groupedPage(p, { widgets: [], top: [] }, 'wow'));
 
 // ---- Touches réservées : une touche ou combinaison que rien d'autre n'utilise, différente pour chaque bouton ----
 // F13 à F24 n'existent sur aucun clavier : aucun jeu ni aucune appli ne s'en sert. Quand elles sont toutes prises, on passe
@@ -2572,7 +2550,7 @@ function addRootPage(group) {
     presets = PAGE_PRESETS;
     list.append(card('＋', 'Page vide', 'Tu la remplis toi-même.', null, addEmptyPage));
     list.append(card('🏁', 'Sim racing', 'Une page par jeu : Assetto Corsa, ACC, EVO, F1, Automobilista 2, camion (ETS2 / ATS), Bus Simulator 21 et 27.', `${SIM_PRESETS.length} jeux · vraies icônes de tableau de bord`, () => addRootPage('sim')));
-    list.append(card('🐉', 'World of Warcraft', 'Panneaux (sacs, carte, quêtes, talents…), cibles, barres d\'action et macros.', `${WOW_PRESETS.length} pages · touches par défaut du jeu`, () => addRootPage('wow')));
+    list.append(card('🐉', 'World of Warcraft', 'Sacs, personnage, talents, carte, quêtes, social, menu et macros sur une seule page.', 'une page · touches par défaut et icônes du jeu', () => addRootPage('wow')));
     for (const p of presets) list.append(presetCard(p));
     list.append(card('📂', 'Importer un fichier…', 'Une page partagée (fichier .keyradeck), d\'un ami ou de la communauté.', null, () => $('#pageFile').click()));
     // Pages rangées dans Documents\KeyraDeck\Pages (exportées ici ou téléchargées) : un clic pour les ajouter.
