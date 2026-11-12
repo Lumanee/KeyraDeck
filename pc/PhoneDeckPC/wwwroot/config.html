@@ -2210,6 +2210,20 @@ const R = (label, keys, icon, toggle) => ({ label, icon, action: { type: 'keys',
 const E = (label, _k, icon, toggle) => { const b = R(label, 'Z', icon, toggle); b.action.gameKeys = ''; return b; };
 const SIM_TOP = { widgets: [{ type: 'perfapp', model: 'perfapp-4x1', slot: 0, w: 4, h: 1 }], top: [DSC('Micro Discord', 'mute', 'builtin:mic'), DSC('Sourdine Discord', 'deafen', 'builtin:headphones')] };
 const SIM_CHECK = 'Touches d\'origine du jeu, à vérifier dans ses réglages. Si un bouton ne fait rien : dans les commandes du jeu, choisis l\'action puis appuie sur le bouton du téléphone, le jeu retient la touche.';
+// Page de 4 colonnes : un éventuel haut de page (widget, boutons), puis chaque groupe de boutons en grille séparée de la même taille
+// que la page (simple regroupement avec un titre, boutons aussi gros que ceux de la page), puis les boutons du bas.
+function groupedPage(p, top, group) {
+  const grids = [], buttons = [];
+  let at = 0, row = 1;
+  for (const [name, n] of p.groups) {
+    const rows = Math.ceil(n / 4), id = 'g' + grids.length;
+    grids.push({ id, name, slot: row * 4, w: 4, h: rows, columns: 4, rows });
+    p.buttons.slice(at, at + n).forEach((b, i) => buttons.push({ ...b, grid: id, slot: i }));
+    at += n; row += rows;
+  }
+  top.top.forEach((b, i) => buttons.push({ ...b, slot: row * 4 + i }));
+  return { ...p, group, columns: 4, rows: row + 1, grids, widgets: top.widgets, buttons };
+}
 const SIM_PRESETS = [
   { id: 'sim-ac', groups: [['Aides', 6], ['Vues', 6], ['Session', 6]], name: 'Assetto Corsa', emoji: '🏎', desc: 'Aides (TC, ABS), caméras, replay, rétro virtuel, force du volant.',
     note: 'Assetto Corsa d\'origine n\'a pas de touche pour les phares, le klaxon ou le limiteur (Content Manager / Custom Shaders Patch en ajoutent : règle-les puis modifie les boutons). « TC − » et « ABS − » (Ctrl+Maj) sont des raccourcis non officiels.',
@@ -2294,20 +2308,48 @@ const SIM_PRESETS = [
     R('Clignotant gauche', 'Q', 'mdi:clignotant-gauche'), R('Clignotant droit', 'E', 'mdi:clignotant-droit'), R('Warning', '7', 'mdi:warning', true), R('Feux', 'L', 'mdi:feux'), R('Pleins phares', 'K', 'mdi:pleins-phares'), R('Essuie-glace', 'B', 'mdi:essuie-glace'),
     R('Klaxon', 'H', 'mdi:klaxon'), R('Moteur', 'U', 'mdi:moteur'), R('Contact', 'I', 'mdi:contact'), R('Limiteur', 'Z', 'mdi:limiteur', true), R('Ralentisseur', 'M', 'mdi:ralentisseur'), R('Rétro intérieur', 'X', 'mdi:retroviseur'),
   ] },
-].map(p => {
-  // Page de 4 colonnes : performances en haut, puis chaque groupe de boutons en grille séparée de la même taille que
-  // la page (simple regroupement avec un titre, boutons aussi gros que ceux de la page), et micro / sourdine Discord en bas.
-  const grids = [], buttons = [];
-  let at = 0, row = 1;
-  for (const [name, n] of p.groups) {
-    const rows = Math.ceil(n / 4), id = 'g' + grids.length;
-    grids.push({ id, name, slot: row * 4, w: 4, h: rows, columns: 4, rows });
-    p.buttons.slice(at, at + n).forEach((b, i) => buttons.push({ ...b, grid: id, slot: i }));
-    at += n; row += rows;
-  }
-  SIM_TOP.top.forEach((b, i) => buttons.push({ ...b, slot: row * 4 + i }));
-  return { ...p, group: 'sim', columns: 4, rows: row + 1, grids, widgets: SIM_TOP.widgets, buttons };
-});
+].map(p => groupedPage(p, SIM_TOP, 'sim'));
+
+// ---- World of Warcraft : pages de raccourcis (touches par défaut du jeu) et de macros ----
+// Touches = celles par défaut de la version actuelle du jeu (identiques en AZERTY : WoW suit la lettre). Si tu les as changées dans
+// Options > Raccourcis, modifie le bouton. Les macros sont des commandes de discussion (/reload, /follow…) tapées dans le jeu.
+const W = (label, keys, icon, toggle) => R(label, keys, icon, toggle);
+// Commande de discussion : Entrée ouvre la fenêtre de discussion, la commande est tapée, Entrée l'envoie.
+const WM = (label, cmd, icon) => ({ label, icon: icon || 'mdi:reglages', action: { type: 'text', text: '\n' + cmd + '\n' } });
+const WOW_PROCS = ['wow', 'wowclassic', 'wowb', 'wowt'];
+const WOW_TOP = { widgets: [], top: [DSC('Micro Discord', 'mute', 'builtin:mic'), DSC('Sourdine Discord', 'deafen', 'builtin:headphones')] };
+const WOW_BAR = (mod, name) => ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map(n => W(mod ? name + ' ' + n : n, mod + n, 'text:' + n + (mod ? (mod === 'Shift+' ? '#42A5F5' : '#FFB300') : '#FFFFFF')));
+const WOW_PRESETS = [
+  { id: 'wow-panels', groups: [['Personnage', 5], ['Monde', 6], ['Social et groupe', 4], ['Interface', 5]], name: 'WoW : panneaux', emoji: '🐉', desc: 'Sacs, personnage, talents, sorts, quêtes, carte, succès, guilde, groupe, JcJ, menu et interface.',
+    note: 'Touches par défaut de World of Warcraft (retail). Les pages WoW s\'affichent toutes seules quand le jeu est au premier plan (seule cette page est liée au jeu : les autres, tu les ouvres en glissant).',
+    procs: WOW_PROCS, buttons: [
+    W('Sacs', 'B', 'text:B#FFB300'), W('Personnage', 'C', 'mdi:pilotes'), W('Talents', 'N', 'mdi:eclair'), W('Livre de sorts', 'P', 'mdi:sauvegarde'), W('Métiers', 'K', 'mdi:reglages-voiture'),
+    W('Carte du monde', 'M', 'mdi:carte'), W('Journal de quêtes', 'L', 'mdi:ticket'), W('Succès', 'Y', 'text:★#FFB300'), W('Collections (montures…)', 'Shift+P', 'mdi:voiture'), W('Journal de l\'aventure', 'Shift+J', 'mdi:tableau-de-bord'), W('Recherche de groupe', 'I', 'mdi:ecrans'),
+    W('Amis / social', 'O', 'mdi:pilotes#42A5F5'), W('Guilde et communautés', 'J', 'mdi:radio'), W('JcJ', 'H', 'mdi:degats#F44336'), W('Discussion', 'Enter', 'mdi:micro'),
+    W('Menu du jeu', 'Esc', 'mdi:pause'), W('Masquer l\'interface', 'Alt+Z', 'mdi:video', true), W('Plaques ennemies', 'V', 'text:V#F44336', true), W('Plaques alliées', 'Shift+V', 'text:V#4CAF50', true), W('Capture d\'écran', 'PrintScreen', 'mdi:camera'),
+  ] },
+  { id: 'wow-combat', groups: [['Cibles', 9], ['Déplacements', 3]], name: 'WoW : cibles et combat', emoji: '⚔️', desc: 'Ennemi suivant / précédent, moi-même, membres du groupe, dernière cible, assister, saut, course automatique.',
+    note: 'Touches par défaut : Tab / Maj+Tab (ennemis), F1 (moi), F2 à F5 (groupe), G (dernière cible), F (assister), Espace, Verr. num (course auto). Tes sorts restent sur la page « barres d\'action ».',
+    buttons: [
+    W('Ennemi suivant', 'Tab', 'mdi:droite#F44336'), W('Ennemi précédent', 'Shift+Tab', 'mdi:gauche#F44336'), W('Dernière cible', 'G', 'mdi:retour-arriere'), W('Assister', 'F', 'mdi:trajectoire'),
+    W('Moi-même', 'F1', 'text:Moi#4CAF50'), W('Groupe 1', 'F2', 'text:1#4CAF50'), W('Groupe 2', 'F3', 'text:2#4CAF50'), W('Groupe 3', 'F4', 'text:3#4CAF50'),
+    W('Groupe 4', 'F5', 'text:4#4CAF50'), W('Sauter', 'Space', 'mdi:haut'), W('Course automatique', 'NumLock', 'mdi:droite#42A5F5', true), W('Marcher / courir', 'Divide', 'mdi:chrono'),
+  ] },
+  { id: 'wow-bars', groups: [['Barre d\'action 1 (touches 1 à 0)', 10], ['Barre avec Maj+', 10], ['Barre avec Ctrl+', 10]], name: 'WoW : barres d\'action', emoji: '🔢', desc: 'Les touches 1 à 0 de ta barre principale, plus les mêmes avec Maj et Ctrl pour tes autres barres.',
+    note: 'Chaque bouton appuie sur la touche de la case, comme au clavier. Les touches 1 à 0 sont celles d\'origine de la barre principale ; Maj+ et Ctrl+ sont les raccourcis habituels des autres barres : vérifie dans Options > Raccourcis > Barres d\'action. 11 et 12 : ajoute-les si tu les utilises.',
+    buttons: [...WOW_BAR('', ''), ...WOW_BAR('Shift+', 'Maj'), ...WOW_BAR('Ctrl+', 'Ctrl')] },
+  { id: 'wow-macros', groups: [['Outils', 8], ['Groupe et raid', 8], ['Émotes', 6]], name: 'WoW : macros', emoji: '💬', desc: 'Commandes toutes faites : recharger l\'interface, suivre, assister, jet de dé, appel, marqueurs de raid et émotes.',
+    note: 'Chaque bouton tape la commande dans la discussion du jeu (Entrée, commande, Entrée). Ferme la fenêtre de discussion avant. Les commandes anglaises marchent dans toutes les langues. Pour une vraie macro (sorts), crée-la dans le jeu (/macro) et mets-la sur une barre : les boutons « barres d\'action » la lanceront.',
+    buttons: [
+    WM('Recharger l\'interface', '/reload', 'mdi:recommencer'), WM('Suivre la cible', '/follow', 'mdi:droite#42A5F5'), WM('Assister', '/assist', 'mdi:trajectoire'), WM('Descendre de monture', '/dismount', 'mdi:bas'),
+    WM('Attaque auto', '/startattack', 'mdi:degats#F44336'), WM('Arrêter l\'attaque', '/stopattack', 'mdi:pause'), WM('Retirer la cible', '/cleartarget', 'mdi:retour-arriere'), WM('Journal de combat', '/combatlog', 'mdi:telemetrie'),
+    WM('Jet de dé (1-100)', '/roll', 'mdi:turbo'), WM('Appel (prêt ?)', '/readycheck', 'mdi:ticket'), WM('Focus : définir', '/focus', 'mdi:camera'), WM('Focus : retirer', '/clearfocus', 'mdi:camera#F44336'),
+    WM('Marqueur étoile', '/tm 1', 'text:1#FFD600'), WM('Marqueur cercle', '/tm 2', 'text:2#FF9800'), WM('Marqueur losange', '/tm 3', 'text:3#AB47BC'), WM('Marqueur triangle', '/tm 4', 'text:4#4CAF50'),
+    WM('Marqueur lune', '/tm 5', 'text:5#B0BEC5'), WM('Marqueur carré', '/tm 6', 'text:6#42A5F5'), WM('Marqueur croix', '/tm 7', 'text:7#F44336'), WM('Marqueur crâne', '/tm 8', 'text:8#FFFFFF'),
+    WM('Danser', '/dance', 'mdi:radio'), WM('Saluer', '/wave', 'mdi:haut'), WM('Rire', '/laugh', 'mdi:micro'), WM('Remercier', '/thank', 'mdi:droite'),
+    WM('S\'asseoir', '/sit', 'mdi:siege'), WM('Quitter (déconnexion)', '/camp', 'mdi:porte#F44336'),
+  ] },
+].map(p => groupedPage(p, WOW_TOP, 'wow'));
 
 // ---- Touches réservées : une touche ou combinaison que rien d'autre n'utilise, différente pour chaque bouton ----
 // F13 à F24 n'existent sur aucun clavier : aucun jeu ni aucune appli ne s'en sert. Quand elles sont toutes prises, on passe
@@ -2507,10 +2549,15 @@ function addRootPage(group) {
       el('span', {}, el('b', {}, 'Touches réservées KeyraDeck'), ' : chaque bouton envoie sa propre touche que rien d\'autre n\'utilise (F13 à F24, puis Ctrl / Maj / Alt + F13…). Tu les associes une fois dans le jeu, sans conflit avec ton clavier. Décoché : les touches d\'origine du jeu.')));
     list.append(card('←', 'Retour', 'Toutes les pages toutes prêtes.', null, () => addRootPage()));
     for (const p of presets) list.append(presetCard(p));
+  } else if (group === 'wow') {
+    presets = WOW_PRESETS;
+    list.append(card('←', 'Retour', 'Toutes les pages toutes prêtes.', null, () => addRootPage()));
+    for (const p of presets) list.append(presetCard(p));
   } else {
     presets = PAGE_PRESETS;
     list.append(card('＋', 'Page vide', 'Tu la remplis toi-même.', null, addEmptyPage));
     list.append(card('🏁', 'Sim racing', 'Une page par jeu : Assetto Corsa, ACC, EVO, F1, Automobilista 2, camion (ETS2 / ATS), Bus Simulator 21 et 27.', `${SIM_PRESETS.length} jeux · vraies icônes de tableau de bord`, () => addRootPage('sim')));
+    list.append(card('🐉', 'World of Warcraft', 'Panneaux (sacs, carte, quêtes, talents…), cibles, barres d\'action et macros.', `${WOW_PRESETS.length} pages · touches par défaut du jeu`, () => addRootPage('wow')));
     for (const p of presets) list.append(presetCard(p));
     list.append(card('📂', 'Importer un fichier…', 'Une page partagée (fichier .keyradeck), d\'un ami ou de la communauté.', null, () => $('#pageFile').click()));
     // Pages rangées dans Documents\KeyraDeck\Pages (exportées ici ou téléchargées) : un clic pour les ajouter.
