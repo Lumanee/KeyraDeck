@@ -39,6 +39,8 @@ public class Backups
     public string BackupsDir { get; }
     public string ImagesDir { get; }
     public string PagesDir { get; }
+    /// <summary>Bibliothèque d'images (packs d'icônes de l'utilisateur).</summary>
+    public string IconLibDir { get; }
 
     public Backups(ConfigStore store)
     {
@@ -49,6 +51,7 @@ public class Backups
         BackupsDir = Path.Combine(Root, "Sauvegardes");
         ImagesDir = Path.Combine(BackupsDir, "Images");
         PagesDir = Path.Combine(Root, "Pages");
+        IconLibDir = Path.Combine(Root, "Icones");
         try
         {
             Directory.CreateDirectory(ImagesDir);
